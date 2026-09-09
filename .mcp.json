@@ -1,0 +1,31 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "astro-docs": {
+      "type": "http",
+      "url": "https://mcp.docs.astro.build/mcp"
+    },
+    "svelte": {
+      "type": "http",
+      "url": "https://mcp.svelte.dev/mcp"
+    },
+    "cloudflare-docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+    "context-mode": {
+      "command": "context-mode"
+    },
+    "semble": {
+      "command": "uvx",
+      "args": ["--from", "semble[mcp]", "semble"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["--no-install", "@playwright/mcp", "--browser", "chromium", "--headless", "--no-sandbox", "--output-dir", ".playwright-mcp"]
+    }
+  }
+}

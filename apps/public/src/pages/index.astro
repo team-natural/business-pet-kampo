@@ -1,0 +1,10 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Counter from "../lib/components/counter.svelte";
+---
+
+<Layout title="apps/public">
+  <img src="/logo.svg" alt="ロゴ" width="211" height="55" />
+  <h1>apps/public</h1>
+  <Counter client:visible />
+</Layout>

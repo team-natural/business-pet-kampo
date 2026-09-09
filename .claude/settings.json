@@ -1,0 +1,63 @@
+{
+  "enabledMcpjsonServers": [
+    "astro-docs",
+    "cloudflare-docs",
+    "context-mode",
+    "context7",
+    "playwright",
+    "semble",
+    "svelte"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(python3 *)",
+      "Read(//workspace/**)",
+      "mcp__astro-docs",
+      "mcp__cloudflare-docs",
+      "mcp__context7",
+      "mcp__playwright",
+      "mcp__svelte"
+    ],
+    "ask": [
+      "mcp__playwright__browser_run_code_unsafe",
+      "mcp__playwright__browser_file_upload",
+      "mcp__playwright__browser_network_request"
+    ],
+    "deny": [
+      "Read(//workspace/**/.env)",
+      "Read(//workspace/**/.env.*)",
+      "Read(//workspace/**/.dev.vars)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__playwright__browser_take_screenshot",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-screenshot-filename.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-and-check.sh\"",
+            "timeout": 120,
+            "statusMessage": "Auto-formatting edited file (Prettier → ESLint → typecheck)..."
+          }
+        ]
+      }
+    ]
+  }
+}

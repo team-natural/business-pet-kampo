@@ -1,0 +1,49 @@
+# --- OS ---
+.DS_Store
+Desktop.ini
+ehthumbs.db
+Thumbs.db
+
+# --- Editor / IDE ---
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swo
+*.swp
+
+# --- Node.js / Frontend ---
+.astro/
+build/
+dist/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Cloudflare / Wrangler ---
+.wrangler/
+.wrangler-state/
+worker-configuration.d.ts
+
+# --- pnpm / Turborepo ---
+.pnpm-store/
+.turbo/
+
+# --- Playwright ---
+.playwright-mcp/
+test-results/
+
+# --- Secrets / local env ---
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.dev.vars.example
+!.devcontainer/.env
+
+# --- Claude Code ---
+settings.local.json
+
+# --- Others ---
+*.log
