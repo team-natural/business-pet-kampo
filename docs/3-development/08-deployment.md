@@ -4,21 +4,22 @@ title: デプロイ定義・検証完了ゲート
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-08-18
+last-updated: 2026-09-09
 related-docs:
   - DEV-01: 技術スタック決定書（インフラ選定の正本）
   - DEV-03: 品質方針
+  - DEV-06: コンテンツの置き場所（§1-1。コンテンツ更新にデプロイが必要な範囲）
   - OPS-02: 運用ハンドブック（リリース実作業・ロールバック実行手順）
   - GOV-01: 承認記録
 ---
 
-# 08-deployment.md — デプロイ定義・検証完了ゲートテンプレート
+# 08-deployment.md — デプロイ定義・検証完了ゲート
 
 ## このセクションの目的
 
 リリース方式、ロールバック判断基準、環境別ゲート、検証完了ゲートを定義する。**本書は判断基準の定義であり、実作業手順（コマンド・当日のチェックリスト）は OPS-02 に委譲する**。
 
-インフラは DEV-01 §1 の通り Cloudflare Workers を採用している。ホスティング・スケーリング・エッジでの実行は基盤（Cloudflare）に委ねられるが、Laravel Cloud のような git push 起点の自動ビルド・デプロイはこのテンプレートにまだ組み込まれていない — デプロイ実行（`wrangler deploy`）をどう起動するか（CI 経由か手動か）は §3 の通り **Open**。本書で定義するのは「基盤に何を設定するか」と「何をもってリリース可とするか」のみ。
+インフラは DEV-01 §1 の通り Cloudflare Workers を採用している。ホスティング・スケーリング・エッジでの実行は基盤（Cloudflare）に委ねられる。デプロイは Cloudflare Workers Builds（GitHub 連携）が担う（§3）。本書で定義するのは「基盤に何を設定するか」と「何をもってリリース可とするか」。
 
 ## 0-H. ハイブリッド編集ガイド（要点）
 
@@ -29,7 +30,7 @@ related-docs:
 
 ## 1. デプロイ基盤（Cloudflare Workers）
 
-基盤が提供するもの（本テンプレでは個別に設計・運用しない）:
+基盤が提供するもの（本プロジェクトでは個別に設計・運用しない）:
 
 | 項目 | 提供方法 |
 | --- | --- |
@@ -43,7 +44,20 @@ related-docs:
 | オブジェクトストレージ | Cloudflare R2（`env.BUCKET`、テンプレート標準バインディング） |
 | メトリクス・ログ | Cloudflare Workers Logs / Analytics（標準、追加設定不要）。エラー監視が必要になった時点で `@sentry/cloudflare`（Workers 専用 SDK）を追加（DEV-01 §2） |
 
-このテンプレートは **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**構成で、`apps/public`（公開サイト）と `apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイする（`/admin` パスへの統合ではない。DEV-01 §1）。D1 データベースと R2 バケットは 1 サービスにつき 1 つを両アプリで共有する。作成（`wrangler d1 create` / `wrangler r2 bucket create`）はどちらか一方のアプリの `wrangler.jsonc` から一度だけ行い、生成された `database_id` / `bucket_name` をもう一方の `wrangler.jsonc` にそのままコピーする。D1 マイグレーション（`packages/schema/migrations/` ディレクトリ、`wrangler d1 migrations apply`）は**`apps/admin` からのみ**実行する（同一リポジトリ内の app 単位の所有権。`CLAUDE.md` D1/R2 バインディングルール参照）。
+本プロジェクトは **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**構成で、`apps/public`（公開サイト + Member マイページ）と `apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイする（`/admin` パスへの統合ではない。GOV-01 D-001）。D1 データベースと R2 バケットは 1 サービスにつき 1 つを両アプリで共有する。作成（`wrangler d1 create` / `wrangler r2 bucket create`）はどちらか一方のアプリの `wrangler.jsonc` から一度だけ行い、生成された `database_id` / `bucket_name` をもう一方の `wrangler.jsonc` にそのままコピーする。D1 マイグレーション（`packages/schema/migrations/` ディレクトリ、`wrangler d1 migrations apply`）は**`apps/admin` からのみ**実行する（同一リポジトリ内の app 単位の所有権。`CLAUDE.md` D1/R2 バインディングルール参照）。
+
+> `database_id` は両アプリの `wrangler.jsonc` で**完全に一致していなければならない**。ローカルの sqlite ファイル名のキーにもなるため、食い違うと各アプリが別々のデータベースを持ち、エラーも出ないまま「管理画面で登録した商品が公開側に出ない」症状になる（`CLAUDE.md`）。
+
+### 1-1. コンテンツ更新とデプロイの関係
+
+本プロジェクトは、公開コンテンツの一部（商品選び診断のルール・FAQ・法務ページ）を D1 ではなくリポジトリ側に置く（DEV-06 §1-1）。したがって **これらの更新は「デプロイ」である**。
+
+| 更新対象 | 反映方法 | リードタイム |
+| --- | --- | --- |
+| 商品カタログ・お知らせ | 管理画面から保存（即時） | 即時 |
+| 診断ルール・FAQ・法務ページ | PR → マージ → Workers Builds が自動デプロイ | §3 のパイプライン所要時間 |
+
+運営から文面修正の依頼を受けた場合、作業単位は「PR 作成 → レビュー → マージ → 反映確認」までを含む（PRD-03 §6-3、OPS-02）。規約文面の変更は法務レビュー済みの PR のみマージする（DEV-03 §4）。
 
 ---
 
@@ -57,15 +71,15 @@ PRD-02 §3 の 3 面構成に対応する。環境分離は `apps/public`/`apps/
 | staging | Cloudflare Workers（各アプリの `wrangler.jsonc` の environments、テスト用 D1 / R2） | `dev` ブランチへの push（Cloudflare Workers Builds が `wrangler deploy --env staging` を実行 — §3） |
 | production | Cloudflare Workers（本番 D1 / R2） | `main` ブランチへの push（同上、`wrangler deploy`） |
 
-`dev` はこのテンプレートの既定ブランチ（統合ブランチ）。`main`（本番）はテンプレート自体がデプロイされないため未作成であり、案件の bootstrap 時に作成する（README のチェックリスト参照）。
+`dev` が統合ブランチ、`main` が本番。
 
-変更されたアプリのみをデプロイするパスフィルタは、Workers Builds の **Build Watch Paths**（Worker ごとに include/exclude を指定）で実現する。`apps/public` の変更で `apps/admin` を再デプロイしない。
+変更されたアプリのみをデプロイするパスフィルタは、Workers Builds の **Build Watch Paths**（Worker ごとに include/exclude を指定）で実現する。`apps/public` の変更で `apps/admin` を再デプロイしない。ただし `packages/**`（`schema` / `server-kit` / `content`）は両方の Worker が参照するため、**両方の Watch Paths に含める**。`packages/content` の更新（診断ルール）は `apps/public` のみに影響するが、Watch Paths を細分化すると設定が壊れやすいため `packages/**` 一括で許容する。
 
 ---
 
 ## 3. CI/CD パイプライン
 
-CI（検査）と CD（デプロイ）で基盤を分ける（`Confirmed` — DEV-08 §3）。
+CI（検査）と CD（デプロイ）で基盤を分ける（`Confirmed` — GOV-01 D-002）。
 
 | 役割 | 基盤 | 実体 |
 | --- | --- | --- |
@@ -107,9 +121,13 @@ Worker を 2 つ作成し、どちらも同じリポジトリに接続する。�
 
 **D1 マイグレーションは Workers Builds が自動では実行しない。** 実行されるのは build と deploy のコマンドのみのため、上表のとおり `apps/admin` 側の Deploy command に前置する。これを怠ると、新しいカラムを前提としたコードが未適用の DB に対してデプロイされる。`wrangler d1 migrations apply` は適用済みを記録して冪等なので再実行は安全。`apps/public` 側には設定しない（マイグレーションは `apps/admin` からのみ — DEV-01 §1、`CLAUDE.md`）。API トークンには D1 の編集権限が必要。
 
+**両アプリは同時にデプロイされない。** 片方だけが新しい状態が必ず発生するため、共有する `packages/*` の変更は前方互換を保つ（API のバージョニングもこのためにある — DEV-04 §9）。特に `packages/schema` のカラム削除は、両アプリのデプロイ完了を待ってから別リリースで行う（§4）。
+
+ビルドには `NODE_OPTIONS=--dns-result-order=ipv4first` が必要（各アプリの `build` スクリプトに設定済み）。Node は `localhost` を `::1` に解決するが、プリレンダー時の fetch は `127.0.0.1` で待ち受けるため、これが無いとビルドが失敗する。
+
 破壊的変更を含むマイグレーションは自動適用の対象外とし、手動で段階適用する（§7）。デプロイ後の Health check（§9）と通知は OPS-02 の監視系に委ねる。
 
-Cloudflare Workers のデプロイはエッジでアトミックに切り替わるため、Laravel Cloud のような「無停止デプロイ」のための特別な仕組み（グレースフルな再起動、ロングランニングプロセスのドレイン等）は不要。
+Cloudflare Workers のデプロイはエッジでアトミックに切り替わるため、無停止デプロイのための特別な仕組み（グレースフルな再起動、ロングランニングプロセスのドレイン等）は不要。
 
 ---
 
@@ -119,6 +137,7 @@ Cloudflare Workers のデプロイはエッジでアトミックに切り替わ�
 | --- | --- |
 | 本番配備 | Cloudflare Workers の標準デプロイ（アトミック・即時反映。ドレインすべき常駐プロセスが無いため、無停止性は基盤の性質として担保される） |
 | DB 変更 | 前方互換優先（カラム追加 → コード反映 → カラム使用）。D1 マイグレーションは forward-only（自動 `down()` はない）。破壊的変更は分割リリースとし、問題が起きた場合は新しい forward migration で修正する |
+| 2 アプリ間の順序 | スキーマ変更を伴うリリースは「migration 適用（admin 側 deploy）→ public 側 deploy」の順になる。public 側が古いコードで新しいスキーマを読む状態を許容できる変更に限る（カラム追加は可、リネーム・削除は不可） |
 | 機能フラグ | **Open**（案件実装時に確定）。暫定: 環境変数（`wrangler.jsonc` の `vars`）による ON-OFF フラグで開始 [Assumed]。動的切替が必要になったら KV フラグを検討 |
 | 大規模変更 | 機能フラグで限定公開 → 全公開（機能フラグ方式決定後に運用開始） |
 
@@ -131,7 +150,8 @@ Cloudflare Workers のデプロイはエッジでアトミックに切り替わ�
 | 区分 | 条件 | 対応 |
 | --- | --- | --- |
 | 即時ロールバック | エラー率 > 5% / 5 分連続 | 前デプロイメントへ戻す（Wrangler の Deployments 履歴から直前ビルドを再デプロイ） |
-| 即時ロールバック | 認証・決済の致命的不具合 | 同上 |
+| 即時ロールバック | 認証・決済の致命的不具合（発注金額・卸価格の誤計算等） | 同上 |
+| 即時ロールバック | 卸価格が未承認の利用者に表示される | 同上（DEV-03 §1 の「妥協しない最低基準」） |
 | 計画ロールバック | パフォーマンス悪化（p95 がベースラインの 2 倍） | 監視後判断 |
 | DB 変更 | マイグレーション適用後に問題が判明 | D1 マイグレーションは forward-only のため DB 自体は戻さず、修正用の新しい forward migration を書いて対応する。Worker のコードのみ前デプロイに戻すことは可能 |
 
@@ -143,15 +163,16 @@ Cloudflare Workers のデプロイはエッジでアトミックに切り替わ�
 
 ### 6-1. staging への昇格
 
-- 全テスト Pass（テスト基盤導入後は CI グリーン — DEV-03 §3）
+- 全テスト Pass（CI グリーン — DEV-03 §3）
 - 主要画面の手動確認
 
 ### 6-2. staging → production への昇格
 
 - staging で 24 時間以上の問題なし
-- セキュリティレビュー完了（DEV-02 §11）
+- セキュリティレビュー完了（DEV-02 §10）
 - リリースノート作成
 - D1 マイグレーションが forward-only の制約内で安全に適用できることを確認（`apps/admin` 側で事前検証）
+- 規約文面の変更を含む場合、法務レビューと `agreed_terms_version` 定数の更新が済んでいること（DEV-06 §1-1）
 
 破壊的変更（API バージョン変更等）は GOV-01 で事前承認必須。
 
@@ -166,10 +187,12 @@ AI コーディング → 人間レビュー → 自動テスト の後、**何�
 | カテゴリ | 確認項目 | 判定基準 |
 | --- | --- | --- |
 | 仕様適合 | PRD-03 の受け入れ条件を全件テスト | 全件グリーン |
-| API 仕様 | DEV-04 のエンドポイント定義と実装の一致 | 差異ゼロ |
-| 権限境界 | `editor` ロールから `admin` 専用操作へのアクセスが拒否される | テストで証明 |
+| API 仕様 | DEV-04 のエンドポイント定義と実装の一致（アプリの割り当てを含む — DEV-04 §1-1） | 差異ゼロ |
+| 権限境界 | 別 Organization（取引先）・未承認利用者からのアクセスが拒否される | テストで証明 |
+| 決済整合性 | カード決済・銀行振込の状態遷移が正しいこと | テストで証明（DEV-09）|
+| 診断 | 推奨商品が公開済み・取扱中の商品にのみ解決される | テストで証明（DEV-03 §3-5）|
 | セキュリティ | 認証なし / 権限外 / 不正入力が適切に処理される | 手動 + SAST |
-| 自動テスト | DEV-03 のカバレッジ目標達成（Vitest） | CI 計測値（CI 導入後。それまではローカル計測） |
+| 自動テスト | DEV-03 §3-5 の「必ず検証すること」を全て満たす（Vitest / Playwright） | CI グリーン |
 
 ### 7-2. MVP 全体の完了条件
 
@@ -190,13 +213,15 @@ flowchart TD
 
 - [ ] MVP 全機能（PRD-03）が動作確認済み
 - [ ] 受け入れ条件が自動テストで全件証明
-- [ ] E2E テストが主要導線を通過
+- [ ] E2E テストが主要導線（新規取引申請〜承認、診断、カート〜発注完了）を通過
 - [ ] 負荷テストで NFR（DEV-01 §6）を満たす
+- [ ] Content Collections から生成する個別ページが 200 を返す（`prerender` 忘れの確認 — DEV-06 §1-1）
 
 **セキュリティ・権限**
 
 - [ ] 認証なしでの操作が全て拒否される
-- [ ] ロール別権限（DEV-02 §2-3）が正しく動作
+- [ ] 権限境界（DEV-02 §2-3）が正しく動作（Organization スコープ）
+- [ ] セッション TTL・ロックアウト閾値の env が本番に設定されている（未設定なら起動時に例外 — DEV-02 §7）
 - [ ] SAST / 依存スキャンで High 以上 0 件
 
 **運用準備**
@@ -204,6 +229,8 @@ flowchart TD
 - [ ] ログ・アラートの本番設定確認（OPS-02）
 - [ ] ロールバック手順の実行方法確認（OPS-02）
 - [ ] リリースノート準備済み
+- [ ] 初期マスタ（商品カテゴリー・気になる点分類）の投入済み（DEV-07 §9 のシーダー）
+- [ ] 初期 AdminUser の作成済み（DEV-07 §9）
 
 **承認**
 
@@ -213,7 +240,7 @@ flowchart TD
 
 ## 8. 環境変数（主要）
 
-Cloudflare のバインディング（D1 / R2）は `wrangler.jsonc` で設定するため本節には記載しない。本節に記載するのは、非機密の環境変数（`wrangler.jsonc` の `vars`）と、Workers Secrets（`wrangler secret put`）または `.dev.vars`（ローカルのみ、gitignore 対象）で管理する機密値のみ。
+Cloudflare のバインディング（D1 / R2 / KV）は `wrangler.jsonc` で設定するため本節には記載しない。本節に記載するのは、非機密の環境変数（`wrangler.jsonc` の `vars`）と、Workers Secrets（`wrangler secret put`）または `.dev.vars`（ローカルのみ、gitignore 対象）で管理する機密値のみ。
 
 ```bash
 # アプリケーション（wrangler.jsonc の vars、非機密）
@@ -221,31 +248,28 @@ APP_NAME=
 APP_URL=
 APP_ENV=production
 
-# Cache / Queue（決定後 — DEV-01 §1。Session は D1 で確定のため環境変数不要。
-# バインディング名・接続情報は wrangler.jsonc で管理）
-
-# Mail（Resend — DEV-01 §1。Workers Secrets で管理）
-RESEND_API_KEY=
-MAIL_FROM_ADDRESS=
-MAIL_FROM_NAME=
-
-# 決済（採用時 — DEV-01 §2。Workers Secrets で管理。変数名は DEV-10 §11 と一致させる）
-STRIPE_KEY=
-STRIPE_SECRET=
-STRIPE_WEBHOOK_SECRET=
-
-# エラー監視（採用時 — DEV-01 §2。Workers Secrets で管理）
-SENTRY_DSN=
-
-# AI / LLM（採用時、Vercel AI SDK 経由 — 使用するプロバイダのキーのみ。Workers Secrets で管理）
-ANTHROPIC_API_KEY=
-GEMINI_API_KEY=
-OPENAI_API_KEY=
-
-# 認証（DEV-01 §2、DEV-02 §1-1。JWT は不採用 — セッションは D1 に保存する）
-# セッション ID・招待/パスワードリセットトークンの HMAC 署名鍵（Web Crypto）
+# 認証（DEV-01 §2、DEV-02 §1-1・§7。JWT は不採用 — セッションは D1 に保存する）
+# ↓ 未設定なら例外を投げる（Number(undefined) は NaN で、比較が全て false になり
+#   ロックアウトが黙って無効化されるため。DEV-02 §7、DEV-03 §3-5）
+SESSION_TTL_DAYS=
+AUTH_LOCKOUT_MAX_ATTEMPTS=
+AUTH_LOCKOUT_WINDOW_MINUTES=
+AUTH_LOCKOUT_DURATION_MINUTES=
+# 招待/パスワードリセットトークンの HMAC 署名鍵（Web Crypto。Workers Secrets）
 SESSION_SIGNING_KEY=
+
+# 業務閾値（DEV-05 §10。デプロイなしに調整できるよう vars で持つ）
+MIN_ORDER_AMOUNT=            # 税抜 10000（BIZ-03 §3-1）
+SHIPPING_FEE=                # 税抜 1000（BIZ-03 §3-2）
+FREE_SHIPPING_THRESHOLD=     # 税抜 30000（同上）
+
+# 外部サービス連携のキー（決済 / メール / OAuth / エラー監視）は
+# DEV-10 §10 が正本。同じキーを本書に再掲しない
+#
+# 本プロジェクトは LLM（Vercel AI SDK）を採用しないため、AI 関連の環境変数は持たない（PRD-05）
 ```
+
+> 利用規約の現行バージョンは環境変数ではなくコード内の定数で持つ（規約本文と同じコミットで変わるべき値のため — DEV-06 §1-1）。
 
 ---
 
@@ -258,14 +282,17 @@ SESSION_SIGNING_KEY=
 | `GET /api/v1/health/kv` | KV 接続確認（KV 採用済み — DEV-01 §1） |
 | `GET /api/v1/health/queue` | 不要（Queues 不採用。将来 Queues を採用した場合のみ追加） |
 
-日常の監視・障害対応は OPS-02 を参照。
+両アプリにそれぞれ配置する（別 Worker のため、片方の死活は他方を保証しない）。日常の監視・障害対応は OPS-02 を参照。
 
 ---
 
 ## 10. 記入時チェックポイント
 
 - 環境（local / staging / production）の構成差分が明確か
+- 2 アプリが同時にデプロイされない前提が DB 変更方針に反映されているか（§4）
 - ロールバック条件が即時 / 計画で分かれているか
 - 検証完了ゲートが本番リリース判断に使えるか
 - 環境変数一覧がプロジェクトの採用機能（DEV-01 §2）と整合しているか
+- フェイルクローズが必要な env（§8）が本番設定チェックリストに入っているか
+- コンテンツ更新のうちデプロイを伴うもの（§1-1）が運用側（OPS-02）に伝わっているか
 - 実作業手順が本書に紛れ込んでいないか（OPS-02 へ委譲されているか）

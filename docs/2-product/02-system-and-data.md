@@ -4,112 +4,169 @@ title: システム構成・データモデル
 phase: 2
 status: draft-ai
 owner: Tech Lead / PdM
-last-updated: 2026-08-18
+last-updated: 2026-09-09
 related-docs:
-  - PRD-01: ドメイン概念
+  - PRD-01: ドメインモデル
   - DEV-01: 技術スタック決定書（技術名は本書に書かず DEV-01 を参照）
+  - DEV-06: コンテンツの置き場所の正本（§1-1）
   - DEV-07: 物理 DB 設計
   - DEV-08: デプロイ・環境
   - DEV-10: 統合・外部 API 仕様
 ---
 
-# 02-system-and-data.md — システム構成・データモデルテンプレート
+# 02-system-and-data.md — システム構成・データモデル
 
 ## このセクションの目的
 
-システム全体の**論理構成**と、プロダクトで扱うエンティティの**論理データモデル**を一体で定義する。本テンプレートは 00_README §0-1 の**パターン A**（コンテンツ主体サイト + 軽量な管理画面。単一運営、Astro SSR + Cloudflare Workers/D1/R2）を前提とし、マルチテナント構造・多階層ロール・サブスク課金・チャットのような構成は持たない（マルチテナントについては §2 で扱う）。
+システム全体の**論理構成**と、プロダクトで扱うエンティティの**論理データモデル**を一体で定義する。**本プロジェクト固有のテナント境界の適用範囲（発注関連のみ）** を含む。
 
-- 具体的な技術・ライブラリ・インフラの**選定**は **DEV-01（技術スタック決定書）** に一元化する。本書で技術名に言及する場合は構成の説明に必要な範囲にとどめ、必ず DEV-01 参照を併記する（選定理由・バージョン・代替比較は本書に書かない）。
+- 具体的な技術・ライブラリ・インフラの選定は **DEV-01（技術スタック決定書）** に一元化されており、本書には技術名を必要最小限（構成の説明に必要な範囲）でのみ記載し、DEV-01 参照を併記する。
 - 物理 DB 設計は DEV-07、環境・デプロイは DEV-08、バックアップ・データ保持の運用は OPS-02 に委譲。
+- 本プロジェクトはチャット・AI 機能を採用しないため（PRD-05 参照）、リアルタイム通信・LLM・Vector DB の構成要素は持たない。
 
 ## 0-H. ハイブリッド編集ガイド（要点）
 
 - 推奨モード: Hybrid（AI 整理 + Tech Lead / PdM レビュー）
-- 人間確認必須: 可用性目標、データ保持期間、公開側/管理側の構成分離
+- 人間確認必須: 可用性目標、データ保持期間、テナント境界方針、公開側/管理側の構成分離
 - 詳細は 00_README.md §6〜8
 
 ---
 
 ## 1. システム全体構成（論理）
 
-### 1-1. 構成図（標準テンプレート）
+### 1-1. 構成図
 
-各コンポーネントの実体（採用プロダクト名）は DEV-01 §1・§2 を参照。本テンプレートは単一の Cloudflare Worker（Astro SSR）がアプリケーション層を担い、別建てのアプリケーションサーバー・DB サーバー・キューワーカー群を持たない（`astro build` の出力そのものが Worker になる）。
+各コンポーネントの実体（採用プロダクト名）は DEV-01 §1・§2 を参照。本テンプレートは `apps/public`・`apps/admin` それぞれが独立した Cloudflare Worker（Astro SSR）としてアプリケーション層を担い、別建てのアプリケーションサーバー・DB サーバー・キューワーカー群は持たない（`astro build` の出力そのものが Worker になる）。
 
 ```mermaid
 graph TB
-    User[利用者] --> Edge[Cloudflare Edge<br/>CDN]
-    Edge --> Worker[Cloudflare Worker<br/>Astro SSR（公開側 + 管理側）]
-    Worker --> D1[(Cloudflare D1)]
-    Worker --> R2[(Cloudflare R2)]
-    Worker -.補助.-> KV[(Cloudflare KV<br/>ロックアウトカウンタ等)]
-    Worker --> Mail[メール配信<br/>Inquiry 受付通知等]
-    Worker -.軽量EC採用時.-> Pay[決済]
-    Worker -.AI機能あり時.-> LLM[LLM プロバイダ]
-    Worker -.RAG採用時.-> Vector[(Vector DB)]
+    Guest[一般閲覧者] --> Edge[Cloudflare Edge]
+    Client[承認済み取引先 = Member] --> Edge
+    Admin[運営管理者 = AdminUser] --> Edge
+    Edge --> Public[apps/public Worker<br/>商品カタログ・申請フォーム・診断・Member マイページ]
+    Edge --> AdminApp[apps/admin Worker<br/>管理画面]
+    Public --> D1[(Cloudflare D1)]
+    AdminApp --> D1
+    Public --> R2[(Cloudflare R2<br/>商品画像等)]
+    AdminApp --> R2
+    Content[packages/content<br/>診断ルールの Markdown] -.ビルド時に解決.-> Public
+    Public --> Mail[メール配信<br/>Resend]
+    AdminApp --> Mail
+    Public --> Pay[決済<br/>カード決済・銀行振込]
+    Public --> OAuth[OAuth プロバイダ<br/>LINE / Google / Facebook]
+    Public -.補助.-> KV[(Cloudflare KV<br/>ログイン失敗回数カウンタ等)]
+    AdminApp -.補助.-> KV
 ```
+
+> チャット（WebSocket）・LLM・Vector DB は採用しない（PRD-05 参照）。`packages/content` は実行時のデータストアではなく、`astro build` 時に解決されてバンドルに取り込まれる（DEV-06 §1-1）。したがって診断ルールの読み取りは D1 の行読み取りを発生させない。
 
 ### 1-2. 構成コンポーネントの責務
 
 | コンポーネント | 責務 | 実体 |
 | --- | --- | --- |
-| Cloudflare Worker | 公開側・管理側両方のレンダリングと API 処理（Astro Page/API Route → Service → D1 のレイヤー構造は DEV-01 §5） | DEV-01 §1 |
-| Cloudflare D1 | 全業務データの正本 | DEV-01 §1 |
-| Cloudflare R2 | アップロードファイル（Media）の実体 | DEV-01 §1 |
-| Cloudflare KV | 認証失敗カウンタ・メンテナンスフラグ等の補助ストア（Queues は不採用、定期処理は Cron Triggers。セッションは D1 で確定 — DEV-02 §1-1） | DEV-01 §1 |
-| メール配信 | Inquiry 受付通知等のトランザクションメール | DEV-01 §1 |
-| 決済 | 軽量 EC（Order）採用時のみ | DEV-01 §2 |
-| LLM / Vector DB | AI 機能（PRD-05 採用時のみ） | DEV-01 §2 / PRD-05 |
-
-> チャット・リアルタイム通信（WebSocket / Durable Objects）は本テンプレートの標準構成に含まない（00_README §2-2）。
+| `apps/public` Worker | 商品カタログ・申請フォーム・商品選び診断の公開ページに加え、Member（承認済み取引先の担当者）のログイン・マイページ・卸価格確認・カート・発注を提供 | DEV-01 §1 |
+| `apps/admin` Worker | 商品・メーカー・ブランド管理、新規取引申請の審査、取引先（Organization）管理、受注管理、お知らせ・問い合わせ対応 | DEV-01 §1 |
+| Cloudflare D1 | 全業務データの正本。両 Worker から共有参照 | DEV-01 §1 |
+| Cloudflare R2 | 商品画像・お知らせ添付等の実体。両 Worker から共有参照 | DEV-01 §1 |
+| Cloudflare KV | ログイン失敗回数カウンタ・メンテナンスフラグ等の補助ストア（Queues は不採用、定期処理は Cron Triggers。セッションは D1 で確定） | DEV-01 §1 |
+| `packages/content` | 商品選び診断のルールセット（Markdown）の正本。開発者がコミットで更新し、管理画面・API からの書き込み経路を持たない（PRD-01 §1-5、DEV-06 §1-1） | DEV-01 §1 |
+| メール配信（Resend） | 申請受付・審査結果・発注確認・入金確認等のトランザクションメール | DEV-01 §1 |
+| 決済（Stripe） | カード決済（都度課金）・銀行振込の消込管理 | DEV-01 §2 |
+| OAuth（Arctic） | Member 向け LINE / Google / Facebook ログイン。AdminUser はメール認証のみ（DEV-02 参照） | DEV-01 §2 |
 
 ### 1-3. 公開側・管理側の構成分離
 
-公開側と管理側は **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**を標準とし、`apps/public`（公開サイト）・`apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイする（`/admin` パスへの統合ではない）。D1 データベースと R2 バケットのみを両アプリで共有する（`CLAUDE.md` D1/R2 binding rules、DEV-08 §1。2 リポジトリ構成から移行した経緯は DEV-01 §1）。以下のレイアウト/スタイルシートの分離で切り分ける（実装詳細は `CLAUDE.md` Architecture 節、レイヤー構造は DEV-01 §5）。
+公開側と管理側は **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**を標準とし、`apps/public`（商品カタログ + Member マイページ）・`apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイする。D1 データベースと R2 バケットのみを両アプリで共有する（`CLAUDE.md` D1/R2 binding rules、DEV-08 §1）。
 
-| 側 | アプリ | レイアウト | スタイルシート | 主な内容 |
-| --- | --- | --- | --- | --- |
-| 公開側 | `apps/public` | `src/layouts/Layout.astro` | `src/styles/global.css`（プレーン Tailwind） | Post / Page 等のコンテンツ表示、Inquiry フォーム、軽量 EC（採用時） |
-| 管理側 | `apps/admin` | `src/layouts/Layout.astro` | `src/styles/admin.css`（shadcn-svelte テーマ） | CMS（Post / Page / Media 管理）、Inquiry 対応、AdminUser 管理 |
+商品カタログは、卸価格表示の有無をログイン状態（Member としてログイン済みかつ所属 Organization が `active` か）で出し分ける必要がある（INTAKE §4-2、§2-3 参照）。Astro の `output: 'server'` は静的生成ではなくリクエストごとの動的レンダリングであるため、この出し分けは `apps/public` 内で Astro Page がリクエスト時にセッションを検証して行う（静的サイト生成 + CDN 分離のような構成は不要 — 別途アプリケーションを分離する必要はない）。
 
-両レイアウトは同一の props（`title`, `description`）を取り、`<head>` / favicon / CSS import はレイアウト側にのみ置く。公開専用または管理専用でフォークした場合は不要な側の `apps/*` ディレクトリ一式を削除する（README ブートストラップチェックリスト参照）。管理側を検索エンジンに公開しない場合は `X-Robots-Tag`（`apps/admin/src/middleware.ts`）と CSP（`apps/admin/astro.config.mjs` の `security.csp`）を有効化する（DEV-02 参照）。
+| 側 | アプリ | 主な内容 |
+| --- | --- | --- |
+| 公開側 + 会員側 | `apps/public` | 商品カタログ（一般公開）、新規取引申請フォーム、商品選び診断、Member ログイン・マイページ、卸価格確認・カート・発注・発注履歴、FAQ・法務ページ |
+| 管理側 | `apps/admin` | 商品・メーカー・ブランド管理、新規取引申請の審査、Organization（取引先）管理、受注管理、お知らせ・問い合わせ対応、AdminUser 管理 |
 
-> **エンティティ所有**: AdminUser・活動監査ログ（activity_log）は `apps/admin` の関心事、Member・Order は `apps/public` の関心事になる。Post/Category/Tag/Media/Inquiry は `apps/admin` が書き込み、`apps/public` が読み取る（PRD-01 §1-1 参照）。スキーマ定義自体は `packages/schema` に一元化されており、アプリ間でのコピーずれは発生しない。
+> **エンティティ所有**（PRD-01 §1-1 参照）: AdminUser・商品カタログ（Manufacturer/Brand/ProductCategory/Concern/Product）・Application・News・Inquiry・活動監査ログは `apps/admin` の関心事。Member・Organization・Membership・ShippingAddress・Cart/CartItem・Order/OrderItem/Payment は `apps/public` の関心事。スキーマ定義自体は `packages/schema` に一元化されており、アプリ間でのコピーずれは発生しない。
+
+### 1-4. コンテンツの置き場所（3 層）
+
+公開画面に出るコンテンツは、**運営が管理画面から更新するか** で置き場所が 3 層に分かれる。判断基準と実装方法は DEV-06 §1-1 が正本、エンティティ側の扱いは PRD-01 §1-5 を参照。
+
+| 層 | 対象 | 更新経路 | D1 読み取り |
+| --- | --- | --- | :---: |
+| D1 + 管理画面 | 商品カタログ（商品・メーカー・ブランド・カテゴリー・気になる点・商品画像）、お知らせ | 運営が `apps/admin` から | 発生する |
+| Content Collections（`packages/content`）| 商品選び診断のルールセット | 開発者のコミット + デプロイ | 発生しない（ビルド時解決）|
+| ページ直書き | よくある質問（FAQ）、利用規約、プライバシーポリシー、特定商取引法に基づく表示 | 開発者のコミット + デプロイ | 発生しない |
+
+> 診断ルールの推奨商品は `Product.slug` で D1 の商品を引く。したがって診断結果ページは「ルールは Content Collections から / 商品情報は D1 から」という混在構成になる（DEV-06 §1-1、PRD-03 F-03-10）。
 
 ---
 
-## 2. マルチテナント構造（非対象）
+## 2. テナント境界の実装方針（本プロジェクト固有の適用範囲）
 
-本テンプレは単一運営（自社 1 サイト、または受託先クライアント 1 社 1 サイト）が前提であり、マルチテナント構造（Organization 階層、テナントごとのデータ分離、Organization 切替 UI 等）は不要（00_README §0-1、PRD-01 §6）。`organization_id` のようなテナント列は DB のどのテーブルにも持たせない（DEV-07 参照）。
+### 2-1. データ分離方式
 
-マルチテナント SaaS が真に必要な案件は、そもそも本テンプレートの適用対象外である。00_README §0-1 で適用範囲を確認し、別テンプレートの使用を検討する。
+**共有 D1 + テナント ID カラム方式** を採用するが、**適用対象は Organization（取引先）固有の業務データのみ** とする（PRD-01 §6 参照）。テンプレート標準（単一運営前提、`organization_id` を持たない）からの拡張であり、GOV-01 D-004 に記録する。
+
+```
+✓ 発注関連テーブル（shipping_addresses / cart_items / orders / order_items / payments）に organization_id
+✓ memberships に organization_id
+✓ organization_product_prices（取引先別卸価格の上書き。唯一の例外 — 下記）に organization_id
+✗ 商品カタログ系テーブル（manufacturers / brands / product_categories / concerns / products）には organization_id を付与しない
+   → 運営が一元管理する共有マスタであり、取引先ごとに異なる商品を持たないため
+✗ お知らせ（news）・お問い合わせ（inquiries）・新規取引申請（applications）にも organization_id を付与しない
+   → 運営が管理するデータ、または Organization 作成前のデータであるため
+```
+
+> `organization_product_prices` は「商品カタログは共有・発注データのみ Organization スコープ」という原則の唯一の例外である（GOV-01 D-009、PRD-01 §6）。Product 自体は共有のまま、特定の Organization に対する価格の上書きだけを保持する薄いテーブルであり、Product 本体を複製するものではない。
+
+### 2-2. テナント境界の強制
+
+| レイヤー | 実装方法 |
+| --- | --- |
+| D1 | 発注関連テーブルに `organization_id`（NOT NULL）を必須化 |
+| Service（`apps/public/src/lib/server/services/`） | 発注関連の取得・更新関数は `organizationId` を引数として必須化する（DEV-05 参照）。商品カタログ系の Service（`apps/admin` 側）は Organization を引数に取らない（共有データのため） |
+| 認可チェック | `requireActiveOrganization` 等の検証関数で、操作対象が現在ログイン中の Member が所属する Organization と一致することを Service 入口で必ず検証（発注関連リソースのみ）。商品カタログの閲覧は全ユーザー許可、卸価格表示のみ「承認済み取引先か」で判定（DEV-01 §4「認可チェックの徹底」） |
+| Static Analysis | `eslint-plugin-boundaries` のレイヤー境界検証に加え、発注関連 Service が必ず `organizationId` を受け取ることを Vitest のユニットテストで検証する（DEV-03 §3-3・§3-5 参照） |
+
+### 2-3. 卸価格・発注機能の表示制御
+
+商品ページ自体は一般公開するが、以下は承認済み取引先（Member としてログイン中かつ所属 Organization が `active`）にのみ表示する（INTAKE §1 制約、PRD-04 §3-1）。
+
+- 卸価格
+- 発注単位の詳細・数量指定
+- カート追加操作
+- 取引条件に関する限定情報
+
+判定は「Member としてログイン済みか」に加え「所属 Organization のステータスが `active`（発注可）か」の 2 段階で行う。取引停止中の取引先はログインできても発注不可（DEV-09 参照）。Astro Page のフロントマター（サーバーサイド）でリクエストごとにセッションを検証し、コンポーネントを出し分ける。
+
+> 商品選び診断は認証不要の一般公開機能だが、診断結果に卸価格を出してはならない。診断結果の商品カードは公開情報（商品名・希望小売価格・画像）のみで構成し、卸価格は商品詳細（SCR-03）と同じ 2 段階判定を通した上でのみ表示する。
 
 ---
 
 ## 3. 環境構成
 
-環境分離は `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` の environments 機能で実現する（`Confirmed` — DEV-01 §1。詳細は DEV-08 §2）。論理的な環境区分は以下を標準とする。
+環境分離は `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` の environments 機能で実現する（DEV-01 §1。詳細は DEV-08 §2）。
 
 | 環境 | 用途 | 備考 |
 | --- | --- | --- |
-| local | 開発者ローカル | Dev Container 内で `pnpm dev`（`astro dev`、`APP_PORT_DEV_PUBLIC` / `APP_PORT_DEV_ADMIN`）。D1/R2 はローカルエミュレーション |
-| staging | 受入テスト | 用意する（`Confirmed`）。本番同等構成、外部サービスはテストキー |
-| production | 本番 | 本番キー。各 `wrangler.jsonc` の `replace-with-*` を実値に置換（`CLAUDE.md` D1/R2 binding rules 参照） |
+| local | 開発者ローカル | Dev Container 内で `pnpm dev`。決済・メール・OAuth はテストキー / ログ出力 |
+| staging | 受入テスト | 本番同等構成。外部サービスはテストキー |
+| production | 本番 | 本番キー。`wrangler.jsonc` の `replace-with-*` を実値に置換 |
 
 ---
 
 ## 4. 外部サービス連携（論理）
 
-具体的なサービス選定は DEV-01 §2、連携仕様の詳細は DEV-10 を参照。本書では障害時の影響と方針のみ定義する。採用可否自体がプロジェクトごとに異なるもの（軽量 EC・AI 機能等）は明記する。
+具体的なサービス選定は DEV-01 §2、連携仕様の詳細は DEV-10 を参照。本書では障害時の影響と方針のみ定義する。
 
 | 機能 | 障害時影響 | 代替策 |
 | --- | --- | --- |
-| メール配信（Resend） | Inquiry 通知遅延 | リトライ（`ctx.waitUntil()` / Cron — DEV-01 §1）/ 手動再送 |
-| ファイルストレージ（R2） | Media 参照不可 | 一時リトライ |
-| 決済（Stripe、軽量 EC 採用時） | 新規注文不可 | リトライ、利用者への通知 |
-| 画像処理（Cloudflare Images、採用時） | 画像最適化配信不可 | 元画像をそのまま配信にフォールバック |
+| カード決済（Stripe） | 新規決済不可 | 銀行振込への切替案内、リトライ |
+| 銀行振込入金確認 | 決済ステータス更新の遅延 | 運営による手動確認フローで補完 |
+| メール配信（Resend） | 通知遅延（申請受付・発注確認等） | `ctx.waitUntil()` 内でのリトライ / 手動再送 |
+| オブジェクトストレージ（R2） | 商品画像参照不可 | 一時リトライ |
+| OAuth（LINE/Google/Facebook、Arctic） | ソーシャルログイン不可 | メール・パスワード認証へ誘導 |
 | エラー監視 | 障害検知遅延 | Cloudflare Workers 標準ログ/メトリクスで補助（DEV-01 §2） |
-| LLM プロバイダ（AI 機能採用時、PRD-05） | AI 機能停止 | プロバイダフォールバック（PRD-05 で確定） |
 
 ---
 
@@ -117,28 +174,24 @@ graph TB
 
 ### 5-1. 想定規模
 
-<!-- TEMPLATE: プロジェクトの想定規模。コンテンツ主体サイトは、SaaS 型の「継続ログインセッションが積み上がる」トラフィックとは異なり、読み取り中心・バースト性（キャンペーン、SNS/検索流入、記事のバイラル等）を持つ点を踏まえて記入する。本テンプレの適用上限は「同時接続〜数千」（00_README §2-2） -->
-<!-- SAMPLE START: フォーマット例 — 実際の内容に置き換えてください -->
 | 項目 | 初期 | 6 ヶ月後 | 1 年後 |
 | --- | --- | --- | --- |
-| 月間ページビュー | 5 万 | 20 万 | 80 万 |
-| ピーク時アクセス（RPS 目安） | 5 | 20 | 100（キャンペーン時バースト想定） |
-| 管理画面ユーザー数（AdminUser） | 2 | 5 | 10 |
-| 月間 Inquiry 件数 | 20 | 100 | 300 |
-| 月間 Order 件数（軽量 EC 採用時） | 0 | 30 | 150 |
-<!-- SAMPLE END -->
+| 承認済み取引先（Organization）数 | 未確定 `[Open]` | 未確定 `[Open]` | 未確定 `[Open]` |
+| 月間発注件数 | 未確定 `[Open]` | 未確定 `[Open]` | 未確定 `[Open]` |
+| 商品点数 | 数十〜百程度 `[Assumed: 根拠 - 初期主要商品が数点から開始する想定 / 確認先: 事業責任者]` | — | — |
+| 同時接続数 | 数十 `[Assumed]` | — | — |
 
-公開側はエッジ CDN 配信が主体のため、閲覧トラフィックのスケールは Cloudflare のインフラに委ねられる部分が大きい。ボトルネックになりやすいのは D1 への書き込み（Inquiry/Order 受付、管理画面での更新）であり、読み取りは可能な限りキャッシュ/エッジ配信を優先する（§9）。本テンプレの適用上限を超える規模（同時接続 1 万+）は別途専門設計とする（00_README §2-2）。
+具体的な成長目標値は BIZ-02 の KPI 目標（GMV・発注件数）確定後に見直す。インフラのスケーリング方式は DEV-08 を参照。本テンプレの適用上限を超える規模（同時接続 1 万+）は別途専門設計とする（00_README §2-2）。
 
 ### 5-2. 可用性目標（全文書の正本）
 
-可用性の数値目標は本表を正本とし、他文書（PRD-03 / DEV-01 / OPS）は本表を参照する。パターン A では公開側（コンテンツ配信）が事業成果に直結する主役であり、管理側より優先度が高い（SaaS 型のように管理側=製品そのものではない）。
+可用性の数値目標は本表を正本とし、他文書（PRD-03 / DEV-01 / OPS）は本表を参照する。
 
 | 区分 | 目標 |
 | --- | --- |
-| 公開側 | 月間 99.9% 以上（コンテンツ閲覧が事業価値の中心のため、管理側より高い目標） |
-| 管理側 | 月間 99.5% 以上 |
-| 計画停止 | 月 1 回まで、利用の少ない時間帯（管理側のみ。公開側は無停止デプロイを前提とする） |
+| 公開側（商品カタログ・申請フォーム。`apps/public` の非会員部分） | 月間 99.9% 以上 |
+| 会員側（Member マイページ・発注。`apps/public` の会員部分）・管理側（`apps/admin`） | 月間 99.5% 以上 |
+| 計画停止 | 月 1 回まで、利用の少ない時間帯 |
 
 バックアップ・DR・データ保持の運用は OPS-02（運用ハンドブック）に委譲する。
 
@@ -148,92 +201,109 @@ graph TB
 
 物理カラム定義は DEV-07 を参照。本書は意味と型の表現のみ。エンティティ定義の正本は PRD-01。
 
-### 6-1. 標準エンティティ（コンテンツ主体サイトの雛形）
+### 6-1. 標準エンティティ
 
 | エンティティ | 主要属性 | 型表現 | 備考 |
 | --- | --- | --- | --- |
-| AdminUser | name, email, role, status | email: メールアドレス、role: 列挙（admin / editor） | email UNIQUE。ロールは単一階層・少数（PRD-01 §1-2） |
-| Member | name, email, passwordHash, status, lastLoginAt | status: 列挙（active / inactive） | 公開側ログイン。AdminUser とは完全に別系統（ロール構造なし・単一種別）。テーブル・クッキー・照合コードを共有しない（DEV-02 §1-2） |
-| Media | key, mimeType, sizeBytes, altText | key: R2 オブジェクトキー | key はサーバーが生成する（`media/<ULID>`）。アップロードされたファイル名は使わない（DEV-10 §4-2） |
-| Inquiry | type, name, email, message, status, handledBy | status: 列挙（new / in_progress / resolved） | 公開側から未認証で作成し、管理側で対応する。実装の参照実装（DEV-05 §2） |
-
-> `organization_id` に相当するテナント列はいずれのエンティティにも持たせない（§2）。
-
-> **記事・お知らせをエンティティとして持つかは更新者で決まる。** 開発者が git で更新するなら
-> エンティティ化せず `packages/content` の Markdown（Content Collections）に置き、D1 の読み取りも
-> 管理画面も発生させない。納品先の顧客が管理画面から更新する場合に限り Post / Category / Tag を
-> §6-2 に追加する（DEV-01 §1、DEV-07 §3-2）。
+| AdminUser | name, email, status | status: 列挙（active/inactive）。ロール区分なし（GOV-01 D-014）| email UNIQUE |
+| Organization | name, status, orderEnabled | status: 列挙（active/suspended/terminated）| Application の承認によってのみ作成。支払方法は全取引先共通（カード決済・銀行振込のみ、掛売りなし。GOV-01 D-010）のため契約条件カラムは持たない |
+| Member | name, email, status | status: 列挙 | AdminUser とは別系統（PRD-01 §1-2、DEV-02）。email UNIQUE |
+| Membership | memberId, organizationId, role, status | role: 列挙（`client_user` のみ）、status: 列挙 | (memberId, organizationId) UNIQUE |
+| SocialAccount | memberId, provider, providerUserId | provider: 列挙（line/google/facebook）| (provider, providerUserId) UNIQUE |
+| AuditLog | actorId, action, targetType, targetId, before, after | before/after: JSON | 保持期間は §8 |
 
 ### 6-2. プロダクト固有エンティティ
 
-<!-- TEMPLATE: プロダクト固有のエンティティを論理レベルで定義。マルチテナント前提の organizationId は付与しない（§2 参照）。Page / Order を採用する場合はここに追記する -->
-<!-- SAMPLE START: フォーマット例 — 実際の内容に置き換えてください -->
 | エンティティ | 主要属性 | 備考 |
 | --- | --- | --- |
-| Page | slug, title, body, status | 固定ページ（会社概要等）。CMS 管理が不要なら Astro の静的ページで代替可（PRD-01 §1-1） |
-| Post / Category / Tag | title, slug, body, status, authorId, publishedAt | 顧客が管理画面から記事を更新する場合のみ。開発者更新なら Content Collections（§6-1 の注記） |
-| Order | customerName, customerEmail, memberId（任意・nullable FK）, items, status, amount | 軽量 EC 採用時のみ。memberId は Member への任意紐付け — ゲスト注文（customerName/customerEmail のみ、memberId は NULL）と会員紐付け注文の両方をサポート（PRD-01 §1-1・§1-3）。status: 列挙（pending / paid / fulfilled / cancelled）。物理カラム名は DEV-07 §7-1 を正とする。在庫同期は持たない（00_README §2-2） |
-| [プロダクト固有エンティティ] | [主要属性] | [備考] |
-<!-- SAMPLE END -->
+| Application | companyName, businessType, address, representativeName, contactName, phone, email, desiredProducts, desiredPaymentMethod, agreedToTerms, agreedTermsVersion, status, reviewerId, appliedAt | status: 列挙（received/reviewing/needs_confirmation/approved/rejected/withdrawn）。承認時に Organization + 初期 Member を生成。`agreedTermsVersion` は同意した利用規約のバージョン文字列（規約はページ直書きのためレコードが存在せず、この列が同意対象を特定する唯一の手掛かりになる — PRD-01 §3-2）|
+| Manufacturer | name, description | organizationId を持たない共有マスタ |
+| Brand | manufacturerId, name, description | 同上 |
+| ProductCategory | name, slug, displayOrder | 同上 |
+| Concern | name, slug, displayOrder | 同上 |
+| Product | slug, manufacturerId, brandId, categoryId, targetAnimal, name, description, ingredients, retailPrice, wholesalePrice, taxCategory, orderUnit, sku, publishedStatus, handlingStatus, displayOrder | targetAnimal: 列挙（dog/cat/both）。organizationId を持たない共有カタログ。wholesalePrice は標準卸価格（個別設定が無い場合に適用）。画像は ProductImage の別テーブルで保持する。`slug` は診断ルール（Content Collections）からの参照キーでもあるため、変更すると診断の推奨商品が解決できなくなる（§1-4）|
+| ProductImage | productId, key, displayOrder | key: R2 オブジェクトキー。organizationId を持たない |
+| ProductConcern | productId, concernId | 中間テーブル |
+| OrganizationProductPrice | organizationId, productId, wholesalePrice | 取引先別の卸価格上書き（GOV-01 D-009）。organizationId を持つ唯一のカタログ関連テーブル |
+| ShippingAddress | organizationId, recipientName, postalCode, address, phone, isDefault | organizationId を持つ |
+| CartItem | organizationId, memberId, productId, quantity | organizationId を持つ |
+| Order | organizationId, memberId, orderNumber, status, paymentStatus, subtotal, tax, shippingFee, total, paymentMethod, placedAt | organizationId を持つ。status/paymentStatus は別軸で管理（DEV-09）|
+| OrderItem | orderId, productId, productNameSnapshot, unitPriceSnapshot, taxRateSnapshot, quantity, subtotal | 注文時点のスナップショットが正（§8）|
+| Payment | orderId, method, status, amount, paidAt | method: 列挙（credit_card/bank_transfer）|
+| News | title, body, visibility, publishedAt, publishedUntil, status, slug | visibility: 列挙（public/client_only）。organizationId を持たない |
+| Inquiry | companyName, name, email, phone, inquiryType, content, status, assigneeId | organizationId を持たない（未ログイン利用者からの問い合わせが主）|
+
+> 商品選び診断のルールは本表に含まれない。D1 のエンティティではなく `packages/content` の Markdown であり（§1-4、PRD-01 §1-5）、ルールの構造定義は `packages/content/src/schema.ts` の Zod スキーマが正本になる。
 
 ---
 
 ## 7. エンティティ間リレーション
 
-<!-- SAMPLE START: フォーマット例 — 実際の内容に置き換えてください -->
 ```mermaid
 erDiagram
-    ADMIN_USER ||--o{ POST : authors
-    CATEGORY ||--o{ POST : classifies
-    POST }o--o{ TAG : tagged_with
-    POST ||--o{ MEDIA : uses
-    ADMIN_USER ||--o{ INQUIRY : handles
-
-    %% プロダクト固有エンティティ（採用時のみ）
-    %% ADMIN_USER ||--o{ PAGE : authors
-    %% ORDER ||--o{ MEDIA : references
+    APPLICATION ||--o| ORGANIZATION : approved_into
+    ORGANIZATION ||--o{ MEMBERSHIP : has
+    MEMBER ||--o{ MEMBERSHIP : owns
+    MEMBER ||--o{ SOCIAL_ACCOUNT : links
+    ORGANIZATION ||--o{ SHIPPING_ADDRESS : has
+    ORGANIZATION ||--o{ CART_ITEM : has
+    ORGANIZATION ||--o{ ORDER : places
+    MANUFACTURER ||--o{ BRAND : has
+    BRAND ||--o{ PRODUCT : has
+    PRODUCT_CATEGORY ||--o{ PRODUCT : classifies
+    PRODUCT ||--o{ PRODUCT_CONCERN : tagged_with
+    CONCERN ||--o{ PRODUCT_CONCERN : tags
+    ORGANIZATION ||--o{ ORGANIZATION_PRODUCT_PRICE : overrides
+    PRODUCT ||--o{ ORGANIZATION_PRODUCT_PRICE : priced_by
+    PRODUCT ||--o{ CART_ITEM : referenced_by
+    ORDER ||--o{ ORDER_ITEM : contains
+    PRODUCT ||--o{ ORDER_ITEM : referenced_by
+    ORDER ||--o{ PAYMENT : has
 ```
-<!-- SAMPLE END -->
+
+> 診断系のテーブル（`diagnosis_sets` / `diagnosis_questions` / `diagnosis_choices` / `diagnosis_rules`）は本図に存在しない — 診断ルールは D1 に置かないため（GOV-01 D-015）。診断ルールから商品への参照は D1 の外部キーではなく `Product.slug` の文字列一致で解決するため、DB 制約による保証がない — slug の変更・商品削除は診断ルール側の追従が必要になる（DEV-06 §1-1、DEV-03 §3-5 でテスト観点として扱う）。
 
 ---
 
 ## 8. データライフサイクル方針
 
-<!-- TEMPLATE: データの保持・削除・アーカイブ方針。運用（削除バッチ等）の実装は OPS-02 参照 -->
-<!-- SAMPLE START: フォーマット例 — 実際の内容に置き換えてください -->
 | データ種別 | 保持期間 | 削除ポリシー | アーカイブ条件 |
 | --- | --- | --- | --- |
-| Post | 永続（公開資産として） | 削除は明示操作のみ。公開停止は archived ステータスで表現 | 公開終了時に status を archived へ遷移（PRD-01 §7） |
-| Media | 参照が切れてから 90 日 | 参照元 Post/Page が無い（孤立）状態が続いたら物理削除（バッチ） | — |
-| Inquiry | 1 年 | 1 年経過後に物理削除（個人情報を含むため） | resolved から一定期間後に削除対象化 |
-| Order（軽量 EC 採用時） | 契約・法令要件に応じて（例: 税務要件で 7 年） | 法令要件を満たす期間は削除不可 | — |
-| AdminUser | 退職/契約終了後 1 年 | 1 年経過後に匿名化 or 削除 | 退職時点で status を inactive へ遷移 |
-<!-- SAMPLE END -->
+| Application（否認・取消）| 1 年 | 1 年経過後に物理削除 | 否認/取消日にアーカイブ |
+| Organization（terminated）| 取引終了後 1 年 | 1 年で物理削除 | 取引終了時に terminated ステータス |
+| Order / OrderItem / Payment | 取引先の契約終了後 5 年 `[Assumed: 根拠 - 会計・税務上の保存義務の一般的な目安 / 確認先: 事業責任者・会計]` | 保存期間経過後に検討 | 取引終了に連動しない（会計データのため独立保持）|
+| 商品カタログ（Product 等）| 取扱終了後も参照保持 | 論理的な `handlingStatus` で管理し物理削除しない（過去の注文履歴から商品情報が消えないようにするため）| — |
+| 監査ログ（AuditLog）| 永続 | 削除不可 | — |
+| お知らせ（News）| 永続（公開終了後も履歴として保持）| — | 公開終了日時経過で非表示 |
+| お問い合わせ（Inquiry）| 対応完了後 1 年 | 1 年で物理削除 | 対応完了時 |
+| 診断ルール・FAQ・法務ページの文面 | 永続（Git 履歴）| DB 上に存在しないため削除運用の対象外 | — |
+
+> 利用規約の改定履歴は Git のコミット履歴が実質的な正本になる（OPS-01 §5）。「どの取引先がどの版に同意したか」は `applications.agreed_terms_version` と突き合わせて特定する。
 
 ---
 
 ## 9. 公開側の構成方針
 
-公開側（コンテンツ配信）は本テンプレートの主機能であり、管理側 CMS はそれを支える裏側の機能である。
+公開側（`apps/public`）は商品カタログの一般公開に加え、承認済み取引先（Member）のログイン・マイページ・発注という認証必須の領域を併せ持つ点が、本テンプレートの標準（原則認証不要）からの拡張である。
 
 | 項目 | 方針 |
 | --- | --- |
-| レンダリング | Astro SSR（`output: 'server'`）。ページ単位で SSR し、インタラクティブ部分のみ Svelte island として埋め込む（DEV-01 §1） |
-| キャッシュ | Cloudflare エッジキャッシュ（CDN）を公開 GET リクエストで活用する想定。TTL・パージ契機の具体方針は **Open**（案件実装時に確定。公開側の参照実装時に確定し DEV-08 に記載） |
-| SEO | サイトマップ / robots.txt の動的生成は現時点で未導入（**Open** — 案件実装時に確定）。導入時は管理画面ルートをサイトマップ・robots.txt 双方から除外する |
-| ドメイン | プロジェクトごとのカスタムドメイン。管理側（`apps/admin`）は `/admin` パスへの統合ではなく、公開側（`apps/public`）とは別の Cloudflare Worker として同一リポジトリ内で独立デプロイする（`Confirmed` — DEV-01 §1、D1/R2 binding rules は `CLAUDE.md` に従う） |
-| 認証 | 公開側は原則認証不要。管理画面ログインのみ認証必須（PRD-01 §1-2）。**例外**: マイページ機能（Member、採用時のみ）を導入する場合、マイページ・ログイン・会員登録・注文履歴等の関連ページのみ認証が必要になる。ブログ・トップページ・お問い合わせフォーム等、それ以外の公開側ページは引き続き認証不要（PRD-01 §1-1・§5「Member Access」） |
+| レンダリング | Astro SSR（`output: 'server'`）。ページ単位で SSR し、インタラクティブ部分のみ Svelte island として埋め込む（DEV-01 §1）。卸価格・発注 UI の出し分けはリクエスト時のセッション検証で行う（§1-3、§2-3） |
+| 静的化 | FAQ・法務ページ（SCR-27/28/29/32）と診断ルールの読み込みは、ログイン状態に依存しないため `export const prerender = true` を付けてビルド時に確定させる。`output: 'server'` では `getStaticPaths()` が黙って無視されるため、この宣言を忘れると個別ページのみ 500 になる（DEV-06 §1-1） |
+| キャッシュ | 商品カタログの一般公開部分（ログイン状態に依存しない商品情報・画像等）はエッジキャッシュの対象とするが、卸価格・カート・マイページ等ログイン状態に依存するレスポンスはキャッシュ対象から除外する。TTL・パージ契機の具体方針は **Open**（案件実装時に確定し DEV-08 に記載） |
+| SEO | サイトマップ / robots.txt の動的生成は現時点で未導入（**Open** — 案件実装時に確定）。導入時は Member マイページ配下・管理画面ルートをサイトマップ・robots.txt 双方から除外する |
+| ドメイン | プロジェクトごとのカスタムドメイン。管理側（`apps/admin`）は `/admin` パスへの統合ではなく、公開側（`apps/public`）とは別の Cloudflare Worker として同一リポジトリ内で独立デプロイする |
+| 認証 | 商品カタログ・申請フォーム・商品選び診断・FAQ・法務ページは認証不要。Member ログイン後のマイページ・卸価格確認・カート・発注・発注履歴・会社情報/配送先管理は認証必須（PRD-01 §1-2）。AdminUser（管理画面）と Member（マイページ）は完全に別系統（DEV-02 参照） |
 
 ---
 
 ## 10. 記入時チェックポイント
 
-- 本書の技術名への言及が構成説明に必要な範囲にとどまり、DEV-01 参照が併記されているか（選定理由・バージョン・代替比較を本書に書いていないか）
-- マルチテナント構造（Organization 階層、`organization_id` 等）が紛れ込んでいないか（§2、単一運営が前提）
-- ロールが少数（1〜2 種）で記述され、PRD-01 §1-2 / DEV-02 と整合しているか。3 ロール以上が必要になっていないか
-- 想定規模（§5-1）がテンプレ適用上限（同時接続〜数千）内か、公開側の読み取り中心・バースト性を踏まえた記述になっているか
-- 可用性目標（§5-2）が現実的か。公開側が管理側より優先されているか
-- データライフサイクル（§8）が個人情報（Inquiry）や公開資産（Post/Media）の性質に応じて記述されているか
-- エンティティ名が PRD-01 / DEV-07 と一致しているか（AdminUser / Post / Category / Tag / Media / Inquiry、採用時は Page / Order / Member）
+- 本書の技術名への言及が構成説明に必要な範囲にとどまり、DEV-01 参照が併記されているか
+- テナント境界（`organization_id` 等）の適用範囲（§2、発注関連のみ）が全書類で一貫しているか（商品カタログに誤って付与していないか）
+- コンテンツの置き場所（§1-4）が DEV-06 §1-1・PRD-01 §1-5 と一致しているか（D1 のエンティティ一覧に診断・FAQ・法務が混入していないか）
+- 想定規模（§5-1）がテンプレ適用上限（同時接続〜数千）内か、可用性目標（§5-2）が現実的か
+- データライフサイクル（§8）が個人情報・会計データの性質に応じて記述されているか
+- エンティティ名が PRD-01 / DEV-07 と一致しているか
 - DEV-07 が物理設計に着手できる粒度か
-- Member（採用時のみ）と Order の関係が PRD-01 と整合しているか：Order の memberId は任意（nullable）で、ゲスト注文と会員紐付け注文の両方をサポートしているか。Member が AdminUser のロール構造・認証実装と混同されていないか（§6-2、PRD-01 §1-1・§1-2）
+- AdminUser と Member の別系統・Member と Organization の所属関係が PRD-01 と整合しているか

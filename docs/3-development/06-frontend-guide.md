@@ -4,11 +4,13 @@ title: フロントエンド実装ガイド
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-08-30
+last-updated: 2026-09-09
 related-docs:
   - DEV-01: 技術スタック決定書・アーキテクチャ原則
   - DEV-04: API 仕様
-  - PRD-04: UI/UX 設計（管理画面標準構成）
+  - DEV-05: バックエンド実装（Service 層の境界）
+  - PRD-02: システム構成（§1-4 コンテンツの置き場所）
+  - PRD-04: UI/UX 設計（管理画面標準構成・§3-1-1 画面ごとの供給元）
   - CLAUDE.md: コード例・実装パターンの正本
 ---
 
@@ -26,11 +28,13 @@ DEV-01 で確定したフロントエンドスタックによる実装の設計�
 - 画面を実際に組み立てる際の作業チェーンは `.claude/skills/public-design`（公開画面）/
   `.claude/skills/admin-design`（管理画面）を使う。本書 §4 は `admin-design` の Step 1 が
   参照する「標準パターン」の正本にあたる。
+- **§1-1（コンテンツの置き場所）は、公開画面に出すデータをどこに置くかの唯一の正本**である。
+  PRD-01 §1-5 / PRD-02 §1-4 / PRD-04 §3-1-1 / DEV-07 §3 は本節を参照する。
 
 ## 0-H. ハイブリッド編集ガイド（要点）
 
 - 推奨モード: Human-first または Hybrid
-- 人間確認必須: 状態の置き場所、デザインシステム整合、a11y 基準
+- 人間確認必須: 状態の置き場所、コンテンツの置き場所、デザインシステム整合、a11y 基準
 - 詳細は 00_README.md §6〜8
 
 ---
@@ -42,69 +46,115 @@ DEV-01 で確定したフロントエンドスタックによる実装の設計�
 ```text
 apps/public/src/
 ├── pages/
-│   ├── index.astro ...          # 公開画面（Layout.astro を使用）
-│   ├── login.astro / mypage/    # Member 認証（DEV-02 §1-2）。`/` は公開トップのため
-│   │                            # 管理画面と違いログインは `/login` に置く
-│   └── articles/                # Content Collections の記事（後述）
+│   ├── index.astro              # 公開トップ（SCR-01）
+│   ├── login.astro              # Member ログイン（SCR-07）。`/` は公開トップのため
+│   │                            #   管理画面と違いログインは /login に置く
+│   ├── products/                # 商品一覧・詳細（SCR-02, SCR-03）
+│   ├── diagnosis/               # 商品選び診断（SCR-04）。ルールは packages/content から（§1-1）
+│   ├── mypage/                  # マイページ配下（SCR-12〜SCR-20）
+│   ├── news/                    # お知らせ（SCR-25, SCR-26）
+│   ├── faq.astro                # よくある質問（SCR-27）。文面はこのファイルに直書き（§1-1）
+│   ├── terms.astro              # 利用規約（SCR-28）。同上
+│   ├── privacy.astro            # プライバシーポリシー（SCR-29）。同上
+│   ├── law.astro                # 特定商取引法に基づく表示（SCR-32）。同上
+│   └── api/v1/**/*.ts           # API ルート（DEV-04 §5）
 ├── lib/
 │   ├── components/              # 公開画面の Svelte アイランド（client:* で .astro に埋め込む）
-│   └── server/                  # Member 認証・お問い合わせ送信（DEV-05 §1）
-├── content.config.ts            # Content Collections の定義
-└── layouts/
-    └── Layout.astro             # 公開画面の HTML 骨格・<head>・global.css
-
-packages/content/                # 記事本文（Markdown）。開発者が git で更新する
+│   └── server/                  # Service 層（内部構成は DEV-05 §1 が正本）
+├── content.config.ts            # Content Collections の定義（§1-1）
+├── layouts/
+│   └── Layout.astro             # 公開画面の HTML 骨格・<head>・global.css
+└── middleware.ts                # セキュリティヘッダー + 会員ルートの Cache-Control（DEV-05 §1-2）
 
 apps/admin/src/
 ├── pages/                        # `/admin` 等の接頭辞は付けない。apps/admin はサブドメイン
-│   │                             # （例: admin.example.com）で丸ごと管理画面としてデプロイする
-│   │                             # ため、URL に admin を含める必要がない（DEV-01 §1）
-│   ├── index.astro              # ログイン（ADM-00。Confirmed — `/` 自体をログイン画面とし、
-│   │                             # `/login` への分離は行わない。§4-4 参照）
-│   └── （dashboard/index.astro / inquiries/ 等 — ADM-01〜、PRD-04 §3-2、Assumed。admin / editor 用。
-│         src/layouts/Layout.astro を使用）
+│   │                             #   （例: admin.example.com）に丸ごとデプロイされるため
+│   │                             #   （DEV-01 §1、DEV-04 §1-1、PRD-04 §3-2）
+│   ├── index.astro              # ログイン（ADM-00）。`/` 自体をログイン画面とし /login へ分離しない
+│   ├── dashboard/index.astro    # 管理ダッシュボード（ADM-01）
+│   ├── products/ 他             # 商品・メーカー・ブランド・取引申請・取引先・受注・お知らせ・
+│   │                             #   問い合わせ・監査ログ（ADM-02〜24）
+│   └── api/v1/**/*.ts           # API ルート（DEV-04 §5）
 ├── lib/
 │   ├── components/
 │   │   ├── ui/                  # shadcn-svelte 生成コンポーネント（DEV-01 §1。編集してよい）
-│   │   └── admin/                 # 管理画面専用の合成コンポーネント（stat-card 等 — Assumed）
+│   │   └── admin/               # 管理画面専用の合成コンポーネント（stat-card 等 — Assumed）
 │   ├── server/                  # Service 層（内部構成は DEV-05 §1 が正本。D1/R2 アクセスを集約）
-│   └── utils.ts                  # `cn()` 等の共通ユーティリティ
-└── layouts/
-    └── Layout.astro             # 管理画面の HTML 骨格・<head>・admin.css
+│   └── utils.ts                 # `cn()` 等の共通ユーティリティ
+├── layouts/
+│   └── Layout.astro             # 管理画面の HTML 骨格・<head>・admin.css
+└── middleware.ts                # セキュリティヘッダーのみ
+
+packages/content/                # 開発者が更新する Markdown（診断ルール）。§1-1
 ```
 
 公開画面・管理画面をディレクトリで分離する（Platform 階層は存在しないため分離対象に含まない — PRD-01 §1-2）。`Assumed` と付記した部分は
-このテンプレートにまだ実例がない規約案であり、最初の画面を作る際に確定させ本書を更新する。
+まだ実例がない規約案であり、最初の画面を作る際に確定させ本書を更新する。
 
----
-
-### 1-1. コンテンツの置き場所（D1 か Content Collections か）
+### 1-1. コンテンツの置き場所（D1 か Content Collections か直書きか）
 
 公開画面に出すコンテンツは、**誰が更新するか**で置き場所が決まる（DEV-01 §1）。
 
 | 更新者 | 置き場所 | 画面 |
 | --- | --- | --- |
-| 納品先の顧客 | D1（`schema-build` → `scaffold`） | 管理画面が必要 |
-| 開発者（自社） | `packages/content` の Markdown | 管理画面は不要 |
+| 運営（納品先の顧客） | D1（`schema-build` → `scaffold`） | 管理画面が必要 |
+| 開発者（自社） | `packages/content` の Markdown、またはページ直書き | 管理画面は不要 |
 
 判断に迷う場合は Content Collections を優先する。ビルド時に解決されるため **D1 の読み取りが発生せず**、
 管理画面も作らずに済む。Cloudflare の課金は D1 の行読み取りに乗るので、閲覧数の多い公開ページほど
 差が出る。
 
-実装は `apps/public/src/content.config.ts` が `packages/content/articles/` を `glob()` ローダーで読み、
+**本プロジェクトの割り当て（確定 — GOV-01 D-015 / D-016）**
+
+| コンテンツ | 置き場所 | 実体 | 更新手段 |
+| --- | --- | --- | --- |
+| 商品カタログ（商品・メーカー・ブランド・カテゴリー・気になる点・商品画像）| D1 + 管理画面 | `products` 他（DEV-07 §6）| ADM-02〜11 |
+| お知らせ | D1 + 管理画面 | `news`（DEV-07 §7-1）| ADM-19〜21 |
+| 商品選び診断のルールセット | **Content Collections** | `packages/content/diagnosis/*.md` | コミット + デプロイ |
+| よくある質問（FAQ）| **ページ直書き** | `apps/public/src/pages/faq.astro` | コミット + デプロイ |
+| 利用規約・プライバシーポリシー・特商法表示 | **ページ直書き** | `terms.astro` / `privacy.astro` / `law.astro` | コミット + デプロイ（法務レビュー必須）|
+
+診断ルールを Content Collections にした理由は、**運営が管理画面から更新する対象ではないため**である。当初の設計は
+`diagnosis_sets` / `diagnosis_questions` / `diagnosis_choices` / `diagnosis_rules` の 4 テーブルを置いていたが、
+対応する管理画面が PRD-04 の ADM 一覧に存在せず、テーブルはあるのに誰も更新できない状態だった（GOV-01 D-015）。
+FAQ・法務ページは Content Collections でも実現できるが、ページ数が固定で 1 ファイル 1 ページに収まるため
+コレクションを作らずページに直書きする（GOV-01 D-016）。
+
+**実装**
+
+`apps/public/src/content.config.ts` が `packages/content/` を `glob()` ローダーで読み、
 スキーマは `@app/content` から import する（両アプリが同じ定義を見るため）。
 
 ```typescript
 // apps/public/src/content.config.ts
-const articles = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "../../packages/content/articles" }),
-  schema: articleSchema,
+const diagnosis = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "../../packages/content/diagnosis" }),
+  schema: diagnosisSetSchema,
 });
 ```
 
-> `output: "server"` では `getStaticPaths()` が**黙って無視される**。記事ページには
-> `export const prerender = true` を必ず書く — 書き忘れると一覧は出るのに個別ページだけ 500 になり、
-> 原因が分かりにくい（`apps/public/tests/e2e/` で検証している）。
+診断ルールは 1 ファイル 1 診断（Uchinoko 専用 / ブランド横断 — PRD-03 F-03-11）とし、frontmatter に
+質問・選択肢・推奨商品の `slug` を持つ。**推奨商品は `Product.slug` の文字列参照であり D1 の外部キーではない** ため、
+商品側の slug 変更・非公開化に自動で追従しない。したがって：
+
+- 商品編集画面（ADM-03）では slug の変更を禁止するか警告を出す（PRD-03 F-06-01、DEV-04 §5-2）
+- 推奨商品を引くクエリは公開済み・取扱中に限定する（DEV-02 §3-1）
+- 「ルールの slug が実在する公開商品に解決されること」を単体テストで検証する（DEV-03 §3-5）
+
+> `output: "server"` では `getStaticPaths()` が**黙って無視される**。Content Collections から生成する
+> 個別ページには `export const prerender = true` を必ず書く — 書き忘れると一覧は出るのに個別ページだけ
+> 500 になり、原因が分かりにくい（`apps/public/tests/e2e/` で検証している）。
+
+**直書きページの注意点**
+
+- FAQ・法務ページは**ログイン状態に依存しない**ため `export const prerender = true` を付けてビルド時に確定させる（PRD-02 §9）
+- 利用規約の**現行バージョン文字列は定数 1 箇所**（例 `apps/public/src/lib/terms-version.ts`）で持ち、
+  規約ページと申請フォームの両方がそれを参照する。申請時に `applications.agreed_terms_version` へ記録し、
+  サーバー側で現行バージョンとの一致を検証する（DEV-04 §6-1、DEV-07 §5-1）。規約本文を書き換えたら
+  この定数も必ず更新する — **文面だけ変えてバージョンを据え置くと、誰がどの版に同意したのか追跡できなくなる**
+- 規約文面を含む変更は法務レビューを経た PR でのみマージする（管理画面が無いため、この確認は PR レビューにしか置けない — DEV-03 §4、OPS-01 §5）
+
+---
 
 ## 2. 状態管理方針
 
@@ -115,14 +165,16 @@ Astro は各リクエストごとに SSR するだけで、Livewire のように
 | 状態の種類 | 配置 | 理由 |
 | --- | --- | --- |
 | ユーザー入力のフォーム | Svelte アイランドのローカル state（`$state`） | 送信時に API ルートへ渡し、サーバー側 D1 が正本 |
-| ビジネスデータ（投稿・メンバー等）のステータス | API ルートから取得し Svelte state に反映 | サーバー側（D1）が正本。ミューテーション後は再取得または楽観的更新 |
-| 非同期処理進行中の表示 | ポーリング（`ctx.waitUntil()` で走る AI ジョブ等の状態を `ai_jobs` から取得 — DEV-05 §4） | サーバー側の Job 状態に同期 |
+| ビジネスデータ（申請・受注・カート等）のステータス | API ルートから取得し Svelte state に反映 | サーバー側（D1）が正本。ミューテーション後は再取得または楽観的更新（管理画面では楽観的更新を避ける — PRD-04 §4-4） |
+| 診断の回答途中の選択状態 | Svelte アイランドのローカル state | 質問・選択肢はビルド時に埋め込まれており、回答途中はサーバーに保持しない（§1-1） |
+| カートの内容 | D1（`cart_items`）が正本。表示はサーバーから取得 | ブラウザを変えても同じカートが見える必要があるため、localStorage に持たない |
 | モーダル開閉・ドロップダウン | クライアント側（shadcn-svelte の `Dialog` / `DropdownMenu` が内部で管理） | クライアントローカルで完結。Alpine.js 相当の自前実装は不要 |
 | アニメーション・トランジション | クライアント側（Svelte の `transition:` + CSS） | サーバー往復不要 |
 | 一時的な UI フィードバック（トースト） | shadcn-svelte の Toast/Sonner 相当 + API レスポンス | サーバーから通知 |
 
 **禁止**: クライアント側 JS に業務ロジックを書く、サーバー側とクライアント側で同じ状態を
-二重管理する。
+二重管理する。**卸価格の出し分けをクライアント側の分岐で行うことも禁止**（HTML に卸価格を出力してから
+JS で隠す実装は、未承認の利用者にソース上で見えてしまう — PRD-02 §2-3）。
 
 ---
 
@@ -132,17 +184,19 @@ Astro は各リクエストごとに SSR するだけで、Livewire のように
 `CLAUDE.md` を正本とする。設計上の原則：
 
 - 認可は Astro ページのフロントマター（サーバー側で実行される先頭のスクリプト）の冒頭で必ず
-  実行し、ロール（`admin` / `editor`）を取得して Service に渡す。API ルートもハンドラの先頭で
-  同様に認可を行う（`Confirmed`。`apps/admin/src/middleware.ts` はセキュリティヘッダー専用で
-  認証・認可は行わない — DEV-05 §1 が正本）。
+  実行し、AdminUser のセッション（ロール区分なし — GOV-01 D-014）または Member の Organization スコープを取得して Service に渡す。API ルートもハンドラの先頭で
+  同様に認可を行う（`Confirmed`。`middleware.ts` はセキュリティヘッダー専用で
+  認証・認可は行わない — DEV-05 §1 が正本）。**ページは 401 を返さずリダイレクトする**（API ルートとの違い）。
 - Svelte アイランドの `onMount()` はデータ読み込みと初期化のみ。状態遷移・外部 API・メール
   送信等の副作用はユーザー操作のイベントハンドラ内で行う（DEV-01 §8）。
 - Astro/Svelte にはフレームワーク標準の DI コンテナはない。Service 関数は明示的に import して
   呼ぶ。
 - 一覧の検索・フィルタ条件は URL クエリ（`Astro.url.searchParams` / クライアント側は
-  `URLSearchParams`）に保持し、リロード・共有可能にする。
+  `URLSearchParams`）に保持し、リロード・共有可能にする。商品一覧の絞り込み（F-03-04〜09）は
+  この方式が必須（取引先が絞り込み結果を共有する運用があるため）。
 - ループ描画には必ず一意キーを付与する（`{#each items as item (item.id)}`）。
 - Astro ページ / API ルートから D1 を直接叩かない。必ず Service 経由（DEV-01 §4・§5）。
+- Content Collections（`astro:content`）はページから直接読む。Service 層でラップしない（DEV-05 §1-4）。
 
 ---
 
@@ -154,6 +208,7 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 ### 4-1. ダッシュボード
 
 - 構成: KPI カード群（4 枚目安、shadcn `Card`）→ 推移グラフ → 直近イベント一覧、の縦積み。
+- 本プロジェクトの ADM-01 は「未審査申請 / 要確認注文 / 入金待ち / 出荷待ち」の 4 枚（PRD-04 §4-3-1）。
 - KPI カードは「値 + 前週比等のデルタ + アイコン（Lucide）」をセットで表示する。
 - グラフ・イベント一覧は個別の Svelte アイランドに分割し、遅延読み込み可能にする。
 - グラフ描画は DEV-01 §2 のグラフ描画ライブラリ（LayerChart）のみ使用する（別チャート
@@ -167,6 +222,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - 一括操作バーは選択がある時のみ表示し、破壊的操作には shadcn `AlertDialog` 等の確認ダイアログ
   を必須とする。
 - フィルタ状態は URL クエリに反映する（§3）。
+- 監査ログ（ADM-24）・商品一覧（ADM-02）はカーソルページネーション（DEV-04 §3-2）を使うため、
+  「総件数」「最終ページ」を UI に出さない設計にする（カーソル走査では総件数を数えない）。
 
 ### 4-3. 詳細画面
 
@@ -174,6 +231,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
   関連情報。
 - 監査履歴（変更履歴）を詳細画面から参照できるようにする。
 - 一覧への戻り導線を必ず用意する。
+- 状態遷移を伴うアクション（申請の承認 / 否認、取引停止、受注ステータス変更）は、
+  遷移可能な状態のときだけボタンを活性化する（不正遷移は API 側でも 409 で拒否される — DEV-04 §4、DEV-09）。
 
 ### 4-4. フォーム画面
 
@@ -183,33 +242,18 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
   多重送信を防止。
 - 削除等の危険操作は視覚的に区別し（警告色 + 枠）、確認ダイアログを必須とする。
 - 参考実装: `apps/admin/src/pages/index.astro` + `apps/admin/src/lib/components/login-form.svelte`（Card +
-  Input + Label + Button の組み合わせ）。**`POST /api/v1/auth/login` に結線済み**で、成功時は
-  `/dashboard`（ADM-01）へ遷移する。バックエンド（セッション発行、KV ロックアウト）は
-  `apps/admin/src/pages/api/v1/auth/`・`src/lib/server/auth/`。`/` 自体がログイン画面であり
-  `/login` への分離は行わないため、遷移先は必ず別ルートにする（`/` へ戻すとログイン画面に
-  戻ってループする）。案件側の残作業は**見た目**のみで、00_DEV_GUIDE §3-3 のステップ 3
-  （管理画面 UI の 1 枚目）で扱う。
-- 上記が確立したフォーム規約は次の 3 点。新規フォームはこれに倣う:
-  1. フォームは `Field.FieldGroup` > `Field.Field` > `Field.FieldLabel` + コントロール
-     で組む（`grid gap-*` の生 `div` は使わない — `.claude/skills/shadcn-svelte/rules/forms.md`）。
-     項目ごとのエラーは API の 422 エンベロープ（`errors`）をそのまま `Field.FieldError` に出し、
-     `Field.Field` に `data-invalid`、コントロールに `aria-invalid` を付ける（両方必要。前者が
-     ラベル・説明文、後者がコントロール自体のスタイルを切り替える）。
-  2. それ以外（401 / 429 / 5xx）はフォーム全体のメッセージを `role="alert"` で出す。サーバーが
-     意図的に伏せている情報（アドレスの存在有無 — DEV-02 §7）をクライアント側で補わない。
-  3. 送信ボタンは `onMount` まで `disabled` にする。アイランドは JS 実行前から DOM に存在するため、
-     その間の送信はネイティブ POST になり入力が失われる。多重送信防止（送信中の `disabled`）も兼ねる。
-- ページ側のセッション検証は `apps/admin/src/pages/dashboard/index.astro` が参照実装。API ルートは
-  例外を投げて 401 を返すが、ページは**ログイン画面へリダイレクト**する（401 の本文は
-  ブラウザ利用者が対処できない）。認証ミドルウェアは意図的に置かず、各ページ / ルートの先頭で
-  検証する（DEV-04 §2）。
-  `apps/admin` はサブドメイン（例: admin.example.com）で丸ごと管理画面としてデプロイするため、
-  遷移先の URL に `/admin` のような接頭辞は付けない（§1 参照）。
+  FieldGroup + Field の組み合わせ）。**これはコンポーネント構成の見本**であり、案件側の作業は
+  ①フォームから API（`POST /api/v1/auth/login`）への結線 ②ログイン後の遷移先（`/dashboard` = ADM-01）の
+  実装の 2 点。`apps/admin` の `/` 自体がログイン画面なので（§1）、遷移先を `/` にするとループする。
+- 新規取引申請フォーム（SCR-05）は入力項目が多い（DEV-07 §5-1 の列を参照）ため、
+  「会社情報 / 担当者情報 / 取引希望条件 / 同意」の 4 ステップに分割する。規約同意のステップでは
+  現行バージョン定数を hidden で送る（§1-1）。
 
 ### 4-5. 設定画面
 
-- 構成: セクションタブ（shadcn `Tabs`。基本 / ドメイン / 連携 / 危険操作）で分割。
-- 「危険操作」（サイトデータの全削除等）は独立タブに隔離する。
+- 構成: セクションタブ（shadcn `Tabs`）で分割。
+- 本プロジェクトで設定画面パターンに当たるのは ADM-15（取引先詳細・編集）。「基本情報 / 個別卸価格 /
+  所属担当者 / 危険操作（取引停止・取引終了）」のタブ構成とし、**危険操作は独立タブに隔離する**。
 
 ---
 
@@ -219,7 +263,7 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
   最優先で使う。独自スタイルの乱立を防ぎ、`admin.css` のテーマ変数の一括変更を効かせる。
 - 新規コンポーネントを書く前に、`apps/admin/src/lib/components/ui/` に同等品がないか、無ければ
   `npx shadcn-svelte add <component>` で追加できないかを必ず確認する（`shadcn-svelte` スキル
-  参照）。
+  参照）。CLI はタブインデントで書き出すため、追加後に `pnpm format` を実行する（`CLAUDE.md`）。
 - **ブラウザ標準の UI を管理画面に持ち込まない。** 確認ダイアログ・アラート・日付選択の
   ようにブラウザが独自の見た目で描画するものは、shadcn-svelte の同等品に置き換える。見た目が
   OS ごとに変わり、テーマ変数も i18n も効かないため。確認ダイアログは画面ごとに自作せず、
@@ -229,9 +273,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 
 | 画面種別 | UI ライブラリ | 理由 |
 | --- | :---: | --- |
-| ダッシュボード・管理画面 | ✅ shadcn-svelte | 想定ユースケース（DEV-01 §1） |
-| ユーザー操作画面（フォーム・一覧） | ✅ shadcn-svelte | 想定ユースケース |
-| LP・マーケティングページ | ❌ | プレーン Tailwind + Astro/Svelte で個別実装（`public-design` スキル） |
+| ダッシュボード・管理画面（ADM-00〜24） | ✅ shadcn-svelte | 想定ユースケース（DEV-01 §1） |
+| 公開画面・マイページ（SCR-01〜35） | ❌ | プレーン Tailwind + Astro/Svelte で個別実装（`public-design` スキル。DEV-01 §1、PRD-04 §3-1） |
 
 ---
 
@@ -252,6 +295,10 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - 禁止: 業務ロジック・API 呼び出し結果の判定・バリデーション確定。これらは必ずサーバー側
   （API ルート / Service）に置く。クライアント側の即時フィードバック用バリデーションは
   UX 目的でのみ許可し、確定判定はサーバー側で再度行う。
+- 最低発注金額（BIZ-03 §3-1）のチェックはクライアント側でも表示するが、**確定判定は必ず
+  `POST /api/v1/checkout` 側で行う**（クライアントの検証だけでは回避される）。
+- 診断のルール評価はクライアント側で完結させてよい（ルールは公開情報のため）。ただし
+  推奨商品の商品情報は API 経由で取得する — 公開状態の判定をサーバー側に残すため（DEV-04 §5-8）。
 
 ---
 
@@ -261,6 +308,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - ファイル名は ULID で renaming
 - ストレージは Cloudflare R2（`env.BUCKET`）。操作は Service 層に置く（コンポーネントから
   直接触らない）
+- 商品画像（F-06-04）は複数枚 + 表示順を持つ（DEV-07 §6-6）。アップロード後に順序変更できる UI とし、
+  削除は R2 → 行の順で処理する（DEV-05 §3）
 
 ---
 
@@ -270,8 +319,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 | --- | --- |
 | キーボード操作 | 全インタラクション対応 |
 | フォーカスリング | `:focus-visible` で必ず可視化 |
-| 色のみで状態表現しない | アイコン + 色 + テキストの 3 要素 |
-| 画像 alt | 必ず設定 |
+| 色のみで状態表現しない | アイコン + 色 + テキストの 3 要素（受注ステータス・決済状況の表示で特に重要）|
+| 画像 alt | 必ず設定（商品画像は商品名を含める）|
 | フォーム | `<label>` 紐付け、エラー説明 |
 | カラーコントラスト | WCAG AA 以上 |
 
@@ -283,8 +332,10 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 ## 10. レスポンシブ方針
 
 - モバイルファーストで実装し、ブレークポイントは Tailwind 標準のみを使う。
-- 管理画面はサイドバーをドロワー化してモバイル対応。テーブルは横スクロールを許容する。
+- 管理画面はサイドバーをドロワー化してモバイル対応。テーブルは横スクロールを許容する（PRD-04 §4-5）。
 - カード群・フォームのグリッドは 1 列（モバイル）→ 2〜4 列（デスクトップ）を基本とする。
+- 公開側の商品一覧・診断は**モバイルでの利用を主要ケースとして扱う**（店舗の仕入れ担当者が
+  店頭から発注する想定 — BIZ-01 §3-2）。
 
 ---
 
@@ -297,6 +348,7 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 | 画像 | `loading="lazy"` を明示 |
 | フォーム入力の同期 | フォーカス喪失時基本、リアルタイム検索は debounce 300ms 以上 |
 | アニメーション | compositor 対象プロパティ（`transform` / `opacity`）中心の CSS/Svelte トランジションのみ |
+| 静的化 | ログイン状態に依存しないページ（FAQ・法務・診断）は `prerender = true` で D1 読み取りを回避（§1-1） |
 
 アニメーション・パフォーマンスの詳細な監査は `.claude/skills/fixing-motion-performance`
 スキルに委ねる（`public-design` チェーンの Step 4）。管理画面は最小限の enter/exit
@@ -306,20 +358,27 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 
 ## 12. テスト方針
 
-テストフレームワークは Vitest + Playwright（DEV-01 §1、導入済み。配置は `apps/admin/tests/unit/`、
-実行は `pnpm test` — DEV-03 §6）。以下は最低限のテスト観点として維持する：
+テストフレームワークは Vitest + Playwright（DEV-01 §1、導入済み。配置は `apps/*/tests/`、
+実行は `pnpm test` / `pnpm test:e2e` — DEV-03 §6）。フロントエンド側の最低限のテスト観点：
 
-- **認可**：`editor` ロールで `admin` 専用操作（管理者管理・サイト設定等）にアクセスできないこと
+- **認可**：Member が AdminUser 専用操作（`apps/admin`）にアクセスできないこと、他 Organization の発注・会社情報にアクセスできないこと
+- **卸価格の出し分け**：未ログイン / ログイン済み・Organization `active` / ログイン済み・`suspended` の 3 状態で表示が変わること（E2E。PRD-02 §2-3）
+- **ハイドレーション**：診断・カート等の対話型 UI が実際に操作できること。`client:*` の書き忘れはサーバー側で描画されてしまうため E2E でしか捕まらない（DEV-03 §3-5）
+- **`prerender` 忘れ**：Content Collections から生成する個別ページが 200 を返すこと（§1-1）
 
 ---
 
 ## 13. 記入時チェックポイント
 
 - 公開画面と管理画面が分かれて整理されているか
+- **各画面のコンテンツ供給元が §1-1 の 3 層のどれかに割り当てられているか**（PRD-04 §3-1-1 と一致しているか）
 - 管理画面の標準パターン 5 種（ダッシュボード / 一覧 / 詳細 / フォーム / 設定）が網羅されているか
 - shadcn-svelte の標準コンポーネントを使い倒しているか（独自スタイル乱立していないか）
-- **UI 文字列がハードコードされていないか — 言語方針（DEV-01 §1、決定後）に従っているか**
-- ロール（`admin` / `editor`）による認可が Service 層で強制されているか
+- 管理画面のページ URL に `/admin` 接頭辞を付けていないか（§1）
+- Content Collections から生成する個別ページに `export const prerender = true` があるか（§1-1）
+- 規約バージョン定数を更新せずに規約文面だけ変更していないか（§1-1）
+- AdminUser のセッション検証・Organization スコープによる認可が Service 層で強制されているか
+- 卸価格の出し分けがサーバー側で行われ、クライアント側の表示制御になっていないか（§2）
 - PRD-04 の画面 ID と Astro ページ/Svelte アイランドが対応しているか
 - a11y チェックリスト（§9）とレスポンシブ方針（§10）が満たされているか
 - 技術名の選定を本書に書いていないか（DEV-01 参照になっているか）
