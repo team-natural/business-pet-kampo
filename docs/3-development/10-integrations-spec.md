@@ -4,7 +4,7 @@ title: 統合・外部 API 仕様
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-15
+last-updated: 2026-09-16
 related-docs:
   - DEV-01: 技術スタック決定書
   - DEV-02: セキュリティ
@@ -234,50 +234,19 @@ await sendAwaitingTransferOverdueAlertEmail(env, order);
 
 ---
 
-## 4. ファイルストレージ（Cloudflare R2）
+## 4. ファイルストレージ — 不採用
 
-ファイルストレージは **Cloudflare R2** で確定（DEV-01 §1。バインディング名は必ず `BUCKET`）。商品画像・メーカーロゴ・お知らせ添付等に使用する。
+**Cloudflare R2 を採用しない**（GOV-01 D-020）。`r2_buckets` の設定も `BUCKET` バインディングも持たない。
 
-### 4-1. 設定（R2 バインディング）
-
-```jsonc
-// wrangler.jsonc
-{
-  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "<project>-bucket" }],
-}
-```
-
-```typescript
-// Service 内での操作例
-await env.BUCKET.put(key, fileBody, { httpMetadata: { contentType } });
-const object = await env.BUCKET.get(key);
-await env.BUCKET.delete(key);
-```
-
-> D1/R2 は 1 サービスにつき 1 回だけ作成し、`apps/public`・`apps/admin` の両方の `wrangler.jsonc` で同じ `bucket_name` を使う（CLAUDE.md「D1/R2 バインディングルール」参照）。
-
-### 4-2. バケット構造
-
-商品カタログは運営が一元管理する共有データであり、Organization 単位のプレフィックス階層は持たない（PRD-02 §2）。
-
-```
-/manufacturers/{manufacturer_id}/logo/         # メーカーロゴ
-/products/{product_id}/images/                 # 商品画像
-/news/{news_id}/attachments/                   # お知らせ添付
-```
-
-### 4-3. アクセス制御
-
-| ファイル種別 | アクセス方式 |
+| 用途 | 置き換え後 |
 | --- | --- |
-| 商品画像・メーカーロゴ（公開情報） | 公開 URL |
-| お知らせ添付（取引先限定公開の場合） | 署名付き URL（15 分有効） |
+| 商品画像・メーカーロゴ | `apps/public/src/assets/img/` にコミットし、`astro:assets` がビルド時に最適化する（WebP 変換・リサイズ・`width`/`height` 付与）。参照は Markdown frontmatter の相対パス |
+| お知らせ添付 | 添付機能を持たない（お知らせは Markdown — GOV-01 D-018）|
+| アップロード機能 | **存在しない。** アップロードを受けるエンドポイントを追加しないこと（DEV-02 §4・§6）|
 
-R2 のオブジェクトキーをそのまま公開 URL として返さない（DEV-01 §8）。行と実バイトの整合は「追加は R2 → 行、削除は行 → R2 の逆順」で保つ（DEV-05 §3）。
+R2 が有利になるのは「運営がアップロードする」「点数が多くリポジトリに載せられない」「動画・PDF など大きい」場合で、本プロジェクトはいずれにも当たらない（商品の更新は開発者が半年に 1 回程度）。
 
-### 4-4. バックアップ
-
-バックアップ範囲・頻度の正本は OPS-02 §4（初期は商品画像等の重要ファイルのみ）。本書では範囲・頻度を定めない。
+> 将来 R2 を追加する場合は、frontmatter の相対パスを URL に差し替えるだけで済む。その時点で D1 側に `media` 相当のテーブルが必要かを改めて判断する（GOV-01 D-020）。バックアップ対象も増えるため OPS-02 §4 を更新すること。
 
 ---
 
@@ -381,9 +350,9 @@ INTAKE §7 審査制の「OAuth 認証成功のみでは取引先として承認
 
 ## 7. その他の頻出統合
 
-### 7-1. 全文検索（D1 FTS5、採用時）
+### 7-1. 全文検索 — 対象が D1 に無い
 
-商品カタログの規模（PRD-02 §5-1）では MVP では不採用。導入する場合は本節に連携仕様を追記する。
+商品カタログは Content Collections にあるため（GOV-01 D-017）、D1 の FTS5 は**そもそも適用先が無い**。商品数十〜百点の規模では、全件をサーバー側でフィルタする方式で足りる（DEV-06 §1-1、DEV-07 §8）。外部検索サービスも MVP では不採用（GOV-01 D-012）。
 
 ### 7-2. 配送・配送追跡連携（未確定）
 
@@ -430,7 +399,7 @@ console.log(JSON.stringify({ level: "info", message: "Stripe checkout session cr
 | --- | --- |
 | Stripe | Stripe Dashboard で API 成功率 |
 | Resend | Resend Dashboard で配信成功率 |
-| R2 / 基盤 | Cloudflare Status Page を購読（DEV-01 §1） |
+| Cloudflare 基盤（Workers / D1 / KV / Access）| Cloudflare Status Page を購読（DEV-01 §1）。**Access の障害は管理画面全体の停止と同義**である（GOV-01 D-022） |
 
 ---
 
@@ -442,7 +411,7 @@ console.log(JSON.stringify({ level: "info", message: "Stripe checkout session cr
 | --- | --- |
 | Stripe | `stripe-cli` で Webhook をローカル受信、Mock も使う。**同一イベントの二重送信で冪等性を検証する**（DEV-09 §5-3） |
 | Resend | テスト時は送信関数をモックし、実際の Resend API を呼ばない |
-| R2 | テスト時は R2 バインディングのローカルエミュレーション（Wrangler/Miniflare） |
+| Cloudflare Access | テスト時は JWT 検証をローカルのフォールバックで代替する。**そのフォールバックが `APP_ENV=production` で無効になることを単体テストで固定する**（GOV-01 D-022、DEV-03 §3-5） |
 | OAuth | テスト時は Arctic のレスポンスをモックする。**未登録ユーザーで Member が作られないこと**を必ず検証する（§5-3） |
 | Webhook | ローカルで `ngrok` 等でトンネル |
 
@@ -464,8 +433,7 @@ MAIL_FROM_ADDRESS=
 MAIL_FROM_NAME=
 MAIL_ADMIN_ALERTS=
 
-# ファイルストレージ（Cloudflare R2、DEV-01 §1）
-# 通常の読み書きは env.BUCKET バインディング経由のため環境変数は不要（wrangler.jsonc の r2_buckets で設定）
+# ファイルストレージは不採用（GOV-01 D-020）。R2 関連の環境変数・バインディングは無い
 
 # OAuth（Member 向け。§5）
 GOOGLE_CLIENT_ID=

@@ -4,7 +4,7 @@ title: 状態遷移仕様
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-15
+last-updated: 2026-09-16
 related-docs:
   - PRD-01: ドメインモデル（状態を持つエンティティ）
   - DEV-04: API 仕様（エンドポイントの配置 — §1-1）
@@ -44,15 +44,12 @@ PRD-01 §7 と整合させる。
 
 | エンティティ | 列 | 値 | 根拠 |
 | --- | --- | --- | --- |
-| AdminUser | `status` | active / inactive | 有効/無効の切替のみ（DEV-07 §4-1）|
-| Product | `published_status` | draft / published | 公開/非公開の切替（PRD-03 F-06-02、DEV-07 §6-4）|
-| Product | `handling_status` | active / discontinued | 取扱開始/終了の切替。削除せず状態で持つのは過去注文の商品情報を消さないため（PRD-03 F-06-03）|
-| News | `status` | draft / published | 公開/非公開の切替（PRD-03 F-09-02、DEV-07 §7-1）|
+| AdminUser | `status` | active / inactive | 有効/無効の切替のみ（DEV-07 §4-1）。**Access のポリシーから外す運用と二重管理になる**ため、無効化は両方で行う（GOV-01 D-022）|
 | Inquiry | `status` | new / in_progress / resolved | 運営の対応状況を表すだけで、業務上の副作用を持たない（PRD-03 F-09-06、DEV-07 §7-2）|
 
 > Inquiry の `resolved → in_progress`（再オープン）を許すかは未確定（GOV-02 TBD-30）。許さない実装にすると、同一問い合わせの再対応が新規レコード起票になる。
 
-商品選び診断は状態を持たない（テーブルを持たないため — DEV-07 §7-3）。診断ルールの「公開」はデプロイと同義であり、下書きはブランチ上のコミットで表現する（PRD-01 §7 の注記、DEV-06 §1-1）。
+**商品・お知らせ・診断ルールは D1 に状態列を持たない**（GOV-01 D-017・D-018）。公開/非公開は frontmatter の `draft`、取扱終了は `discontinued` で表現し、**「公開」はデプロイと同義**、下書きはブランチ上のコミットで表現する（PRD-01 §7 の注記、DEV-06 §1-1）。したがって状態遷移関数（§3）の対象にもならず、遷移の監査ログも残らない — 履歴は Git が持つ。
 
 ---
 
@@ -407,7 +404,7 @@ import { transitionOrder } from "../../../../lib/server/services/orders";
 
 export async function PATCH({ params, request, cookies }: APIContext): Promise<Response> {
   const db = createDb(env.DB);
-  const session = await requireSession(cookies, db); // D1 セッション検証（本プロジェクトはロール区分を持たないため追加のロール検証は不要 — GOV-01 D-014）
+  const admin = await requireAdminUser(context); // Access JWT 検証済み（ロール区分なし — GOV-01 D-014・D-022）
   const order = await getOrderByPublicId(db, params.id!); // URL キーは public_id（DEV-07 §1）
   const { status } = await request.json();
   await transitionOrder(db, order.id, status, session.adminUserId);
@@ -430,7 +427,7 @@ export async function PATCH({ params, request, cookies }: APIContext): Promise<R
 | `subject_type` / `subject_id` | 遷移対象のエンティティと ID |
 | `causer_type` / `causer_id` | `AdminUser` / `Member` と その ID。system 起点（決済 Webhook・定期バッチ）は **NULL** とし、`properties.source` に `system` を入れる（DEV-05 §9-1。「system ユーザー」を発明しない） |
 | `properties` | `{ "old": { "status": from }, "attributes": { "status": to } }` |
-| `organization_id` | 発注関連は対象の `organization_id`。商品カタログ操作等は NULL |
+| `organization_id` | 発注関連は対象の `organization_id`。取引先に紐づかない操作（問い合わせ対応等）は NULL |
 
 ---
 

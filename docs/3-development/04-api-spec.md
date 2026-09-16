@@ -4,7 +4,7 @@ title: API 仕様
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-09
+last-updated: 2026-09-16
 related-docs:
   - DEV-01: リポジトリ構成・レイヤー構造（§1・§5）
   - DEV-02: 認証認可
@@ -32,7 +32,7 @@ RESTful API の設計規約、認証方式、エラー体系、バージョニ�
 
 - RESTful 設計を遵守
 - 全エンドポイントを `/api/v1/` でバージョニング
-- リソース名は複数形（`/products`、`/applications`、`/orders`）
+- リソース名は複数形（`/applications`、`/orders`、`/inquiries`）
 - ネスト 1 段まで（例: `/orders/{id}/items`）。2 段以上は別エンドポイント
 - HTTP メソッドの意味を尊重（GET / POST / PUT / PATCH / DELETE）
 - レスポンスは共通のレスポンス整形関数/型（`packages/server-kit` の HTTP エンベロープ。Laravel API Resource 相当のフレームワーク機能はないため自前実装、DEV-01 §1 参照）経由のみで生成する
@@ -46,9 +46,10 @@ RESTful API の設計規約、認証方式、エラー体系、バージョニ�
 
 | パス | `apps/admin`（管理サブドメイン）| `apps/public`（メインドメイン）|
 | --- | --- | --- |
-| `/api/v1/orders` | 受注管理（全取引先分。AdminUser 認証）| 自社の発注履歴（Member 認証 + Organization スコープ）|
-| `/api/v1/inquiries` | 問い合わせ一覧・対応（AdminUser 認証）| 問い合わせ送信のみ（認証不要）|
-| `/api/v1/products` | 商品の追加・編集（AdminUser 認証）| 商品一覧・詳細の取得（認証不要）|
+| `/api/v1/orders` | 受注管理（全取引先分。Access 認証）| 自社の発注履歴（Member 認証 + Organization スコープ）|
+| `/api/v1/inquiries` | 問い合わせ一覧・対応（Access 認証）| 問い合わせ送信のみ（認証不要）|
+
+> `/api/v1/products` は**どちらのアプリにも存在しない**。商品は Content Collections にあり、ページがサーバー側で直接読む（GOV-01 D-017、DEV-06 §1-1）。API を経由しないため、同名衝突も起きない。
 
 本書 §5 の各表では、**どちらのアプリに置くかを「アプリ」列で必ず明示する**。実装時にこれを取り違えると、管理系の書き込み API が公開ドメインに露出する。
 
@@ -60,16 +61,18 @@ RESTful API の設計規約、認証方式、エラー体系、バージョニ�
 
 | 項目 | AdminUser 向け | Member 向け |
 | --- | --- | --- |
-| 方式 | D1 セッション + httpOnly クッキー（`admin_session`。値は無署名の CSPRNG トークン — クッキー属性・署名方針の正本は DEV-02 §1-1）。`jose`/JWT は不採用 | D1 セッション + httpOnly クッキー（`member_session`）。`jose`/JWT は不採用。OAuth（Arctic、LINE/Google/Facebook）併用可 |
-| セッション発行 | `POST /api/v1/auth/login`（admin） | `POST /api/v1/auth/login`（public）、または OAuth コールバック |
-| セッション失効 | `POST /api/v1/auth/logout`（admin） | `POST /api/v1/auth/logout`（public） |
-| 認証必須範囲 | `apps/admin` の全エンドポイント。認証不要の除外: `/api/v1/auth/login`、`/api/v1/auth/password/forgot`、`/api/v1/auth/password/reset`、ヘルスチェック（`/health`・`/health/db`・`/health/kv` — DEV-08 参照） | `apps/public` の `/api/v1/me/**`、`/api/v1/cart/**`、`/api/v1/checkout`、`/api/v1/orders/**`、`/api/v1/addresses/**`。認証不要: 商品・お知らせ・診断・申請・問い合わせ・認証系 |
-| 検証の実施箇所 | 各 API ルートハンドラ（`apps/admin/src/pages/api/**/*.ts`）の冒頭で `admin_session` クッキーを検証（`apps/admin/src/middleware.ts` はセキュリティヘッダー専用で認証は行わない — DEV-05 参照） | 各 API ルートハンドラ（`apps/public/src/pages/api/**/*.ts`）の冒頭で `member_session` クッキーを検証し、所属 Organization の状態（`active`）も併せて検証する（DEV-02 §1-3） |
-| 認可判定 | ロール区分を持たない（GOV-01 D-014）。Service 層の入口で `requireSession(cookies, db)`（DEV-02 §3-2）によりセッションの有効性のみを検証 | ログイン時に所属 Organization ID・`memberships.role`（`client_user` 固定）をセッションへ埋め込み、Service 層の入口で Organization スコープを検証（DEV-02 §3-1） |
+| 方式 | **Cloudflare Access**（GOV-01 D-022）。アプリはセッションを発行せず、`Cf-Access-Jwt-Assertion` ヘッダーの JWT を検証して `email` で `admin_users` を引く | D1 セッション + httpOnly クッキー（`member_session`）。`jose`/JWT は不採用。OAuth（Arctic、LINE/Google/Facebook）併用可 |
+| セッション発行 | **アプリ側では行わない**（Access のログインフローに委譲） | `POST /api/v1/auth/login`（public）、または OAuth コールバック |
+| セッション失効 | **アプリ側では行わない**（Access のログアウト / セッション寿命設定に従う） | `POST /api/v1/auth/logout`（public） |
+| 認証必須範囲 | `apps/admin` の全ルート（ページ・API とも）。Access の Application を Worker のドメイン全体に設定する。除外はヘルスチェック（`/health`・`/health/db` — DEV-08 参照）のみで、これは Access のバイパスポリシーで扱う | `apps/public` の `/api/v1/me/**`、`/api/v1/cart/**`、`/api/v1/checkout`、`/api/v1/orders/**`、`/api/v1/addresses/**`。認証不要: 申請・問い合わせ・認証系 |
+| 検証の実施箇所 | `apps/admin/src/middleware.ts` で JWT を検証する（全ルートが管理系のため、ページごとに書くと 1 枚でも漏らせば素通りする — DEV-02 §1-1）。**エッジでの検証だけに依存しない** — Worker の URL へ直接到達された場合に備え、アプリ側でも AUD tag と発行元の公開鍵で検証する | 各 API ルートハンドラ（`apps/public/src/pages/api/**/*.ts`）の冒頭で `member_session` クッキーを検証し、所属 Organization の状態（`active`）も併せて検証する（DEV-02 §1-3） |
+| 認可判定 | ロール区分を持たない（GOV-01 D-014）。Service 層の入口で `requireAdminUser(context)`（DEV-02 §3-2）により JWT の検証結果と `admin_users.status = active` を確認する | ログイン時に所属 Organization ID・`memberships.role`（`client_user` 固定）をセッションへ埋め込み、Service 層の入口で Organization スコープを検証（DEV-02 §3-1） |
 
-商品カタログ（`/api/v1/products` の GET）・新規取引申請フォーム（`/api/v1/applications` の POST）・お知らせ・お問い合わせ・診断は認証不要（一般公開。PRD-03 FG-02〜03・FG-09）。
+新規取引申請フォーム（`/api/v1/applications` の POST）・お問い合わせ（`/api/v1/inquiries` の POST）は認証不要（一般公開。PRD-03 FG-02・FG-09）。
 
-> 認証系のパス（`/api/v1/auth/login` 等）は両アプリに同名で存在するが、別テーブル・別クッキーの完全に独立した実装である（DEV-02 §1-2）。片方のコードをもう片方から import してはならない。
+**商品カタログ・お知らせに API は存在しない。** いずれも Content Collections にあり、ページがビルド成果物から直接読む（GOV-01 D-017・D-018）。
+
+> `apps/admin` に認証系エンドポイント（`/api/v1/auth/**`）は存在しない（GOV-01 D-022）。`apps/public` 側にのみ存在し、これは Member 専用の実装である。**片方のコードをもう片方から import してはならない**（DEV-02 §1-2）。
 
 ---
 
@@ -89,7 +92,7 @@ RESTful API の設計規約、認証方式、エラー体系、バージョニ�
 
 ### 3-2. 成功（コレクション）
 
-ページ番号方式（件数が少なく安定しているリスト。例: 取引先一覧）とカーソル方式（大規模リスト。例: 商品一覧・監査ログ）で envelope の形が異なる。
+ページ番号方式（件数が少なく安定しているリスト。例: 取引先一覧）とカーソル方式（大規模リスト。例: 監査ログ）で envelope の形が異なる。
 
 **ページ番号方式**
 
@@ -168,36 +171,31 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 
 | アプリ | メソッド | パス | 用途 | 認証 |
 | --- | --- | --- | --- | --- |
-| admin | POST | `/api/v1/auth/login` | AdminUser ログイン | 不要 |
-| admin | POST | `/api/v1/auth/logout` | ログアウト | 必須 |
-| admin | GET | `/api/v1/auth/me` | 現在の AdminUser | 必須 |
-| admin | POST | `/api/v1/auth/password/forgot` | パスワードリセット要求 | 不要 |
-| admin | POST | `/api/v1/auth/password/reset` | パスワードリセット実行 | 不要 |
 | public | POST | `/api/v1/auth/activate` | アカウント有効化（承認後の初回パスワード設定） | 不要（有効化トークン検証） |
 | public | POST | `/api/v1/auth/login` | Member ログイン | 不要 |
-| public | GET | `/api/v1/auth/callback/{provider}` | OAuth コールバック（LINE/Google/Facebook） | 不要 |
+| public | GET | `/auth/{provider}` · `/auth/{provider}/callback` | OAuth 開始・コールバック（LINE/Google/Facebook）。**API ではなくページルート**（リダイレクト専用。DEV-06 §1-2）| 不要 |
 | public | POST | `/api/v1/auth/logout` | ログアウト | 必須 |
 | public | GET | `/api/v1/auth/me` | 現在の Member（所属 Organization を含む） | 必須 |
 | public | POST | `/api/v1/auth/password/forgot` | パスワードリセット要求 | 不要 |
 | public | POST | `/api/v1/auth/password/reset` | パスワードリセット実行 | 不要 |
 
-### 5-2. 商品カタログ（閲覧は公開、書き込みは AdminUser 限定）
+> **`apps/admin` の認証エンドポイントは存在しない**（GOV-01 D-022）。ログイン・ログアウト・パスワードリセットはすべて Cloudflare Access が担う。「現在の AdminUser」を返す `/api/v1/auth/me` も不要で、ページは middleware が解決した AdminUser を `Astro.locals` から受け取る。
 
-| アプリ | メソッド | パス | 用途 | 認証 |
-| --- | --- | --- | --- | --- |
-| public | GET | `/api/v1/products` | 商品一覧・検索・絞り込み（キーワード・対象動物・メーカー・ブランド・カテゴリー・気になる点） | 不要（PRD-03 F-03-01〜09） |
-| public | GET | `/api/v1/products/{public_id}` | 商品詳細（卸価格・発注単位は Member かつ Organization `active` の場合のみ含める） | 不要（応答内容がセッションで変わる） |
-| public | GET | `/api/v1/manufacturers`, `/api/v1/brands`, `/api/v1/product-categories`, `/api/v1/concerns` | 絞り込み用のマスタ一覧 | 不要 |
-| admin | GET / POST | `/api/v1/products` | 商品一覧（下書き含む）/ 商品追加 | AdminUser |
-| admin | GET / PATCH | `/api/v1/products/{public_id}` | 商品詳細 / 編集・公開状態・取扱状態・表示順変更 | AdminUser |
-| admin | POST | `/api/v1/products/{public_id}/images` | 商品画像アップロード（R2。MIME/拡張子/サイズ/実バイトの 4 重検証 — DEV-02 §4） | AdminUser |
-| admin | PATCH / DELETE | `/api/v1/products/{public_id}/images/{id}` | 表示順変更 / 画像削除 | AdminUser |
-| admin | GET / POST | `/api/v1/manufacturers`, `/api/v1/brands`, `/api/v1/product-categories`, `/api/v1/concerns` | 一覧 / 追加 | AdminUser |
-| admin | PATCH | `/api/v1/manufacturers/{id}` 他 | 編集 | AdminUser |
+### 5-2. 商品カタログ — API を持たない
 
-> 商品画像の削除は **R2 のオブジェクト削除 → `product_images` の行削除** の順で行う（逆順にすると行だけ消えて R2 に孤児オブジェクトが残る）。公開 URL は署名付きで発行し、R2 のキーをそのまま返さない（DEV-01 §8）。
+**商品・メーカー・ブランド・分類・商品画像・取引先別価格に API は存在しない**（GOV-01 D-017〜D-020）。実体は `packages/content` と静的アセットで、Astro ページがサーバー側で直接読む（DEV-06 §1-1）。
+
+| 旧エンドポイント | 置き換え後 |
+| --- | --- |
+| `GET /api/v1/products`（一覧・検索・絞り込み）| `lib/catalog.ts` が Content Collections 全件を読み、サーバー側でフィルタ。絞り込み条件は URL クエリで受ける（DEV-06 §3）|
+| `GET /api/v1/products/{public_id}`（詳細）| ページが `getEntry()` で slug から解決。**卸価格はページのフロントマターで出し分ける** |
+| `GET /api/v1/manufacturers` 他（絞り込み用マスタ）| Content Collections と `lib/catalog.ts` の定数 |
+| 商品の追加・編集・公開状態・表示順（admin）| Markdown の編集 + デプロイ。**管理画面もエンドポイントも持たない** |
+| 商品画像のアップロード・削除（admin）| `src/assets/img/` へのコミット。R2 を使わない（GOV-01 D-020）|
+
+> 結果として **`apps/public` の公開系 API は申請・問い合わせの POST だけ**になり、GET エンドポイントは Member 認証が要るものしか残らない。
 >
-> `products.slug` は診断ルール（`packages/content`）からの参照キーである。PATCH で slug を変更すると診断の推奨商品が解決できなくなるため、変更を禁止するか警告を出す（PRD-03 F-06-01 の注記、DEV-06 §1-1）。
+> 商品の `slug` は `order_items.product_slug` と診断ルールからの参照キーである。リネームは参照を壊すため行わない（DEV-06 §1-1、DEV-07 §6-0）。
 
 ### 5-3. 新規取引申請・審査（PRD-03 FG-02）
 
@@ -205,11 +203,11 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | --- | --- | --- | --- | --- |
 | public | POST | `/api/v1/applications` | 新規取引申請の送信（`agreedTermsVersion` を必ず記録 — §6-1） | 不要 |
 | public | DELETE | `/api/v1/applications/{public_id}` | 申請取消（申請者本人。ログイン不要の取消トークン方式） | 不要 |
-| admin | GET | `/api/v1/applications` | 申請一覧・検索 | AdminUser |
-| admin | GET | `/api/v1/applications/{public_id}` | 申請詳細・審査履歴 | AdminUser |
-| admin | PATCH | `/api/v1/applications/{public_id}` | 審査担当者記録・管理メモ更新・確認/差し戻し | AdminUser |
-| admin | POST | `/api/v1/applications/{public_id}/approve` | 承認（Organization + 初期 Member 生成、状態遷移は DEV-09） | AdminUser |
-| admin | POST | `/api/v1/applications/{public_id}/reject` | 否認 | AdminUser |
+| admin | GET | `/api/v1/applications` | 申請一覧・検索 | Access |
+| admin | GET | `/api/v1/applications/{public_id}` | 申請詳細・審査履歴 | Access |
+| admin | PATCH | `/api/v1/applications/{public_id}` | 審査担当者記録・管理メモ更新・確認/差し戻し | Access |
+| admin | POST | `/api/v1/applications/{public_id}/approve` | 承認（Organization + 初期 Member 生成、**`org_code` の採番**、状態遷移は DEV-09） | Access |
+| admin | POST | `/api/v1/applications/{public_id}/reject` | 否認 | Access |
 
 ### 5-4. 取引先（Organization）管理（AdminUser 限定）
 
@@ -222,8 +220,10 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | admin | POST | `/api/v1/organizations/{public_id}/resume` | 取引再開 |
 | admin | POST | `/api/v1/organizations/{public_id}/terminate` | 取引終了処理 |
 | admin | GET | `/api/v1/organizations/{public_id}/members` | 所属 Member 一覧（参照専用 — PRD-04 §3-2） |
-| admin | PUT | `/api/v1/organizations/{public_id}/product-prices/{product_id}` | 取引先別卸価格の設定 |
-| admin | DELETE | `/api/v1/organizations/{public_id}/product-prices/{product_id}` | 取引先別卸価格の解除（標準卸価格へ戻す） |
+
+> **取引先別卸価格の設定・解除エンドポイントは存在しない**（GOV-01 D-019）。価格は `packages/content/prices/*.md` にあり、変更はコミット + デプロイで行う。ADM-15 では現在適用中の価格を**参照表示するだけ**で、そのデータもページが Content Collections から直接読む（API を介さない）。
+>
+> 承認時（`POST /api/v1/applications/{public_id}/approve`）に採番する `org_code` が、価格ファイルからの参照キーになる。**採番後に変更してはならない**（DEV-07 §5-2）。
 
 ### 5-5. マイページ（Member。PRD-03 FG-05）
 
@@ -265,16 +265,15 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 
 | アプリ | メソッド | パス | 用途 | 認証 |
 | --- | --- | --- | --- | --- |
-| public | GET | `/api/v1/news` | お知らせ一覧（`visibility` を考慮） | 不要（取引先限定分は Member ログインで出し分け） |
-| public | GET | `/api/v1/news/{slug}` | お知らせ詳細 | 同上 |
 | public | POST | `/api/v1/inquiries` | お問い合わせ送信 | 不要 |
-| public | POST | `/api/v1/diagnosis/result` | 診断回答の送信 → 推奨商品の解決 | 不要（PRD-03 F-03-10） |
-| admin | GET / POST | `/api/v1/news` | お知らせ一覧（下書き含む）/ 追加 | AdminUser |
-| admin | GET / PATCH | `/api/v1/news/{public_id}` | 詳細 / 編集・公開状態変更 | AdminUser |
-| admin | GET | `/api/v1/inquiries` | お問い合わせ一覧・検索 | AdminUser |
-| admin | GET / PATCH | `/api/v1/inquiries/{public_id}` | 詳細 / 対応状況・担当者・メモ更新 | AdminUser |
+| admin | GET | `/api/v1/inquiries` | お問い合わせ一覧・検索 | Access |
+| admin | GET / PATCH | `/api/v1/inquiries/{public_id}` | 詳細 / 対応状況・担当者・メモ更新 | Access |
 
-> **診断に「質問セット取得」の API は存在しない。** 質問・選択肢は `packages/content` にあり、診断ページのビルド時に解決されて HTML に含まれる（DEV-06 §1-1、PRD-02 §1-4）。API が必要なのは回答から推奨商品を解決する部分だけで、`POST /api/v1/diagnosis/result` はバンドル済みのルールを評価し、該当する `Product.slug` を D1 で引いて商品情報を返す。返す商品は公開済み・取扱中のものに限る（DEV-02 §3-1）。診断結果に卸価格を含めてはならない（PRD-02 §2-3）。
+> **お知らせに API は存在しない**（GOV-01 D-018）。実体は `packages/content/news/*.md` で、一覧・詳細ページがサーバー側で読む。`visibility: client_only` と `draft` の除外は**一覧・詳細・サイトマップの 3 か所すべて**で行う（DEV-07 §7-1）。
+>
+> **診断の API も持たない**（GOV-01 D-023）。設問と判定ロジックが未確定のため、`/diagnosis` は Coming soon 表示のページのみを用意し、`POST /api/v1/diagnosis/result` は実装しない。実装する際も「質問セット取得」の API は不要で（質問・選択肢はビルド時に HTML へ含まれる）、必要になるのは回答から推奨商品を解決する 1 本だけになる。診断結果に卸価格を含めてはならない（PRD-02 §2-3）。
+>
+> `POST /api/v1/inquiries` は `type` / `name` / `email` / `content` 等のみを受け取る。**`status` はサーバーが `new` で決め打ちし、`assignee_id` / `memo` はフォームから受け取らない**（DEV-07 §7-2）。`type` は `lib/inquiry.ts` の id に限定して検証する（GOV-01 D-024）。
 
 ### 5-9. 管理ダッシュボード・監査ログ（AdminUser 限定）
 
@@ -355,7 +354,9 @@ Content-Type: application/json
 - デフォルト 20 件 / ページ
 - 最大 100 件 / ページ
 - クエリパラメータ: `?page=2&per_page=50`
-- 大規模リスト（商品・監査ログ等）はカーソルベース：`?cursor=eyJpZCI6MTAwfQ`
+- 大規模リスト（監査ログ等）はカーソルベース：`?cursor=eyJpZCI6MTAwfQ`
+
+> **商品一覧はページネーション API を持たない**（GOV-01 D-017）。Content Collections の全件をサーバー側で保持するため、ページ送りはページ内のクエリパラメータ（`?page=`）で完結する。
 - 実装: D1 への `LIMIT`/`OFFSET`（または cursor ベースは `WHERE id > ?` 等）クエリと、§3-2 の `meta`/`links` envelope をアプリ側（Service 層）で組み立てる（DEV-01 参照）
 
 ---

@@ -4,7 +4,7 @@ title: AI との作業マニュアル
 phase: cross
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-08-18
+last-updated: 2026-09-16
 related-docs:
   - README: docs/ 全体の構造ガイド
   - INTAKE: 全文書の入力源
@@ -78,7 +78,7 @@ git commit / git push                     → 人間がやる（AI は実行し�
 │   └── 1-business/ 〜 5-governance/
 │
 ├── CLAUDE.md                ← AI 向けの実装規約の正本
-│                                （アーキテクチャ、コマンド、D1/R2 バインディングルール、ハード制約）
+│                                （アーキテクチャ、コマンド、D1 バインディングルール、ハード制約）
 ├── .mcp.json                 ← MCP サーバー定義（astro-docs / svelte / cloudflare-docs / context7 / context-mode / semble / playwright）
 ├── .claude/
 │   ├── settings.json         ← hooks・MCP 有効化・permissions の定義
@@ -198,7 +198,7 @@ git commit / git push                     → 人間がやる（AI は実行し�
 
 3. マイグレーションファイルを作成（`schema-build` スキル。Drizzle スキーマ生成 → `pnpm db:generate` — DEV-01 §1）
    「DEV-07 を参照して Drizzle スキーマ（`packages/schema/src/schema.ts`）を更新し、`pnpm db:generate` で migration SQL を生成して」
-   → migration は `apps/admin` からのみ実行する（同一リポジトリ内の app 単位の所有権。DEV-01 / CLAUDE.md の D1/R2 バインディングルール参照）
+   → migration は `apps/admin` からのみ実行する（同一リポジトリ内の app 単位の所有権。DEV-01 / CLAUDE.md の D1 バインディングルール参照）
 
 4. 適用
    ! pnpm db:migrate                         # = wrangler d1 migrations apply DB --local --persist-to ../../.wrangler-state
@@ -210,7 +210,10 @@ git commit / git push                     → 人間がやる（AI は実行し�
      `scaffold` スキルに渡す。セッション・中間テーブル等は対象外
    → スキルが参照実装（inquiry）に倣って書く。ジェネレータは無いので Claude の Edit/Write を
      経由し、hooks（format / lint / typecheck）がそのまま走る
-   → read と write でロールが違うリソースがある（Inquiry 一覧は `editor: ✕`）ので `readRole` を必ず判断する
+   → **商品・お知らせは対象外**。D1 に無く Content Collections で管理するため（GOV-01 D-017・D-018）、
+     Service も API も作らない（DEV-04 §5-2）
+   → ロール分岐は不要（AdminUser は単一種別 — GOV-01 D-014）。生成物に `readRole` / `writeRole` が
+     残っていたら削る
 
 6. 画面の雛形は作らない
    → ルートと Layout だけの雛形を機械生成しても、`admin-design` / `public-design` が
@@ -234,14 +237,14 @@ git commit / git push                     → 人間がやる（AI は実行し�
 
 ```
 1 枚目（レイアウトを含む）:
-  「admin-design スキルで apps/admin/src/pages/index.astro（ADM-00 ログイン）と
-    dashboard/index.astro（ADM-01）、Layout.astro を更新して。
+  「admin-design スキルで apps/admin/src/pages/index.astro（ADM-01 ダッシュボード）と
+    Layout.astro を更新して。
     PRD-04 §4-1 のサイドナビ + ヘッダー + コンテンツの 3 ペイン構成にして」
   → ここで作るレイアウトとサイドナビが以降の全画面の土台になる。ナビの行き先は
     §3-2 で生成済みなのでリンク切れにならない
-  → ログインは API に結線済み（成功で /dashboard へ遷移）。作り込むのは見た目だけで、
-    dashboard/index.astro 冒頭のセッション検証と login-form.svelte のフォーム規約
-    （DEV-06 §4-4）は消さずに残す — 以降の全画面がこれに倣う
+  → 管理画面にログイン画面は無い（認証は Cloudflare Access — GOV-01 D-022）。
+    middleware.ts の Access JWT 検証は消さずに残す — これが無いと全画面が素通りになる
+  → サイドナビに商品・お知らせ等のコンテンツ管理項目を足さないこと（PRD-04 §3-2）
 
 2 枚目以降:
   「admin-design スキルで /inquiries の一覧画面を作って。1 枚目の構成に倣って」
@@ -363,7 +366,7 @@ git commit / git push                     → 人間がやる（AI は実行し�
 
 ### 実装規約（AI が常時参照。繰り返しミスがあったら育てる）
 
-実装規約は **`CLAUDE.md` 1 ファイル**に集約されている（アーキテクチャ、コマンド、D1/R2 バインディングルール、
+実装規約は **`CLAUDE.md` 1 ファイル**に集約されている（アーキテクチャ、コマンド、D1 バインディングルール、
 ハード制約、フォーマット/Lint 方針）。`.claude/skills/shadcn-svelte/rules/` はベンダー管理のため直接編集しない。
 
 ```

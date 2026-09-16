@@ -4,7 +4,7 @@ title: ドメインモデル
 phase: 2
 status: draft-ai
 owner: PdM / Tech Lead
-last-updated: 2026-09-15
+last-updated: 2026-09-16
 related-docs:
   - PRD-02: システム構成・データモデル
   - PRD-03: 機能要件
@@ -58,7 +58,7 @@ Site（運営: 1 事業者・1 運営チーム。マルチテナント SaaS で�
                  └─ Payment（決済記録。カード決済 / 銀行振込のみ。掛売りは提供しない — GOV-01 D-010）
 ```
 
-> **アプリ間のエンティティ所有**（DEV-01 §1「リポジトリ構成」参照）: AdminUser・商品カタログ・Application・News・Inquiry・活動監査ログは `apps/admin` の関心事。Member・Organization・Membership・Cart/CartItem・Order・OrderItem・Payment・ShippingAddress は `apps/public` の関心事（会員マイページ + 発注機能）。D1/R2 は両アプリで共有し、マイグレーションは `apps/admin` からのみ実行、スキーマ定義自体は `packages/schema` に一元化する。
+> **アプリ間のエンティティ所有**（DEV-01 §1「リポジトリ構成」参照）: AdminUser・Application・Inquiry・活動監査ログは `apps/admin` の関心事。Member・Organization・Membership・Cart/CartItem・Order・OrderItem・Payment・ShippingAddress は `apps/public` の関心事（会員マイページ + 発注機能）。商品カタログとお知らせはどちらの所有でもなく `packages/content` が正本である（§1-5、GOV-01 D-017・D-018）。**共有するのは D1 のみ**（R2 は不採用 — D-020）。マイグレーションは `apps/admin` からのみ実行し、スキーマ定義自体は `packages/schema` に一元化する。
 
 ### 1-2. ロール構造（最小構成）
 
@@ -92,13 +92,22 @@ INTAKE §4-3 の顧客発言のとおり、「Uchinoko」はサイト全体の�
 
 本書のエンティティは、すべて D1 のテーブルとして実装される（DEV-07）。一方、公開画面に出るコンテンツのうち **運営が日常的に更新しないもの** は D1 に置かず、エンティティとして扱わない（置き場所の判断は DEV-06 §1-1 が正本）。
 
+本プロジェクトでは、この「運営が日常的に更新しないもの」が**公開コンテンツのすべて**にあたる（GOV-01 D-017・D-018）。商品の改訂は半年に 1 回程度で、実施するのは開発者である。
+
 | コンテンツ | 置き場所 | エンティティか |
 | --- | --- | :---: |
-| 商品選び診断のルール（質問・選択肢 → 推奨商品）| `packages/content`（Content Collections）| ✗ |
-| よくある質問（FAQ）| ページ直書き | ✗ |
+| 商品（説明・原材料・使用方法・標準卸価格・発注単位）| `packages/content`（Content Collections）| ✗ |
+| メーカー・ブランド | `packages/content` | ✗ |
+| 取引先別の個別卸価格 | `packages/content`（`organizations.orgCode` を参照）| ✗ |
+| お知らせ | `packages/content` | ✗ |
+| 商品選び診断のルール（質問・選択肢 → 推奨商品）| `packages/content` | ✗ |
+| 商品画像 | 静的アセット（`apps/public/src/assets/img`）| ✗ |
+| 商品カテゴリー・気になる点の分類、FAQ、送料・税率・支払方法、お問い合わせ種別 | TypeScript 定数 | ✗ |
 | 利用規約・プライバシーポリシー・特定商取引法に基づく表示 | ページ直書き | ✗ |
 
-診断ルールは Markdown / YAML の frontmatter で表現し、推奨商品は `Product.slug` で参照する（Content Collections 側から D1 の商品を引く。実装方針は DEV-06 §1-1、機能仕様は PRD-03 F-03-10）。**診断は運営が管理画面から編集する対象ではない**ため、`DiagnosisSet` / `DiagnosisQuestion` / `DiagnosisChoice` / `DiagnosisRule` をエンティティとして持たない（GOV-01 D-015。当初の設計ではこの 4 つを D1 テーブルとして検討していたが、対応する管理画面が存在せず更新手段のないテーブルになっていた）。
+したがって **`Product` / `Manufacturer` / `Brand` / `ProductCategory` / `Concern` / `ProductImage` / `OrganizationProductPrice` / `News` はエンティティではない**（GOV-01 D-017〜D-020）。当初の設計ではいずれも D1 テーブルだったが、運営が管理画面から更新する対象ではないことが確認されたため外した。診断系 4 エンティティを外したとき（D-015）と同じ判断を、カタログ全体に広げたものである。
+
+構造定義は `packages/content/src/schema.ts` の Zod スキーマが正本になる。**エンティティ側から見た影響は「参照が外部キーではなく文字列になる」こと**で、`CartItem` / `OrderItem` は `productSlug`、取引先別価格は `Organization.orgCode` で結びつく（DEV-06 §1-1、DEV-07 §6-0）。
 
 ---
 
@@ -140,52 +149,16 @@ classDiagram
       +organizationId
       +role
     }
-    class Manufacturer {
-      +id
-      +name
-    }
-    class Brand {
-      +id
-      +manufacturerId
-      +name
-    }
-    class ProductCategory {
-      +id
-      +name
-    }
-    class Concern {
-      +id
-      +name
-    }
-    class Product {
-      +id
-      +publicId
-      +slug
-      +manufacturerId
-      +brandId
-      +categoryId
-      +targetAnimal
-      +wholesalePrice
-      +retailPrice
-      +publishedStatus
-      +handlingStatus
-    }
     class ShippingAddress {
       +id
       +organizationId
       +recipientName
     }
-    class OrganizationProductPrice {
-      +id
-      +organizationId
-      +productId
-      +wholesalePrice
-    }
     class CartItem {
       +id
       +organizationId
       +memberId
-      +productId
+      +productSlug
       +quantity
     }
     class Order {
@@ -199,7 +172,7 @@ classDiagram
     class OrderItem {
       +id
       +orderId
-      +productId
+      +productSlug
       +productNameSnapshot
       +unitPriceSnapshot
       +quantity
@@ -215,20 +188,12 @@ classDiagram
     Organization "1" *-- "many" Membership : has
     Member "1" --> "many" Membership : owns
     Organization "1" --> "many" ShippingAddress : has
-    Organization "1" --> "many" OrganizationProductPrice : overrides
-    Product "1" --> "many" OrganizationProductPrice : priced_by
     Organization "1" --> "many" Order : places
-    Manufacturer "1" --> "many" Brand : has
-    Brand "0..1" --> "many" Product : has
-    ProductCategory "1" --> "many" Product : classifies
-    Product "many" --> "many" Concern : tagged_with
     Order "1" *-- "many" OrderItem : contains
     Order "1" --> "many" Payment : has
-    Product "1" --> "many" CartItem : referenced_by
-    Product "1" --> "many" OrderItem : referenced_by
 ```
 
-> 商品選び診断は本図に現れない（§1-5 のとおりエンティティを持たない）。診断ルールは Content Collections 側にあり、`Product.slug` を通じて上図の Product を参照する一方向の関係のみを持つ。
+> **商品カタログ・お知らせ・商品選び診断は本図に現れない**（§1-5 のとおりエンティティを持たない）。いずれも Content Collections 側にあり、`CartItem.productSlug` / `OrderItem.productSlug` / 取引先別価格ファイルの `orgCode` を通じて**文字列で結びつく**だけである。外部キー制約が無いため、この結びつきは DB では保証されない（DEV-07 §6-0）。
 
 ---
 
@@ -249,23 +214,18 @@ classDiagram
 | エンティティ | 責務 | 主要属性 |
 | --- | --- | --- |
 | Application | 新規取引申請 1 件。企業情報・審査状況を保持し、承認時に Organization + 初期 Member を生成する | companyName, corporateNumber, businessType, industry, address, representativeName, contactName, contactDepartment, phone, email, website, sns, hasPhysicalStore, plannedSalesChannels, desiredProducts, desiredPaymentMethod, notes, agreedToTerms, agreedTermsVersion, status, reviewerId, reviewMemo, appliedAt, reviewedAt |
-| Manufacturer | メーカー（Organization に属さない共有マスタ） | name, description, logoPath |
-| Brand | ブランド（メーカーに属する場合が多いが必須ではない） | manufacturerId（nullable）, name, description |
-| ProductCategory | 商品カテゴリー | name, slug, displayOrder |
-| Concern | 対象となる状態・気になる点の分類タグ | name, slug, displayOrder |
-| Product | 商品（Organization に属さない共有カタログ） | slug, manufacturerId, brandId（nullable）, categoryId, targetAnimal（dog/cat/both）, name, description, features, ingredients, contentAmount, usageInstructions, precautions, retailPrice, wholesalePrice（標準卸価格）, taxCategory, orderUnit, sku, publishedStatus, handlingStatus, displayOrder（画像は複数枚保持するため ProductImage の別テーブルとして持つ。DEV-07 §6-6）|
-| ProductImage | Product に紐づく商品画像（複数枚） | productId, key（R2 オブジェクトキー）, displayOrder |
-| ProductConcern | Product × Concern の中間テーブル | productId, concernId |
-| OrganizationProductPrice | 取引先ごとの個別卸価格（任意設定。設定が無い場合は Product.wholesalePrice を使用。GOV-01 D-009 / BIZ-03 §2-2） | organizationId, productId, wholesalePrice |
 | ShippingAddress | Organization に紐づく配送先 | organizationId, recipientName, postalCode, address, phone, isDefault |
-| Cart / CartItem | Organization 所属 Member が発注前に保持する仮の商品リスト | organizationId, memberId, productId, quantity |
+| Cart / CartItem | Organization 所属 Member が発注前に保持する仮の商品リスト | organizationId, memberId, productSlug, quantity |
 | Order | 発注（取引先視点）/ 受注（運営視点）。同一データを両者の文脈で扱う（INTAKE §4-3 用語整理） | organizationId, memberId, orderNumber, status, paymentStatus, subtotal, tax, shippingFee, total, shippingAddressSnapshot, paymentMethod, notes, placedAt |
-| OrderItem | 発注明細。注文確定時点の商品情報をスナップショットとして保持（PRD-02 §8） | orderId, productId（参照のみ）, productNameSnapshot, productCodeSnapshot, unitPriceSnapshot, taxRateSnapshot, quantity, subtotal |
+| OrderItem | 発注明細。注文確定時点の商品情報をスナップショットとして保持（PRD-02 §8） | orderId, productSlug（参照のみ）, productNameSnapshot, productCodeSnapshot, unitPriceSnapshot, taxRateSnapshot, quantity, subtotal |
 | Payment | 決済記録（カード決済 / 銀行振込） | orderId, method, status, amount, paidAt |
-| News | お知らせ。公開範囲を一般公開 / 取引先限定で切り替え可能 | title, body, visibility（public/client_only）, publishedAt, publishedUntil, status, slug |
 | Inquiry | お問い合わせ（主に未ログインの一般閲覧者から） | companyName, name, email, phone, inquiryType, content, status, assigneeId, memo |
 
-> Cart / CartItem・ShippingAddress・Order・OrderItem・Payment・Membership は `organizationId` を持つスコープ対象。Manufacturer / Brand / ProductCategory / Concern / Product / News / Application / Inquiry は運営が管理する共有データであり `organizationId` を持たない（§6 参照）。
+> **商品カタログ（Manufacturer / Brand / ProductCategory / Concern / Product / ProductImage / ProductConcern / OrganizationProductPrice）と News はエンティティではない**（§1-5、GOV-01 D-017〜D-020）。属性定義は `packages/content/src/schema.ts` の Zod スキーマが正本になる。
+>
+> Cart / CartItem・ShippingAddress・Order・OrderItem・Payment・Membership は `organizationId` を持つスコープ対象。Application・Inquiry は運営が管理するデータ、または Organization 作成前のデータであり `organizationId` を持たない（§6 参照）。
+>
+> **Organization は `orgCode` を持つ**（DEV-07 §5-2）。承認時に運営が採番する安定コードで、取引先別卸価格ファイル（`packages/content/prices/*.md`）からの参照キーになる。`publicId`（ULID）は承認処理まで採番されず Markdown に書けないため、別に必要になった（GOV-01 D-019）。
 >
 > `Application.agreedTermsVersion` は、申請時点で同意した利用規約のバージョン文字列を保持する。利用規約はページ直書き（§1-5）でありレコードとして存在しないため、同意対象を後から特定できる唯一の手掛かりがこの列になる（DEV-07 §5-1）。
 
@@ -295,25 +255,27 @@ classDiagram
 
 | コンテキスト名 | 対象範囲 | 主責任 | 他コンテキストとの接点 |
 | --- | --- | --- | --- |
-| Catalog Management | Manufacturer, Brand, ProductCategory, Concern, Product | 商品カタログの管理・公開（`apps/admin` 書き込み、`apps/public` 読み取り） | Application Screening, Order |
-| Application Screening | Application | 新規取引申請の受付・審査・承認（Organization + 初期 Member の生成） | Client Access |
+| Catalog | 商品・メーカー・ブランド・分類・商品画像・取引先別価格（`packages/content` と定数。**D1 テーブルを持たない**）| 商品カタログの公開（`apps/public` 読み取りのみ） | Order |
+| Application Screening | Application | 新規取引申請の受付・審査・承認（Organization + 初期 Member の生成、`orgCode` の採番） | Client Access |
 | Client Access | Member, Organization, Membership, 認証 | 誰がマイページ・発注機能を利用できるか（AdminUser とは別系統） | Order |
-| Order | Cart, CartItem, ShippingAddress, OrganizationProductPrice, Order, OrderItem, Payment | 卸価格確認・カート・発注・決済 | Catalog Management, Client Access |
-| Diagnosis | 診断ルールセット（`packages/content` の Markdown。D1 テーブルを持たない — §1-5） | 商品選び診断の質問・推奨ロジック。推奨結果の商品情報は Catalog Management から `Product.slug` で解決する | Catalog Management（読み取りのみ） |
-| Content & Inquiry | News, Inquiry | お知らせ発信・問い合わせ対応 | Application Screening |
-| Access | AdminUser, 認証 | 誰が管理画面を操作できるか | 全コンテキスト |
+| Order | Cart, CartItem, ShippingAddress, Order, OrderItem, Payment | 卸価格確認・カート・発注・決済 | Catalog, Client Access |
+| Diagnosis | 診断ルールセット（`packages/content` の Markdown。**D1 テーブルを持たない** — §1-5）| 商品選び診断の質問・推奨ロジック。推奨結果の商品情報は Catalog から `slug` で解決する | Catalog（読み取りのみ） |
+| Content & Inquiry | お知らせ（`packages/content`）, Inquiry | お知らせ発信・問い合わせ対応 | Application Screening |
+| Access | AdminUser, Cloudflare Access | 誰が管理画面を操作できるか | 全コンテキスト |
 
-> Diagnosis は本プロジェクトで唯一、**D1 を持たない境界コンテキスト**である。書き込み手段はリポジトリへのコミットのみで、管理画面・API による更新経路を持たない。
+> **Catalog と Diagnosis は D1 を持たない境界コンテキスト**である（GOV-01 D-015・D-017）。書き込み手段はリポジトリへのコミットのみで、管理画面・API による更新経路を持たない。Content & Inquiry は「お知らせ側は書き込み経路なし・問い合わせ側は D1」という混在になる（GOV-01 D-018）。
+>
+> Access は AdminUser の**識別**のみを担う。認証そのものは Cloudflare Access が担当し、アプリはその結果（JWT の email）を受け取る（GOV-01 D-022）。
 
 ---
 
 ## 6. モデリング判断ルール
 
-- **テナント境界の適用範囲を業務の実態に合わせて限定する**: 本プロジェクトの商品カタログ（Manufacturer / Brand / ProductCategory / Concern / Product）は運営が一元管理する共有データであり、取引先ごとに異なる商品を持つわけではない。そのため「発注に関わるエンティティ（ShippingAddress / Cart・CartItem / Order・OrderItem / Payment / Membership）のみに `organization_id` を持たせる」という限定的な適用にとどめる。これは意図的な設計判断であり、実装時に Product 等へ誤って `organization_id` を追加しないこと（PRD-02 §2 で詳述）。
-  - **唯一の例外**: `OrganizationProductPrice` は Organization × Product の組み合わせに対する価格情報であり、性質上 `organization_id` を持つ（Product 自体は共有カタログのまま、価格だけを取引先ごとに上書きする中間データ）。「カタログは共有・発注データは Organization スコープ」という原則の例外として明示的に扱う。
-- **エンティティにするかどうかは「運営が管理画面から更新するか」で決める**: 更新するなら D1 のエンティティ、しないなら Content Collections またはページ直書きとし、本書のエンティティ一覧に載せない（§1-5、DEV-06 §1-1 が正本）。テーブルを作るなら、対応する管理画面も同時に設計されていることを確認する（当初検討していた診断系 4 テーブルはこの確認を欠いていた）。
+- **テナント境界の適用範囲を業務の実態に合わせて限定する**: 「発注に関わるエンティティ（ShippingAddress / Cart・CartItem / Order・OrderItem / Payment / Membership）のみに `organization_id` を持たせる」という限定的な適用にとどめる。これは意図的な設計判断であり、実装時に他のテーブルへ誤って `organization_id` を追加しないこと（PRD-02 §2 で詳述）。
+  - **例外は無い**。旧設計では `OrganizationProductPrice` が唯一の例外だったが、商品カタログごと D1 から外れたため消滅した（GOV-01 D-017・D-019）。取引先別価格は Content Collections 側が `orgCode` で参照する。
+- **エンティティにするかどうかは「運営が管理画面から更新するか」で決める**: 更新するなら D1 のエンティティ、しないなら Content Collections・定数・ページ直書きとし、本書のエンティティ一覧に載せない（§1-5、DEV-06 §1-1 が正本）。**テーブルを作るなら、対応する管理画面も同時に設計されていることを確認する。** 診断系 4 テーブル（D-015）も商品カタログ 8 テーブル（D-017）も、この確認を欠いたまま設計されていた。
 - **UI の見え方ではなく業務上の意味でエンティティを切る**
-- **将来機能を見越しすぎて過剰抽象化しない**：取引先ごとの卸価格は `OrganizationProductPrice` という薄い上書きテーブルのみで表現し、掛率計算・価格ティア等の複雑な仕組みは導入しない（GOV-01 D-009）
+- **将来機能を見越しすぎて過剰抽象化しない**：取引先ごとの卸価格は「標準価格 + 上書き」という薄い表現のみとし、掛率計算・価格ティア等の複雑な仕組みは導入しない（GOV-01 D-009）
 - **PRD-03 の機能 ID と結びつけて責務を説明できる**
 - **状態遷移を持つエンティティは PRD-01 で状態一覧を提示し、DEV-09 で遷移を詳細化**
 - **集約ルート（Aggregate Root）を明確化**：Order が集約ルートであり、OrderItem・Payment は Order を経由してのみ操作する
@@ -355,9 +317,11 @@ classDiagram
 | Member | suspended | 停止中 |
 | Member | deactivated | 無効化（退職等）|
 
-上表は**遷移に前提条件・副作用を持つエンティティ**に限る。これ以外に AdminUser（有効/無効）、Product（公開/非公開・取扱中/取扱終了）、News（下書き/公開）、Inquiry（未対応/対応中/対応済み）が状態列を持つが、いずれも任意の値を往復できる単純な切替であり、遷移マトリクスを定義しない（DEV-09 §1-1、値の正本は DEV-07）。
+上表は**遷移に前提条件・副作用を持つエンティティ**に限る。これ以外に AdminUser（有効/無効）、Inquiry（未対応/対応中/対応済み）が状態列を持つが、いずれも任意の値を往復できる単純な切替であり、遷移マトリクスを定義しない（DEV-09 §1-1、値の正本は DEV-07）。
 
-> 状態遷移ルールの詳細は DEV-09 を参照。診断ルールセットは公開/下書きの状態を持たない — 公開はデプロイと同義であり、下書きはブランチ上のコミットで表現する（DEV-06 §1-1）。
+> 状態遷移ルールの詳細は DEV-09 を参照。
+>
+> **商品・お知らせ・診断ルールは「状態」を D1 に持たない**（GOV-01 D-017・D-018）。公開/非公開は frontmatter の `draft`、取扱終了は `discontinued` で表現し、**公開はデプロイと同義**である。下書きはブランチ上のコミットで表現する（DEV-06 §1-1）。状態遷移の検証対象にもならない。
 
 ---
 

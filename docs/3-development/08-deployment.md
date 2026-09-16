@@ -4,7 +4,7 @@ title: デプロイ定義・検証完了ゲート
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-09
+last-updated: 2026-09-16
 related-docs:
   - DEV-01: 技術スタック決定書（インフラ選定の正本）
   - DEV-03: 品質方針
@@ -37,43 +37,46 @@ related-docs:
 | アプリケーション実行 | Cloudflare Workers。`astro build` の出力自体が Worker（`@astrojs/cloudflare` アダプタ）。デプロイは `wrangler deploy`（`wrangler.jsonc` の設定を使用） |
 | DB（Cloudflare D1、SQLite 互換） | マネージド。バックアップ/エクスポートは `wrangler d1 export` 等（実作業は OPS-02） |
 | Cache / Queue | Cloudflare KV 採用（認証失敗カウンタ・メンテナンスフラグ用）・Queues 不採用（`Confirmed` — DEV-01 §1）。KV バインディングは `wrangler.jsonc` で環境ごとに定義 |
-| Session | D1（`admin_sessions` / `member_sessions`）で確定（DEV-01 §2、DEV-02 §1-1・§1-2、DEV-07 §3-1）。KV にはセッションを置かない |
+| Session | Member は D1（`member_sessions`）で確定（DEV-01 §2、DEV-02 §1-2、DEV-07 §3-1）。KV にはセッションを置かない。**AdminUser のセッションは Cloudflare Access が持つ**（GOV-01 D-022） |
 | スケジューラ | Cloudflare Cron Triggers（`Confirmed` — DEV-01 §2）。`wrangler.jsonc` の `triggers.crons` + Scheduled Worker で日次バッチ（OPS-02 §4-3）を実行 |
 | スケーリング | オートスケール（Cloudflare Workers 標準。エッジ実行のため個別のスケーリング設計は不要） |
 | 環境変数・シークレット | 非機密は `wrangler.jsonc` の `vars`、機密は Workers Secrets（`wrangler secret put`）。ローカル専用の機密は `.dev.vars`（gitignore 対象）。`.env` 相当のファイルを git にコミットしない |
-| オブジェクトストレージ | Cloudflare R2（`env.BUCKET`、テンプレート標準バインディング） |
+| オブジェクトストレージ | **採用しない**（GOV-01 D-020）。R2 バケットも `BUCKET` バインディングも作成しない |
+| 管理画面の到達制御 | **Cloudflare Access**（GOV-01 D-022）。管理サブドメインに Access Application を作成し、AUD tag とチームドメインを `apps/admin` の環境変数に設定する |
 | メトリクス・ログ | Cloudflare Workers Logs / Analytics（標準、追加設定不要）。エラー監視が必要になった時点で `@sentry/cloudflare`（Workers 専用 SDK）を追加（DEV-01 §2） |
 
-本プロジェクトは **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**構成で、`apps/public`（公開サイト + Member マイページ）と `apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイする（`/admin` パスへの統合ではない。GOV-01 D-001）。D1 データベースと R2 バケットは 1 サービスにつき 1 つを両アプリで共有する。作成（`wrangler d1 create` / `wrangler r2 bucket create`）はどちらか一方のアプリの `wrangler.jsonc` から一度だけ行い、生成された `database_id` / `bucket_name` をもう一方の `wrangler.jsonc` にそのままコピーする。D1 マイグレーション（`packages/schema/migrations/` ディレクトリ、`wrangler d1 migrations apply`）は**`apps/admin` からのみ**実行する（同一リポジトリ内の app 単位の所有権。`CLAUDE.md` D1/R2 バインディングルール参照）。
+本プロジェクトは **1 リポジトリ内の pnpm workspaces + Turborepo モノレポ**構成で、`apps/public`（公開サイト + Member マイページ）と `apps/admin`（業務管理画面）を独立した Cloudflare Worker として別々にデプロイする（`/admin` パスへの統合ではない。GOV-01 D-001）。**両アプリが共有するのは D1 データベースのみ**（R2 は不採用 — GOV-01 D-020）。作成（`wrangler d1 create`）はどちらか一方のアプリの `wrangler.jsonc` から一度だけ行い、生成された `database_id` をもう一方の `wrangler.jsonc` にそのままコピーする。D1 マイグレーション（`packages/schema/migrations/` ディレクトリ、`wrangler d1 migrations apply`）は**`apps/admin` からのみ**実行する（同一リポジトリ内の app 単位の所有権。`CLAUDE.md` D1 バインディングルール参照）。
 
-> `database_id` は両アプリの `wrangler.jsonc` で**完全に一致していなければならない**。ローカルの sqlite ファイル名のキーにもなるため、食い違うと各アプリが別々のデータベースを持ち、エラーも出ないまま「管理画面で登録した商品が公開側に出ない」症状になる（`CLAUDE.md`）。
+> `database_id` は両アプリの `wrangler.jsonc` で**完全に一致していなければならない**。ローカルの sqlite ファイル名のキーにもなるため、食い違うと各アプリが別々のデータベースを持ち、エラーも出ないまま「管理画面で承認した取引先が公開側でログインできない」症状になる（`CLAUDE.md`）。
 
 ### 1-1. コンテンツ更新とデプロイの関係
 
-本プロジェクトは、公開コンテンツの一部（商品選び診断のルール・FAQ・法務ページ）を D1 ではなくリポジトリ側に置く（DEV-06 §1-1）。したがって **これらの更新は「デプロイ」である**。
+本プロジェクトは **公開コンテンツをすべて D1 ではなくリポジトリ側に置く**（GOV-01 D-017・D-018、DEV-06 §1-1）。したがって **公開コンテンツの更新はすべて「デプロイ」である**。
 
 | 更新対象 | 反映方法 | リードタイム |
 | --- | --- | --- |
-| 商品カタログ・お知らせ | 管理画面から保存（即時） | 即時 |
-| 診断ルール・FAQ・法務ページ | PR → マージ → Workers Builds が自動デプロイ | §3 のパイプライン所要時間 |
+| 商品・メーカー・ブランド・取引先別価格・お知らせ・診断ルール・FAQ・法務ページ・商品画像 | PR → マージ → Workers Builds が自動デプロイ | §3 のパイプライン所要時間 |
+| 申請の審査・受注対応・問い合わせ対応 | 管理画面から保存（即時） | 即時 |
 
-運営から文面修正の依頼を受けた場合、作業単位は「PR 作成 → レビュー → マージ → 反映確認」までを含む（PRD-03 §6-3、OPS-02）。規約文面の変更は法務レビュー済みの PR のみマージする（DEV-03 §4）。
+運営から「商品を直したい」「お知らせを出したい」「文面を変えたい」と依頼を受けた場合、作業単位は「PR 作成 → レビュー → マージ → 反映確認」までを含む（PRD-03 §6-3、OPS-02）。**臨時休業・出荷遅延の告知もこのリードタイムに従う**（GOV-01 D-018）。規約文面と卸価格の変更はレビュー済みの PR のみマージする（DEV-03 §4、DEV-02 §2-3）。
 
 ---
 
 ## 2. 環境構成
 
-PRD-02 §3 の 3 面構成に対応する。環境分離は `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` の environments 機能（`env.staging` / `env.production`。D1/R2/KV は環境ごとに別インスタンスを定義）で実現する（`Confirmed` — DEV-01 §1。プロジェクト丸ごと複製方式は不採用）。
+PRD-02 §3 の 3 面構成に対応する。環境分離は `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` の environments 機能（`env.staging` / `env.production`。D1 と KV は環境ごとに別インスタンスを定義）で実現する（`Confirmed` — DEV-01 §1。プロジェクト丸ごと複製方式は不採用）。
 
 | 環境 | 実体 | デプロイトリガー |
 | --- | --- | --- |
-| local | 開発者ローカル（Dev Container。D1 / R2 はローカルエミュレーション） | — |
-| staging | Cloudflare Workers（各アプリの `wrangler.jsonc` の environments、テスト用 D1 / R2） | `dev` ブランチへの push（Cloudflare Workers Builds が `wrangler deploy --env staging` を実行 — §3） |
-| production | Cloudflare Workers（本番 D1 / R2） | `main` ブランチへの push（同上、`wrangler deploy`） |
+| local | 開発者ローカル（Dev Container。D1 はローカルエミュレーション。**Cloudflare Access は効かない** — §4） | — |
+| staging | Cloudflare Workers（各アプリの `wrangler.jsonc` の environments、テスト用 D1）。管理側は**本番と別の Access Application**（AUD tag が異なる） | `dev` ブランチへの push（Cloudflare Workers Builds が `wrangler deploy --env staging` を実行 — §3） |
+| production | Cloudflare Workers（本番 D1） | `main` ブランチへの push（同上、`wrangler deploy`） |
 
 `dev` が統合ブランチ、`main` が本番。
 
-変更されたアプリのみをデプロイするパスフィルタは、Workers Builds の **Build Watch Paths**（Worker ごとに include/exclude を指定）で実現する。`apps/public` の変更で `apps/admin` を再デプロイしない。ただし `packages/**`（`schema` / `server-kit` / `content`）は両方の Worker が参照するため、**両方の Watch Paths に含める**。`packages/content` の更新（診断ルール）は `apps/public` のみに影響するが、Watch Paths を細分化すると設定が壊れやすいため `packages/**` 一括で許容する。
+変更されたアプリのみをデプロイするパスフィルタは、Workers Builds の **Build Watch Paths**（Worker ごとに include/exclude を指定）で実現する。`apps/public` の変更で `apps/admin` を再デプロイしない。ただし `packages/**`（`schema` / `server-kit` / `content`）は両方の Worker が参照するため、**両方の Watch Paths に含める**。`packages/content` の更新（商品・お知らせ等）は `apps/public` のみに影響するが、Watch Paths を細分化すると設定が壊れやすいため `packages/**` 一括で許容する。
+
+> **公開コンテンツの更新頻度がそのままデプロイ頻度になる**（GOV-01 D-017・D-018）。商品改訂は半年に 1 回程度の想定だが、お知らせは随時発生する。`packages/content` だけの変更でも `apps/public` のフルビルドが走る点は許容する。
 
 ---
 
@@ -240,7 +243,7 @@ flowchart TD
 
 ## 8. 環境変数（主要）
 
-Cloudflare のバインディング（D1 / R2 / KV）は `wrangler.jsonc` で設定するため本節には記載しない。本節に記載するのは、非機密の環境変数（`wrangler.jsonc` の `vars`）と、Workers Secrets（`wrangler secret put`）または `.dev.vars`（ローカルのみ、gitignore 対象）で管理する機密値のみ。
+Cloudflare のバインディング（D1 / KV）は `wrangler.jsonc` で設定するため本節には記載しない（R2 は不採用 — GOV-01 D-020）。本節に記載するのは、非機密の環境変数（`wrangler.jsonc` の `vars`）と、Workers Secrets（`wrangler secret put`）または `.dev.vars`（ローカルのみ、gitignore 対象）で管理する機密値のみ。
 
 ```bash
 # アプリケーション（wrangler.jsonc の vars、非機密）
@@ -248,14 +251,23 @@ APP_NAME=
 APP_URL=
 APP_ENV=production
 
-# 認証（DEV-01 §2、DEV-02 §1-1・§7。JWT は不採用 — セッションは D1 に保存する）
+# --- apps/admin: Cloudflare Access（GOV-01 D-022、DEV-02 §1-1）---
+# JWT 検証に必須。未設定なら例外を投げる（検証を素通りさせない）
+CF_ACCESS_TEAM_DOMAIN=       # 例: example.cloudflareaccess.com
+CF_ACCESS_AUD=               # Access Application の AUD tag（環境ごとに異なる）
+# ローカル開発・E2E 用のフォールバック。APP_ENV=production では無視されることを
+# Vitest で固定する（fail-closed。DEV-03 §3-5、GOV-02 TBD-32）
+DEV_ADMIN_EMAIL=
+
+# --- apps/public: Member 認証（DEV-01 §2、DEV-02 §1-2・§7）---
+# JWT は不採用 — セッションは D1 に保存する
 # ↓ 未設定なら例外を投げる（Number(undefined) は NaN で、比較が全て false になり
 #   ロックアウトが黙って無効化されるため。DEV-02 §7、DEV-03 §3-5）
 SESSION_TTL_DAYS=
 AUTH_LOCKOUT_MAX_ATTEMPTS=
 AUTH_LOCKOUT_WINDOW_MINUTES=
 AUTH_LOCKOUT_DURATION_MINUTES=
-# 招待/パスワードリセットトークンの HMAC 署名鍵（Web Crypto。Workers Secrets）
+# パスワードリセットトークンの HMAC 署名鍵（Web Crypto。Workers Secrets）
 SESSION_SIGNING_KEY=
 
 # 業務閾値（DEV-05 §10。デプロイなしに調整できるよう vars で持つ）
@@ -279,10 +291,12 @@ FREE_SHIPPING_THRESHOLD=     # 税抜 30000（同上）
 | --- | --- |
 | `GET /api/v1/health` | 死活監視 |
 | `GET /api/v1/health/db` | D1 接続確認 |
-| `GET /api/v1/health/kv` | KV 接続確認（KV 採用済み — DEV-01 §1） |
+| `GET /api/v1/health/kv` | KV 接続確認（`apps/public` のみ。`apps/admin` は KV を持たない — GOV-01 D-022） |
 | `GET /api/v1/health/queue` | 不要（Queues 不採用。将来 Queues を採用した場合のみ追加） |
 
 両アプリにそれぞれ配置する（別 Worker のため、片方の死活は他方を保証しない）。日常の監視・障害対応は OPS-02 を参照。
+
+> **`apps/admin` のヘルスチェックは Cloudflare Access のバイパスポリシーで到達可能にする**（GOV-01 D-022）。設定を忘れると外形監視が Access のログイン画面を受け取り、常時異常として検知される。バイパスするのは `/api/v1/health*` のみで、**それ以外のパスをバイパス対象に含めない**。
 
 ---
 

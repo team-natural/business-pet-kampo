@@ -4,7 +4,7 @@ title: 技術スタック決定書・アーキテクチャ原則
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-15
+last-updated: 2026-09-16
 related-docs:
   - PRD-02: システム構成
   - PRD-05: AI 機能（任意）
@@ -35,7 +35,7 @@ related-docs:
 | --- | --- | --- |
 | Infra | **Cloudflare Workers** | ホスティング・デプロイ・オートスケールすべて。`astro build` の出力自体が Worker になる（`@astrojs/cloudflare` アダプタ）。`./dist` は `ASSETS` バインディング経由で配信 |
 | リポジトリ構成 | 1 リポジトリ内の pnpm workspaces + Turborepo モノレポ（`Confirmed` — GOV-01 D-001） | `apps/public`（公開サイト + Member マイページ）・`apps/admin`（管理 CMS）を独立した Cloudflare Worker として別々にデプロイし、`packages/schema`（Drizzle スキーマ + migrations）・`packages/server-kit`（パスワードハッシュ、ロックアウト、セッション規則、HTTP エンベロープ）・`packages/content`（開発者が更新する Markdown）を両者が参照する。`apps/admin` は専用サブドメイン（例: admin.example.com）に割り当て、アプリ丸ごとが管理画面となるため、`apps/admin` 内のページ URL に `/admin` のような接頭辞は付けない（`Confirmed`。DEV-06 §1・§4-4、PRD-04 §3-2 参照）。2 リポジトリ構成（公開サイト用・管理サイト用）から移行した経緯は GOV-01 D-001 参照。共有パッケージは「2 つ目の利用者が現れてから作る」方針を取る。`packages/server-kit` は Member 認証の追加で AdminUser 側と同じセッション規則が 2 箇所必要になった時点、`packages/content` は Content Collections を採用した時点で切り出した。逆に `packages/config`（ESLint/TS の共有設定）・`packages/ui`（共有コンポーネント）・`packages/types`（schema からの型再エクスポート専用パッケージ）は見送っている：ESLint のレイヤー境界ルールはパスパターンでアプリごとにスコープできるためルート 1 ファイルの `eslint.config.js` で足り、TypeScript も各アプリが外部共有 config（`astro/tsconfigs/strict`）を `extends` して重いオプションを共有済みで、アプリ固有の差分（`include`/`exclude`・`paths`・`types`）を各 `tsconfig.json` に数行書くだけで済むため現状の 2 アプリ規模では共有パッケージ化の利得が間接参照コストを上回らず（アプリが 3 つ以上に増える・共有設定が数行を超える・ドリフトが実際に発生する、のいずれかが起きた時点で `packages/config` 導入を再検討する）、`packages/ui` は public 側にコンポーネントライブラリを持たない方針（本表の「UI コンポーネント（公開画面）」参照）・shadcn-svelte の `components.json` が 1 アプリのスタイルシートと 1:1 対応する設計のため共有すべき実体がなく、`packages/types` は実際の利用者（`apps/admin` 以外の参照元）が出てくるまでは `packages/schema` の `$inferSelect` を直接使えば足りるため作らない |
-| 環境分離（staging/production） | `wrangler.jsonc` の environments 機能（`Confirmed`） | `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` 内の `env.staging` / `env.production` で分離し、D1/R2/KV は環境ごとに別インスタンスを定義する。staging 環境は用意する（OPS-02 §3-1 のマイグレーション dry-run 前提）。プロジェクト丸ごと複製方式は不採用。詳細は DEV-08 §2 |
+| 環境分離（staging/production） | `wrangler.jsonc` の environments 機能（`Confirmed`） | `apps/public`/`apps/admin` それぞれの `wrangler.jsonc` 内の `env.staging` / `env.production` で分離し、D1（と `apps/public` の KV）は環境ごとに別インスタンスを定義する。staging 環境は用意する（OPS-02 §3-1 のマイグレーション dry-run 前提）。プロジェクト丸ごと複製方式は不採用。詳細は DEV-08 §2 |
 | Backend / Frontend | Astro | v7（latest） / `output: 'server'`（SSR 専用、SSG は対象外） |
 | インタラクティブ UI | Svelte | v5（runes 構文：`$state` 等）。Astro ページに `client:*` ディレクティブでアイランドとして埋め込む。ページ全体の SPA 化はしない |
 | UI コンポーネント（管理画面） | shadcn-svelte | `apps/admin/components.json` 経由で `apps/admin/src/lib/components/ui` に生成。基盤は `bits-ui`。公開画面には導入しない |
@@ -45,7 +45,9 @@ related-docs:
 | ORM / スキーマ管理 | Drizzle（`drizzle-orm` + `drizzle-kit`、SQLite/D1 dialect） | スキーマ定義の正本は DEV-07（Markdown テーブル定義）。`schema-build` スキル（実装済み）が DEV-07 の記述から Drizzle スキーマ（TS、`packages/schema/src/schema.ts`）を生成し、そこから `drizzle-kit generate`（`pnpm db:generate`）で migration SQL（`packages/schema/migrations/`）を生成する 2 段階パイプライン。`packages/schema` は `apps/public`/`apps/admin` 双方から参照される共有パッケージ。型は Drizzle が `$inferSelect` で自動導出するため型定義ファイルの別生成は不要（別パッケージへの再エクスポートは行わない — 本表「リポジトリ構成」参照） |
 | コンテンツ（開発者が更新） | Content Collections（`packages/content` の Markdown + `apps/public/src/content.config.ts` の `glob()` ローダー） | `Confirmed` — GOV-01 D-015。本プロジェクトでは商品選び診断のルールセットをここに置く。**D1 に置くか Content Collections に置くかの判断基準は DEV-06 §1-1 が正本**（運営が管理画面から更新するか否かで決める）。スキーマは `packages/content/src/schema.ts` の Zod を両アプリが import する。ビルド時に解決されるため D1 の行読み取りが発生しない |
 | リソース実装 | コードジェネレータは持たない | `scaffold` スキル（`.claude/skills/scaffold/`）が DEV-07（テーブル定義）・DEV-09（状態遷移）を読み、**参照実装（Inquiry）に倣って** Service・Zod バリデーション・API ルートを書く。必要なリソースをまとめて 1 回で処理する。テンプレート言語で書いた雛形（Plop 等）は型チェックも lint も効かず規約変更で黙って腐るため採用しない — 正解は動く参照実装であって雛形ではない。画面の雛形生成も持たない（ルートと見出しだけの雛形は `admin-design`/`public-design` がどうせ作り直す） |
-| ファイルストレージ | Cloudflare R2 | バインディング名は必ず `BUCKET` |
+| ファイルストレージ | **不採用**（GOV-01 D-020）| R2 バケット・`BUCKET` バインディングを持たない。画像は `apps/public/src/assets/img/` の静的アセット |
+| 管理画面の認証 | **Cloudflare Access**（GOV-01 D-022）| アプリ側にログイン・セッション・パスワード管理を持たない（DEV-02 §1-1）|
+| 公開コンテンツ | **Content Collections**（`packages/content`）+ TypeScript 定数（GOV-01 D-017・D-018・D-024）| 商品・メーカー・ブランド・取引先別価格・お知らせ・診断ルール。D1 に置かない |
 | Cache / Queue | Cloudflare KV 採用・Queues 不採用（`Confirmed`） | KV は認証エンドポイントの失敗回数カウンタ（DEV-02 §7）とメンテナンスモードフラグ（OPS-02 §3-3/§3-5)用。Queues はコンテンツ主体サイトには過剰なため不採用（§3）— 必要が生じたら新規 GOV-01 決定で追加。Session は本書 §2「API 提供（認証）」で決定済み（D1 ベース） |
 | Mail | Resend（`resend` npm パッケージ、fetch ベースの公式 SDK） | プロジェクト開始時に導入。Node 専用 SDK は Workers で動かないことがあるため、fetch ベースで動作するものを選ぶ |
 | Testing | Vitest + Playwright（`Confirmed`・導入済み） | Unit / Feature = Vitest（Workers 実行環境は `@cloudflare/vitest-plugin` で再現。旧称 `@cloudflare/vitest-pool-workers` から改名済み）、E2E = Playwright（両アプリに `playwright.config.ts` と spec を同梱。CI で実行）。`pnpm test` / `pnpm test:e2e`。**vitest は `^4.1.0` に固定**する — プラグインの peer がそれであり、5 系を入れると miniflare が素の `SyntaxError` で起動しなくなる。Architecture テスト（レイヤー境界）は下記 Static Analysis（`eslint-plugin-boundaries`）が担う。テスト戦略の詳細は DEV-03 §4 |
@@ -74,9 +76,9 @@ related-docs:
 | 定期実行 / バッチ | Cloudflare Cron Triggers（`Confirmed`） | `wrangler.jsonc` の `triggers.crons` で定義し、Scheduled Worker（`scheduled()` ハンドラ）内で日次バッチ（データ保管期限の自動削除 — OPS-02 §4-3 等）を実行する |
 | 日付・時間入力 | shadcn-svelte `Calendar` + `Popover`（`npx shadcn-svelte add calendar popover`） | 外部 JS 日付ライブラリ（flatpickr 等）を単独導入しない。管理画面でネイティブ `<input type="date">` は使わない（§3） |
 | 決済 | Stripe（`stripe` npm パッケージ） | Workers 上で動かす場合は `wrangler.jsonc` に `nodejs_compat` フラグが必要（SDK の Node 依存のため） |
-| ファイルストレージ | Cloudflare R2（`env.BUCKET`、テンプレート標準バインディング） | 第一候補・ゼロ設定。外部 S3 互換ストレージへの切替は原則不要 |
+| ファイルストレージ | **採用しない**（GOV-01 D-020） | アップロードする主体が存在しない（商品画像は開発者がコミットする）。必要になった時点で R2（`env.BUCKET`）を追加する |
 | 全文検索 | D1 の FTS5 virtual table（第一候補） | 対応状況は導入時に要確認。不足時は外部検索サービス（Meilisearch Cloud 等）を fetch 経由で利用。自前の `LIKE` 全文検索実装は避ける |
-| 監査ログ | 自前の D1 テーブル（`activity_log`） | spatie/laravel-activitylog 相当のパッケージは不採用。本プロジェクトはテナント境界（発注関連データのみ Organization スコープ — PRD-02 §2）を持つため、`activity_log` に `organization_id`（商品カタログ操作等では NULL）を追加する（DEV-07 §4-4）。必須記録操作は DEV-05 §9-1 で定義する |
+| 監査ログ | 自前の D1 テーブル（`activity_log`） | spatie/laravel-activitylog 相当のパッケージは不採用。本プロジェクトはテナント境界（発注関連データのみ Organization スコープ — PRD-02 §2）を持つため、`activity_log` に `organization_id`（取引先に紐づかない操作では NULL）を追加する（DEV-07 §4-2）。必須記録操作は DEV-05 §9-1 で定義する |
 | 2FA / MFA | `otpauth`（TOTP、Workers 対応） | 管理者アカウント等で要求時 |
 | Web Push 通知 | FCM HTTP v1 API（fetch 直呼び出し） | `web-push` 等の Node 向けパッケージは Workers の crypto 実装差異で動作しない場合があるため、HTTP API 直叩きを第一候補とする |
 | 多言語 UI | 不採用（`Confirmed` — §1 言語方針参照） | 本プロジェクトは日本語のみ |
@@ -119,7 +121,7 @@ AI・開発者が「一般的なベストプラクティス」として提案・
 | 原則名 | 内容 | 違反例 | 適用例 |
 | --- | --- | --- | --- |
 | **レイヤー責務分離** | 両アプリで Astro ページ/API ルート → Service → D1 の責務を厳守する（ディレクトリ構成は DEV-05 で確定）。本プロジェクトは `apps/public` にも Service/D1 レイヤーと**認証済みルート**（Member マイページ・カート・発注）が存在する点がテンプレ標準からの拡張（GOV-01 D-004、PRD-02 §1-3） | `.astro` ページ内で直接 D1 クエリを書く | `apps/*/src/lib/server/services/` 経由でビジネスロジック、D1 アクセスはその内部に集約 |
-| **認可チェックの徹底** | 管理系の全操作は Service 層で AdminUser の有効なセッションを検証（`requireSession`）。本プロジェクトはロール区分を持たないため、ロールによる分岐は行わない（GOV-01 D-014、PRD-01 §1-2）。加えて発注関連データは Organization 一致を検証する（`requireActiveOrganization`。PRD-02 §2-2、DEV-02 §3） | 認可チェックを飛ばして API ルートから直接 D1 を更新 | `requireSession(cookies, db)` / `requireActiveOrganization(...)` を Service 呼び出し前に必ず通す |
+| **認可チェックの徹底** | 管理系の全操作は middleware で Cloudflare Access の JWT を検証し、Service 層で `requireAdminUser(context)` を通す（GOV-01 D-022）。本プロジェクトはロール区分を持たないため、ロールによる分岐は行わない（GOV-01 D-014、PRD-01 §1-2）。加えて発注関連データは Organization 一致を検証する（`requireActiveOrganization`。PRD-02 §2-2、DEV-02 §3） | 認可チェックを飛ばして API ルートから直接 D1 を更新 / 未検証の `Cf-Access-Jwt-Assertion` を読む | `requireAdminUser(context)` / `requireActiveOrganization(...)` を Service 呼び出し前に必ず通す |
 | **レスポンスをブロックしない** | 重い後処理（メール送信・監査ログ・通知）はレスポンス返却後に実行し、定期処理は Cron Triggers に寄せる（Queues は不採用 — §3） | API ルート内でメール送信完了を同期的に待ってからレスポンスを返す | `ctx.waitUntil()` で後処理をバックグラウンド化、日次処理は Scheduled Worker |
 | **状態遷移の集約** | エンティティの状態遷移は単一の遷移関数/モジュールに集約 | 各所で status の文字列を直書き | `transition(entity, "approved")` のような単一の遷移関数経由 |
 | **可観測性優先** | 全リクエスト/ジョブに request_id + 操作者 ID（admin_user_id / member_id）を構造化ログ出力 | エラー時にどの管理者・どの取引先担当者の操作か追跡不能 | `console.log(JSON.stringify({ requestId, adminUserId, ... }))` |
@@ -209,7 +211,8 @@ Request → Astro API Route (apps/*/src/pages/api/**/*.ts) → Service → D1
 | Svelte アイランドの `onMount` 内で状態遷移を実行 | 再マウントごとに副作用が再実行される | 遷移はユーザー操作のイベントハンドラ内で実行、`onMount` は表示データの初期化のみ |
 | URL に内部 `id`（連番）を使う | 推測可能で列挙攻撃を受けやすい | ULID / UUID を公開 ID として使う |
 | status を文字列で直接更新 | 不正遷移を許容 | 状態遷移関数経由 |
-| R2 のオブジェクトキーをそのまま公開 URL として返す | アクセス制御不能 | キーのみ保存し、署名付き URL を発行する |
+| 卸価格を含むページに `prerender = true` を付ける | 全取引先の価格が静的 HTML に焼き込まれ公開される | 商品・お知らせのページは SSR 固定（GOV-01 D-021、DEV-06 §1-1） |
+| 運営が更新しないデータのために D1 テーブルと管理画面を作る | 更新経路のないテーブル、あるいは使われない管理画面が残る | 置き場所は「誰が更新するか」で決める（DEV-06 §1-1、GOV-01 D-017） |
 | Service 層の認可チェックを飛ばす | 権限のない操作が通る | AdminUser のセッション検証（本プロジェクトはロール区分を持たない単一種別 — GOV-01 D-014）と、発注関連の Organization 一致検証を Service の入口で必ず強制 |
 | 記事・診断等の Content Collections ページに `export const prerender = true` を書き忘れる | `output: "server"` では `getStaticPaths()` が黙って無視され、一覧は出るのに個別ページだけ 500 になる | Content Collections から生成する個別ページには必ず宣言する（DEV-06 §1-1） |
 | 運営が更新しないコンテンツを D1 テーブルにする | 管理画面を作らなければ更新できず、作れば MVP が膨らむ | DEV-06 §1-1 の基準で Content Collections かページ直書きに置く |
@@ -221,7 +224,7 @@ Request → Astro API Route (apps/*/src/pages/api/**/*.ts) → Service → D1
 
 技術固有のコーディングパターン・コード例は docs/ ではなく、リポジトリの `CLAUDE.md` および `.claude/` 配下（実装規約・スキル）が正本である。
 
-- 現存: `CLAUDE.md`（アーキテクチャ、コマンド、D1/R2 バインディングルール、ハード制約の正本）
+- 現存: `CLAUDE.md`（アーキテクチャ、コマンド、D1 バインディングルール、ハード制約の正本）
 - 現存: `.claude/skills/`（`public-design` / `admin-design` / `shadcn-svelte` / `fixing-accessibility` 等、実装時のワークフロー）
 - 現存: `.claude/skills/shadcn-svelte/rules/`（コンポーネント構成・フォーム・スタイリング・アイコンの規約。上流 `huntabyte/shadcn-svelte` の vendor 物のため直接編集しない）
 - 実装済み: `schema-build` スキル（DEV-07 → Drizzle スキーマ → migration の生成、`.claude/skills/schema-build/`）

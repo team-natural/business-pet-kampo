@@ -4,7 +4,7 @@ title: 品質方針
 phase: 3
 status: draft-ai
 owner: Tech Lead / PdM（兼務前提）
-last-updated: 2026-09-09
+last-updated: 2026-09-16
 related-docs:
   - BIZ-02: 品質目標 KPI
   - DEV-01: アーキテクチャ原則
@@ -67,7 +67,7 @@ related-docs:
 | Unit Test | 業務ロジック検証 | Service（`apps/*/src/lib/server/services/`）/ 状態遷移関数 / `packages/server-kit` | Vitest + `@cloudflare/vitest-plugin`（**workerd 上で実行**。DEV-01 §1） | E2E で到達できない条件（§3-5） | PR 時 |
 | Feature / Integration Test | エンドポイント動作 | Astro API Route（`apps/*/src/pages/api/**/*.ts`） | Vitest（同上）または Playwright の `request` | 認証が必要なルートは全て | PR 時 |
 | Architecture Test | レイヤー境界遵守（DEV-01 §4/§5） | Astro Page/API Route → Service → D1 の依存方向 | `eslint-plugin-boundaries`（確定済み。詳細は §3-3） | エラー 0 件 | PR 時（Lint 自動） |
-| Integration Test | 外部 API 連携 | Stripe / R2 / メール配信 | Vitest + モック（DEV-10 §9 のモック方針参照） | 主要連携 100% | PR 時 |
+| Integration Test | 外部 API 連携 | Stripe / メール配信 | Vitest + モック（DEV-10 §9 のモック方針参照） | 主要連携 100% | PR 時 |
 | E2E Test（**導入済み**・CI で実行） | 主要フロー | 管理画面ログイン / Member 認証 / 新規取引申請 / 診断 / カート・発注 / お問い合わせ送信 | Playwright（`playwright` MCP は design-review 用、テストランナーとしても同ツール） | ハイドレーション（`client:*` 忘れ）は E2E でしか捕まらない（§3-5） | PR 時 |
 | Static Analysis | 型安全性 | 全 `.ts` / `.astro` / `.svelte` コード | ESLint + TypeScript strict（`astro/tsconfigs/strict`）。`pnpm typecheck`（各アプリで `wrangler types` → `astro check`） | エラー 0 件 | PR 時 |
 | Style Check | コードスタイル | 全コード | Prettier + ESLint。`pnpm check` は format:check + lint + typecheck + **単体テスト**をまとめて実行する | 100% Pass | PR 時（Hook 自動 — `.claude/hooks/format-and-check.sh`） |
@@ -88,7 +88,8 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - `.astro` ページ内で直接 `env.DB.prepare()` を呼んでいないか（DEV-01 §8 アンチパターン）
 - Svelte アイランドの `onMount` 内で状態遷移を実行していないか
 - API Route が Service を経由せず D1 に直接アクセスしていないか
-- 認可チェック（AdminUser のセッション検証、または Member の Organization スコープ検証）が Service / D1 アクセスの境界で強制されているか（DEV-01 §4「認可チェックの徹底」）
+- 認可チェック（`apps/admin` は Access JWT の検証 + `requireAdminUser`、`apps/public` は Member の Organization スコープ検証）が Service / D1 アクセスの境界で強制されているか（DEV-01 §4「認可チェックの徹底」）
+- Content Collections の読み取りが `lib/catalog.ts` を経由しているか（`draft` / `discontinued` の除外漏れを防ぐ — DEV-06 §1-1）
 
 設定の実体は `eslint.config.js`（`boundaries/elements` + `boundaries/files` + `boundaries/dependencies`）を参照。
 
@@ -97,7 +98,8 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - ORM は Drizzle（DEV-01 §1、決定済み）。テストデータ生成のヘルパー（Factory 相当）は Drizzle スキーマの型（`typeof table.$inferInsert`）を使った INSERT ヘルパー関数、またはテスト用シード SQL として用意する
 - 本プロジェクトは発注関連データに Organization 単位のテナント境界を持つ（PRD-02 §2）。複数 Organization・複数 Member を用意し、他 Organization のデータにアクセスできないことを検証するテストデータ生成ヘルパーを用意する（例: `asMemberOf(organization)`）。AdminUser 側はロール区分を持たないため（GOV-01 D-014）、ロール差分のテストは不要
 - Organization スコープ × 操作のマトリクステスト（Vitest のパラメータ化テスト `test.each`）を用意する
-- E2E は `globalSetup` で自身のアカウントをシードする（環境変数の受け渡しは不要）
+- E2E は `globalSetup` で自身のアカウントをシードする（環境変数の受け渡しは不要）。シードするのは **Member のみ** — AdminUser は Access が認証するため、管理画面の E2E は開発用フォールバックで AdminUser を名乗る（GOV-01 D-022、GOV-02 TBD-32）
+- 商品・お知らせのテストデータは D1 ではなく `packages/content` の Markdown である（GOV-01 D-017・D-018）。**テスト専用のコレクションを別に用意せず、本番と同じファイルを読む** — スキーマ違反はビルド時に落ちるため、テスト用の抜け道を作るとその検証をすり抜ける
 
 ### 3-5. 単体テストと E2E の役割分担（どちらでしか守れないか）
 
@@ -106,15 +108,21 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - ロックアウト閾値・セッション TTL の環境変数が未設定のときに例外を投げること（`NaN` 比較で黙って無効化されるのを防ぐ — DEV-02 §7）。**ロックアウトが無効化されていても E2E は全件通る**ため、ここは単体でしか守れない
 - セッションの期限切れ、停止済みアカウント・取引停止中 Organization の即時失効
 - 未知のメールアドレスとパスワード誤りで応答時間が桁違いにならないこと（列挙オラクル対策 — DEV-02 §7）
-- 発注時の価格解決（`organization_product_prices` があればそちら、無ければ `products.wholesale_price`）
-- 診断ルール（`packages/content`）の推奨商品 slug が、公開済み・取扱中の商品にのみ解決されること。**slug 参照は D1 の外部キー制約で守られない**ため、テストが唯一の防御線（PRD-02 §7、DEV-02 §3-1）
+- 発注時の価格解決（`packages/content/prices/*.md` に当該 `org_code` のエントリがあればその価格、無ければ商品の標準卸価格 — GOV-01 D-019）
+- **他社の卸価格が応答に混入しないこと。** Content Collections には全取引先分が含まれるため、絞り込みを誤ると他社価格が出る（DEV-02 §3-1）
+- **取引先別価格ファイルの全エントリが実在する `org_code` を指すこと**、および診断ルールの推奨商品 slug が `draft` / `discontinued` でない商品に解決されること。**これらの参照は外部キー制約で守られない**ため、テストが唯一の防御線（PRD-02 §7、DEV-02 §3-1）
+- **注文明細の表示が `order_items` のスナップショット列から行われること**（Markdown を読み直すと価格改定で過去の注文金額が変わる — DEV-07 §6-0）
+- **Cloudflare Access のバイパスが本番で無効であること**（ローカル/E2E 用フォールバックの fail-closed — GOV-01 D-022、DEV-02 §1-1）
 - 税額・送料の端数処理（BIZ-03 §2-3・§3-2）
 
 逆に以下は E2E でしか捕まらない：
 
-- ハイドレーション（`client:*` の書き忘れ）。サーバー側で描画されてしまうため、操作しないと気付けない — 診断のような対話型 UI は特に該当する
-- Content Collections から生成する個別ページの `export const prerender = true` 忘れ（一覧は出るのに個別ページだけ 500 になる — DEV-06 §1-1）
+- ハイドレーション（`client:*` の書き忘れ）。サーバー側で描画されてしまうため、操作しないと気付けない
+- FAQ・法務ページの `export const prerender = true` 忘れ（DEV-06 §1-1）
+- **商品・お知らせのページに `prerender = true` を付けてしまうこと**（GOV-01 D-021）。静的化されると未ログインでも卸価格が見えるため、E2E の「未ログインで卸価格が出ない」検証がこれを兼ねる
 - 卸価格の出し分け（未ログイン / ログイン済み・active / ログイン済み・suspended の 3 状態で表示が変わること）
+
+> E2E は Cloudflare Access を通過できないため、管理画面の E2E は開発用フォールバックを前提に組む（GOV-02 TBD-32）。**そのフォールバックが本番で効かないことの検証は上記のとおり単体テスト側の責務**である。
 
 ---
 

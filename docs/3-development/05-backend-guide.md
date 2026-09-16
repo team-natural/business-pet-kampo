@@ -4,7 +4,7 @@ title: バックエンド実装ガイド
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-09
+last-updated: 2026-09-16
 related-docs:
   - DEV-01: 技術スタック決定書・アーキテクチャ原則
   - DEV-04: API 仕様
@@ -49,14 +49,14 @@ apps/admin/src/
 ├── lib/
 │   ├── components/                  # Svelte island + shadcn-svelte（$lib エイリアス）
 │   ├── server/                      # 確定済み。参照実装: apps/admin/src/lib/server/services/inquiries.ts 等
-│   │   ├── services/                #   業務ロジック・トランザクション境界（ドメイン別ファイル。例: products.ts,
-│   │   │                             #   applications.ts, organizations.ts, orders.ts, activity-log.ts, media.ts）
-│   │   ├── auth/                    #   AdminUser のセッション検証 requireSession（DEV-02 §3-2。例: session.ts）
+│   │   ├── services/                #   業務ロジック・トランザクション境界（ドメイン別ファイル。例:
+│   │   │                             #   applications.ts, organizations.ts, orders.ts, inquiries.ts, activity-log.ts）
+│   │   ├── auth/                    #   Access JWT の検証と requireAdminUser（DEV-02 §3-2。例: access.ts）
 │   │   └── validation/              #   drizzle-zod で導出した Zod スキーマ（DEV-01 §2）
 │   └── utils.ts                     # cn() 等の共通ユーティリティ
-└── middleware.ts                    # セキュリティヘッダーのみ（確定。認証はここでは行わない — 下記参照）
+└── middleware.ts                    # セキュリティヘッダー + Cloudflare Access の JWT 検証（下記参照）
 
-# Cloudflare バインディングの型（`Cloudflare.Env` として DB / BUCKET / KV）は `wrangler types` が
+# Cloudflare バインディングの型（`Cloudflare.Env` として DB / KV）は `wrangler types` が
 # 各アプリ直下に `worker-configuration.d.ts` を生成する（`pnpm typecheck` の第 1 段階）。gitignore
 # 済みの生成物なので、手書きの `env.d.ts` は作らない。
 
@@ -90,7 +90,9 @@ packages/content/                    # 開発者が更新する Markdown（診�
 
 > Laravel の `Jobs/` / `Events/` / `Listeners/` / `Notifications/` / `StateMachines/` / `Enums/` に相当する専用ディレクトリは無い。非同期処理は `ctx.waitUntil()` と Cron Triggers（Queues は不採用 — DEV-01 §1/§3）、状態遷移はドメイン別 Service 内の単一関数（DEV-01 §4）、列挙値は TypeScript の string literal union 型で代替する。
 
-> **認証検証は各 API ルートハンドラの冒頭で行う**（DEV-04 §2、決定済み）。フレームワーク提供のミドルウェアスタックが無いため、`middleware.ts` に認証を集約しない — 同ファイルはセキュリティヘッダー専用（CLAUDE.md 参照）。各ルートは `requireSession(cookies, db)` を呼んでセッションを取得する。本プロジェクトの AdminUser はロール区分を持たないため（GOV-01 D-014）、追加のロール検証は不要。Member 側は続けて `requireActiveOrganization(session)` を呼ぶ（DEV-02 §3-1）。
+> **`apps/public` の認証検証は各 API ルートハンドラの冒頭で行う**（DEV-04 §2、決定済み）。フレームワーク提供のミドルウェアスタックが無いため `middleware.ts` に認証を集約しない — 同ファイルはセキュリティヘッダーと会員ルートの `Cache-Control` 専用（CLAUDE.md 参照）。各ルートはセッションを検証し、続けて `requireActiveOrganization(session)` を呼ぶ（DEV-02 §3-1）。
+>
+> **`apps/admin` はこの規則の例外**で、Cloudflare Access の JWT 検証を `middleware.ts` に集約する（GOV-01 D-022）。全ルートが管理系であり、ページごとに書くと 1 枚でも書き漏らせば素通りするためである。検証結果は `Astro.locals` 経由で渡し、Service の入口で `requireAdminUser(context)` を呼ぶ。**ハンドラが `Cf-Access-Jwt-Assertion` を直接読んではならない**（DEV-02 §3-2）。ロール区分は持たないため、追加の権限検証は不要（GOV-01 D-014）。
 
 > Cloudflare バインディング（`env.DB` 等）は `Astro.locals.runtime.env` ではなく `import { env } from "cloudflare:workers"` で取得する（`Astro.locals.runtime.env` は Astro v6 で削除済みの旧 API であり、採用バージョンの v7 — DEV-01 §1 — にも存在しない。型は `wrangler types` が生成する `worker-configuration.d.ts` の `Cloudflare.Env` を使う）。
 
@@ -98,17 +100,21 @@ packages/content/                    # 開発者が更新する Markdown（診�
 
 会員向けルート（マイページ・カート・発注）の `Cache-Control: private, no-store` は **`apps/public/src/middleware.ts` で付与する**。ページのフロントマターで `Astro.response.headers` に書いても、ページが `Response` を返す場合（リダイレクト等）はその値が届かず、**未ログインへのリダイレクトがキャッシュ可能な状態で外に出る**。管理側（`apps/admin`）はサブドメイン全体が非公開のため同等の対応は不要。
 
-### 1-3. AdminUser と Member のセッションは分離する / 規則だけ共有する
+### 1-3. AdminUser と Member の認証は別物である / Member 側の規則のみ共有する
 
-**AdminUser と Member のセッションは完全に分離する**（DEV-02 §1-1・§1-2）。テーブル（`admin_sessions` / `member_sessions`）、クッキー名（`admin_session` / `member_session`）、照合コード（各アプリの `src/lib/server/auth/session.ts`）を共有しない。両アプリが同じ D1 を読むため、この分離だけが「片方で発行したトークンがもう片方で通らない」ことを保証している。
+**AdminUser の認証は Cloudflare Access が担い、アプリ側にセッションを持たない**（GOV-01 D-022、DEV-02 §1-1）。D1 セッションを持つのは Member だけで、`admin_sessions` テーブルもクッキーも存在しない。
 
-共有するのは `packages/server-kit` の **規則** だけ：トークン生成、TTL 検証、有効期限と `status` の判定、パスワードハッシュ、ロックアウトのカウンタ操作。ここは 2 つの実装でズレてはいけない部分であり、逆に保管場所は絶対に共有しない。ログインの組み立ては各アプリに残す — Member 側は所属 Organization の状態判定（DEV-02 §1-3）が入るため、共通化すると分岐だらけになる。
+したがって「両系統でセッション実装を共有しない」という旧来の注意は、**そもそも共有し得ない構造**に変わった。代わりに守るべきは次の 1 点である — **`apps/admin` にアプリ側のログイン機能を再導入しない。** 認証の入口が 2 つある状態が最も危険で、Access のポリシーを厳しくしてもアプリ側のログインが残っていれば迂回できる。
+
+`packages/server-kit` の **規則**（トークン生成、TTL 検証、有効期限と `status` の判定、パスワードハッシュ、ロックアウトのカウンタ操作）は残すが、**現在の利用者は `apps/public` のみ**である。「両側が使う前提」の記述を実装に持ち込まないこと。
 
 ### 1-4. Content Collections は Service 層を経由しない
 
-診断ルール（`packages/content`）の読み込みは **Astro Page から `astro:content` の API で直接行う**。`lib/server/services/` にラッパーを作らない — Service 層は D1 アクセスと認可の境界であり、ビルド時に解決される静的データはその境界の外側にある。
+公開コンテンツ（商品・メーカー・ブランド・取引先別価格・お知らせ・診断ルール — GOV-01 D-017〜D-019）の読み込みは **Astro Page から `astro:content` の API で直接行う**。`lib/server/services/` にラッパーを作らない — Service 層は D1 アクセスと認可の境界であり、ビルド時に解決される静的データはその境界の外側にある。
 
-推奨商品の解決（`Product.slug` → 商品情報）だけが D1 アクセスであり、そこは Service 層に置く（`products.ts` の「slug 配列から公開商品を引く」関数）。ルールの評価そのものは純粋関数として `packages/content` 側かページ側に置き、D1 に触らせない（DEV-04 §5-8）。
+ただし**読み取りの入口は `apps/public/src/lib/catalog.ts` に集約する**。`draft` / `discontinued` の除外と、ログイン中の取引先に対応する価格の絞り込みをページごとに書くと、いずれか 1 画面で漏れる（DEV-06 §1-1）。
+
+D1 アクセスが発生するのは発注確定時だけで、そこは Service 層に置く（`orders.ts` が解決済みの商品名・単価を受け取り `order_items` にスナップショット保存する — DEV-07 §6-0）。カタログの評価・フィルタそのものは純粋関数としてページ側に置き、D1 に触らせない（DEV-04 §5-2）。
 
 ---
 
@@ -122,7 +128,7 @@ packages/content/                    # 開発者が更新する Markdown（診�
 | API Route | 入出力ハンドリングのみ。業務ロジックを書かない。Service が投げた `AppError` を `toErrorResponse` で変換する（DEV-04 §3-3） |
 | 入力検証 | Service 層の入口（または API Route）で実施。検証は Zod で統一する（DEV-01 §2「リクエストバリデーション」、決定済み）。Drizzle スキーマから `drizzle-zod` で自動導出することを優先し、手書きの重複定義は避ける |
 | Service | 業務ロジック・トランザクション境界・後処理の起動（`ctx.waitUntil()`）・認可チェック関数の呼び出し |
-| 認可チェック | Policy クラスに相当する仕組みは無い。セッションを検証するエクスポート関数 `requireSession(cookies, db)`（DEV-02 §3-2）を Service の入口で呼ぶ。AdminUser はロール区分を持たないため（GOV-01 D-014）これ以上の権限検証は行わない。Member 側は `requireActiveOrganization(session)` を続けて呼び、操作対象の `organization_id` 一致まで検証する |
+| 認可チェック | Policy クラスに相当する仕組みは無い。`apps/admin` は `requireAdminUser(context)`（DEV-02 §3-2）を Service の入口で呼ぶ（middleware が検証済みの Access JWT に依存）。AdminUser はロール区分を持たないため（GOV-01 D-014）これ以上の権限検証は行わない。Member 側は `requireActiveOrganization(session)` を呼び、操作対象の `organization_id` 一致まで検証する |
 | D1 アクセス | Drizzle のクエリビルダ（`drizzle-orm`、D1/SQLite dialect。DEV-01 §1、決定済み）経由。`@app/schema/client` の `createDb(env.DB)` で得たハンドルを Service 内で使う。Drizzle 自体は内部でプリペアドステートメントにコンパイルされるため、SQL Injection 対策（文字列連結禁止）の原則は変わらない（DEV-01 §3） |
 | 状態遷移 | 単一の遷移関数/モジュールに集約（DEV-01 §4）。status の直接更新禁止 |
 
@@ -142,7 +148,7 @@ packages/content/                    # 開発者が更新する Markdown（診�
 | 申請の承認 | `applications.status` の更新 + `organizations` の INSERT + `members` の INSERT + `memberships` の INSERT + `activity_log` の INSERT を 1 つの `batch()` にまとめる（DEV-09 §2 Application）。途中で失敗して「Organization はできたが Member がいない」状態を作らない |
 | 発注確定 | `orders` + `order_items` + `payments` の INSERT と `cart_items` の DELETE を 1 つの `batch()` にまとめる。商品情報のスナップショット（DEV-07 §6-10）はこの中で確定させる |
 | 外部 I/O | 外部 API・メール送信・決済 API をトランザクション（`batch()`）内で同期実行しない。DB 書き込み完了後に `ctx.waitUntil()` で起動する（§4） |
-| R2 との組み合わせ | 商品画像の追加は **R2 へ書き込んでから行を INSERT**、削除は **R2 を消してから行を DELETE**。行が存在しないバイトは無害だが、バイトの無い行は画面が壊れる（DEV-04 §5-2） |
+| Content Collections との組み合わせ | 発注確定時は、**Markdown から解決した商品名・単価を `order_items` にスナップショット保存する**（DEV-07 §6-0）。以後の表示で Markdown を読み直さない — 価格改定のたびに過去の注文金額が書き換わる |
 
 ---
 
@@ -182,7 +188,7 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 | 層 | 強制方法 |
 | --- | --- |
 | D1 アクセス | `@app/schema/client` の `createDb(env.DB)` とスキーマ（`packages/schema/src/schema.ts`、DEV-07 生成）経由でアクセスし、文字列連結の Raw SQL を禁止する（DEV-01 §1・§3） |
-| Service | AdminUser 系メソッドの入口で `requireSession(cookies, db)`（DEV-02 §3-2）を、発注関連 Member 系メソッドの入口で Organization スコープ検証関数（`requireActiveOrganization(session)` 等、DEV-02 §3-1）を必ず通す |
+| Service | AdminUser 系メソッドの入口で `requireAdminUser(context)`（DEV-02 §3-2）を、発注関連 Member 系メソッドの入口で Organization スコープ検証関数（`requireActiveOrganization(session)` 等、DEV-02 §3-1）を必ず通す |
 | 認可チェック関数 | AdminUser は有効なセッションの存在のみを確認する（ロールカラムは持たない — GOV-01 D-014）。Member のセッションに埋め込んだ `organizationId`（DEV-07 §5-5）を確認する |
 | クエリ | 発注関連の SELECT / UPDATE は必ず `WHERE organization_id = ?` を含める。「取得してからアプリ側で比較する」形にしない（比較を書き忘れても動いてしまうため） |
 | API Route / Astro Page | 操作前に認可チェック関数を必ず呼ぶ。ページは 401 を返さずリダイレクトする（認証ミドルウェアが無いため、ページ側で自分を守る — CLAUDE.md） |
@@ -212,7 +218,7 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 | 項目 | 方針 |
 | --- | --- |
 | N+1 防止 | Drizzle の `with`（リレーション先の一括取得）を使い、ループ内で `.get()` / `.first()` 相当を N 回呼ばない。JOIN またはまとめて取得するクエリに書き換える。複数 ID の一括取得は `inArray(...)` や `db.batch()` を使う（DEV-01 §1） |
-| 診断結果の商品取得 | 推奨商品の slug 配列を `inArray(products.slug, slugs)` で 1 クエリにまとめる。slug ごとにループで引かない（§1-4） |
+| カタログの読み取り | Content Collections は D1 のクエリを発生させない。**一覧のたびに全件を読み直さず、`lib/catalog.ts` 側で 1 度だけ解決して使い回す**（§1-4） |
 | インデックス | 外部キー全カラム、`status`、`public_id`、発注関連テーブルの `organization_id` は必須（DEV-07 §8） |
 | キャッシュ | リクエスト内で繰り返し参照するデータは Service 層でリクエスト単位に memoize。リクエストを跨いだキャッシュが必要な場合は Cloudflare KV（採用済み — DEV-01 §1）を使えるが、D1 が十分高速なため導入は実測で必要が確認できた箇所に限る |
 | D1 読み取りの削減 | 運営が更新しないコンテンツは Content Collections に置き、そもそも読み取りを発生させない（DEV-06 §1-1）。Cloudflare の課金は行読み取りに乗るため、閲覧数の多い公開ページほど差が出る |
@@ -228,7 +234,7 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 | ログ種別 | 出力先 | 必須コンテキスト |
 | --- | --- | --- |
 | アプリケーション | Cloudflare Workers 標準ログ（DEV-01 §6。保持: Paid 7 日 / Free 3 日） | request_id, admin_user_id または member_id |
-| 監査（重要操作） | `activity_log` テーブル（自前実装 — DEV-01 §2、DEV-07 §4-4。永続。発注関連操作は `organization_id` を記録、商品カタログ操作等では NULL） | causer（actor）, subject（target）, event, properties（before/after） |
+| 監査（重要操作） | `activity_log` テーブル（自前実装 — DEV-01 §2、DEV-07 §4-2。永続。発注関連操作は `organization_id` を記録、取引先に紐づかない操作では NULL） | causer（actor）, subject（target）, event, properties（before/after） |
 | 決済 Webhook | `payment_event_logs` テーブル（DEV-07 §6-12） | event_id, type, processed_at |
 | エラー監視 | Cloudflare Workers 標準ログ/メトリクスで開始 → 必要時 `@sentry/cloudflare`（DEV-01 §2、導入時） | 5xx / タイムアウト |
 
@@ -287,7 +293,7 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 | --- | --- |
 | 内容 | 取引終了後 90 日以内に取引先データ（会社情報・配送先・発注履歴）を CSV / JSON で一括エクスポート |
 | 実行方式 | `ctx.waitUntil()` による非同期処理（§4。Workers の実行時間上限に注意し、大規模データは分割処理する） |
-| 配信方式 | Cloudflare R2（DEV-01 §1）上の一時ファイルを署名付き URL（72 時間）でメール通知。署名付き URL の発行方式（R2 presigned URL か API Route 経由のトークン検証か）は **Open**（案件実装時に確定。DEV-10 §4 と合わせて商品画像の配信方式と揃える） |
+| 配信方式 | **Open**（案件実装時に確定）。R2 を採用していないため（GOV-01 D-020）、実装するなら「API Route 経由でトークン検証してその場で生成する」方式が第一候補になる。エクスポートのためだけに R2 を追加するかは実装時の判断 |
 | 実行権限 | AdminUser のみ。1 日 1 回まで |
 | 保管期限 | 一時ファイルは 72 時間後に自動削除。実行は監査ログ（`activity_log`）に記録 |
 

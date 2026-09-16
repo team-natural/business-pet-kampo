@@ -4,7 +4,7 @@ title: フロントエンド実装ガイド
 phase: 3
 status: draft-ai
 owner: Tech Lead
-last-updated: 2026-09-09
+last-updated: 2026-09-16
 related-docs:
   - DEV-01: 技術スタック決定書・アーキテクチャ原則
   - DEV-04: API 仕様
@@ -47,18 +47,30 @@ DEV-01 で確定したフロントエンドスタックによる実装の設計�
 apps/public/src/
 ├── pages/
 │   ├── index.astro              # 公開トップ（SCR-01）
+│   ├── products/                # 商品一覧・詳細（SCR-02, SCR-03）。実体は packages/content（§1-1）
+│   ├── diagnosis/               # 商品選び診断（SCR-04）。設問確定まで Coming soon（GOV-01 D-023）
+│   ├── apply/                   # 新規取引申請（SCR-05, SCR-06）+ 申請取消（SCR-36）
+│   ├── activate/                # アカウント有効化（SCR-09）
 │   ├── login.astro              # Member ログイン（SCR-07）。`/` は公開トップのため
 │   │                            #   管理画面と違いログインは /login に置く
-│   ├── products/                # 商品一覧・詳細（SCR-02, SCR-03）
-│   ├── diagnosis/               # 商品選び診断（SCR-04）。ルールは packages/content から（§1-1）
+│   ├── login/                   # パスワード再設定（SCR-10, SCR-11）
+│   ├── auth/                    # OAuth 開始・コールバック（SCR-08）。画面を持たない
 │   ├── mypage/                  # マイページ配下（SCR-12〜SCR-20）
-│   ├── news/                    # お知らせ（SCR-25, SCR-26）
-│   ├── faq.astro                # よくある質問（SCR-27）。文面はこのファイルに直書き（§1-1）
-│   ├── terms.astro              # 利用規約（SCR-28）。同上
+│   ├── cart.astro               # カート（SCR-21）
+│   ├── checkout/                # 発注確認・完了・失敗（SCR-22〜SCR-24）
+│   ├── news/                    # お知らせ（SCR-25, SCR-26）。実体は packages/content（§1-1）
+│   ├── faq.astro                # よくある質問（SCR-27）。設問データは lib/faq.ts（§1-1）
+│   ├── terms.astro              # 利用規約（SCR-28）。文面はこのファイルに直書き（§1-1）
 │   ├── privacy.astro            # プライバシーポリシー（SCR-29）。同上
-│   ├── law.astro                # 特定商取引法に基づく表示（SCR-32）。同上
+│   ├── contact/                 # お問い合わせ（SCR-30, SCR-31）
+│   ├── law.astro                # 特定商取引法に基づく表示（SCR-32）。値は lib/commerce.ts から
 │   └── api/v1/**/*.ts           # API ルート（DEV-04 §5）
+├── assets/img/                  # 商品画像等の静的アセット（GOV-01 D-020）。astro:assets で最適化
 ├── lib/
+│   ├── commerce.ts              # 送料・税率・最低発注金額・支払方法・ステータス表示メタ（D-024）
+│   ├── faq.ts                   # FAQ のカテゴリと項目（D-024）
+│   ├── inquiry.ts               # お問い合わせ種別マスタ（D-024）
+│   ├── catalog.ts               # Content Collections の商品を読む唯一の入口（§1-1）
 │   ├── components/              # 公開画面の Svelte アイランド（client:* で .astro に埋め込む）
 │   └── server/                  # Service 層（内部構成は DEV-05 §1 が正本）
 ├── content.config.ts            # Content Collections の定義（§1-1）
@@ -70,55 +82,72 @@ apps/admin/src/
 ├── pages/                        # `/admin` 等の接頭辞は付けない。apps/admin はサブドメイン
 │   │                             #   （例: admin.example.com）に丸ごとデプロイされるため
 │   │                             #   （DEV-01 §1、DEV-04 §1-1、PRD-04 §3-2）
-│   ├── index.astro              # ログイン（ADM-00）。`/` 自体をログイン画面とし /login へ分離しない
-│   ├── dashboard/index.astro    # 管理ダッシュボード（ADM-01）
-│   ├── products/ 他             # 商品・メーカー・ブランド・取引申請・取引先・受注・お知らせ・
-│   │                             #   問い合わせ・監査ログ（ADM-02〜24）
+│   ├── index.astro              # 管理ダッシュボード（ADM-01）。ログイン画面は持たない
+│   │                             #   （認証は Cloudflare Access — GOV-01 D-022）
+│   ├── applications/ 他         # 取引申請・取引先・受注・問い合わせ・監査ログ（ADM-12〜24）
 │   └── api/v1/**/*.ts           # API ルート（DEV-04 §5）
 ├── lib/
 │   ├── components/
 │   │   ├── ui/                  # shadcn-svelte 生成コンポーネント（DEV-01 §1。編集してよい）
 │   │   └── admin/               # 管理画面専用の合成コンポーネント（stat-card 等 — Assumed）
-│   ├── server/                  # Service 層（内部構成は DEV-05 §1 が正本。D1/R2 アクセスを集約）
+│   ├── server/                  # Service 層（内部構成は DEV-05 §1 が正本。D1 アクセスを集約）
 │   └── utils.ts                 # `cn()` 等の共通ユーティリティ
 ├── layouts/
 │   └── Layout.astro             # 管理画面の HTML 骨格・<head>・admin.css
-└── middleware.ts                # セキュリティヘッダーのみ
+└── middleware.ts                # セキュリティヘッダー + Access JWT の検証（DEV-02 §1-1）
 
-packages/content/                # 開発者が更新する Markdown（診断ルール）。§1-1
+packages/content/                # 開発者が更新する Markdown（§1-1）
+├── products/                    # 商品（説明・原材料・卸価格・発注単位）
+├── manufacturers/               # メーカー
+├── brands/                      # ブランド
+├── news/                        # お知らせ
+├── prices/                      # 取引先別の個別卸価格（GOV-01 D-019）
+└── diagnosis/                   # 商品選び診断のルール（設問確定後に追加 — D-023）
 ```
 
 公開画面・管理画面をディレクトリで分離する（Platform 階層は存在しないため分離対象に含まない — PRD-01 §1-2）。`Assumed` と付記した部分は
 まだ実例がない規約案であり、最初の画面を作る際に確定させ本書を更新する。
 
-### 1-1. コンテンツの置き場所（D1 か Content Collections か直書きか）
+### 1-1. コンテンツの置き場所（D1 か Content Collections か定数か直書きか）
 
 公開画面に出すコンテンツは、**誰が更新するか**で置き場所が決まる（DEV-01 §1）。
 
 | 更新者 | 置き場所 | 画面 |
 | --- | --- | --- |
 | 運営（納品先の顧客） | D1（`schema-build` → `scaffold`） | 管理画面が必要 |
-| 開発者（自社） | `packages/content` の Markdown、またはページ直書き | 管理画面は不要 |
+| 開発者（自社） | `packages/content` の Markdown / TypeScript 定数 / ページ直書き | 管理画面は不要 |
 
 判断に迷う場合は Content Collections を優先する。ビルド時に解決されるため **D1 の読み取りが発生せず**、
 管理画面も作らずに済む。Cloudflare の課金は D1 の行読み取りに乗るので、閲覧数の多い公開ページほど
 差が出る。
 
-**本プロジェクトの割り当て（確定 — GOV-01 D-015 / D-016）**
+**本プロジェクトの割り当て（確定 — GOV-01 D-015〜D-020・D-023・D-024）**
+
+本プロジェクトは **D1 に取引データしか置かない**。公開コンテンツは 1 件も D1 にない。
 
 | コンテンツ | 置き場所 | 実体 | 更新手段 |
 | --- | --- | --- | --- |
-| 商品カタログ（商品・メーカー・ブランド・カテゴリー・気になる点・商品画像）| D1 + 管理画面 | `products` 他（DEV-07 §6）| ADM-02〜11 |
-| お知らせ | D1 + 管理画面 | `news`（DEV-07 §7-1）| ADM-19〜21 |
-| 商品選び診断のルールセット | **Content Collections** | `packages/content/diagnosis/*.md` | コミット + デプロイ |
-| よくある質問（FAQ）| **ページ直書き** | `apps/public/src/pages/faq.astro` | コミット + デプロイ |
+| 商品（説明・原材料・使用方法・標準卸価格・発注単位）| **Content Collections** | `packages/content/products/*.md` | コミット + デプロイ |
+| メーカー・ブランド | **Content Collections** | `packages/content/{manufacturers,brands}/*.md` | 同上 |
+| 取引先別の個別卸価格 | **Content Collections** | `packages/content/prices/*.md` | 同上（GOV-01 D-019）|
+| お知らせ | **Content Collections** | `packages/content/news/*.md` | 同上（GOV-01 D-018）|
+| 商品選び診断のルールセット | **Content Collections** | `packages/content/diagnosis/*.md` | 同上（設問確定後 — D-023）|
+| 商品画像 | **静的アセット** | `apps/public/src/assets/img/` | コミット + デプロイ（GOV-01 D-020）|
+| 商品カテゴリー・気になる点の分類 | **TypeScript 定数** | `apps/public/src/lib/catalog.ts` | コミット + デプロイ |
+| よくある質問（FAQ）| **TypeScript 定数** | `apps/public/src/lib/faq.ts` | 同上 |
+| 送料・税率・最低発注金額・支払方法・ステータス表示メタ | **TypeScript 定数** | `apps/public/src/lib/commerce.ts` | 同上 |
+| お問い合わせ種別マスタ | **TypeScript 定数** | `apps/public/src/lib/inquiry.ts` | 同上 |
+| サイト名・ロゴ・OGP 既定値・ナビ・フッター | **コード固定** | レイアウト / コンポーネント | 同上 |
 | 利用規約・プライバシーポリシー・特商法表示 | **ページ直書き** | `terms.astro` / `privacy.astro` / `law.astro` | コミット + デプロイ（法務レビュー必須）|
 
-診断ルールを Content Collections にした理由は、**運営が管理画面から更新する対象ではないため**である。当初の設計は
-`diagnosis_sets` / `diagnosis_questions` / `diagnosis_choices` / `diagnosis_rules` の 4 テーブルを置いていたが、
-対応する管理画面が PRD-04 の ADM 一覧に存在せず、テーブルはあるのに誰も更新できない状態だった（GOV-01 D-015）。
-FAQ・法務ページは Content Collections でも実現できるが、ページ数が固定で 1 ファイル 1 ページに収まるため
-コレクションを作らずページに直書きする（GOV-01 D-016）。
+商品カタログとお知らせを Content Collections にしたのは、**更新するのが運営ではなく開発者であり、頻度も
+半年に 1 回程度だから**である（GOV-01 D-017・D-018）。結果として商品カタログ系 8 テーブルと ADM-02〜11・
+ADM-19〜21 の 13 画面が不要になった。**運営はお知らせも自分では出せない** — 臨時休業や出荷遅延の告知も
+デプロイを伴う。これは確認のうえで選んだ構成であり、運用が回らないと判明した場合の戻し方は D-018 の
+再評価条件に書いてある。
+
+FAQ・分類ラベル・商取引条件を Markdown にしないのは、これらが散文ではなく**カテゴリで絞る構造化データ**
+だからである。frontmatter だけのファイルが並ぶより定数配列の方が扱いやすく、型も付く（GOV-01 D-024）。
 
 **実装**
 
@@ -127,32 +156,109 @@ FAQ・法務ページは Content Collections でも実現できるが、ペー�
 
 ```typescript
 // apps/public/src/content.config.ts
-const diagnosis = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "../../packages/content/diagnosis" }),
-  schema: diagnosisSetSchema,
+const products = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "../../packages/content/products" }),
+  schema: productSchema,
 });
 ```
 
-診断ルールは 1 ファイル 1 診断（Uchinoko 専用 / ブランド横断 — PRD-03 F-03-11）とし、frontmatter に
-質問・選択肢・推奨商品の `slug` を持つ。**推奨商品は `Product.slug` の文字列参照であり D1 の外部キーではない** ため、
-商品側の slug 変更・非公開化に自動で追従しない。したがって：
+**Content Collections の読み取りは `lib/catalog.ts` に集約する。** 商品の公開状態（`draft`）・
+取扱終了（`discontinued`）の除外をページごとに書くと、いずれか 1 画面で漏れる。
 
-- 商品編集画面（ADM-03）では slug の変更を禁止するか警告を出す（PRD-03 F-06-01、DEV-04 §5-2）
-- 推奨商品を引くクエリは公開済み・取扱中に限定する（DEV-02 §3-1）
-- 「ルールの slug が実在する公開商品に解決されること」を単体テストで検証する（DEV-03 §3-5）
+**外部キーが張れない参照が 3 か所ある**（参照先が D1 に無いため）。Service 層での存在検証だけが歯止めになる：
 
-> `output: "server"` では `getStaticPaths()` が**黙って無視される**。Content Collections から生成する
-> 個別ページには `export const prerender = true` を必ず書く — 書き忘れると一覧は出るのに個別ページだけ
-> 500 になり、原因が分かりにくい（`apps/public/tests/e2e/` で検証している）。
+| 参照 | 参照元 → 参照先 | 検証方法 |
+| --- | --- | --- |
+| 商品 | `order_items.product_slug` → `products/*.md` | 発注確定時に解決し、**注文には商品名・単価をスナップショット保存**する（DEV-07 §6）|
+| 取引先別価格 | `prices/*.md` の取引先コード → `organizations.org_code` | Service 層で検証し、Vitest で「全エントリが実在する取引先を指す」ことを固定（D-019）|
+| 診断の推奨商品 | `diagnosis/*.md` の `slug` → `products/*.md` | 単体テストで解決可能性を検証（DEV-03 §3-5）|
 
-**直書きページの注意点**
+**商品 `slug` は不変として扱う。** 注文履歴・診断ルール・公開 URL の 3 か所から参照されるため、
+リネームが必要な場合は旧 slug からのリダイレクトを追加する（DEV-01 §8）。
+
+> **商品一覧・詳細とお知らせ詳細に `prerender = true` を付けてはならない**（GOV-01 D-021）。
+> 卸価格と取引先限定お知らせが静的 HTML に焼き込まれ、未ログインの訪問者に配信される。
+> これらは `getStaticPaths()` を使わず、リクエスト時に `getEntry()` で slug から引く。
+> `output: "server"` では `getStaticPaths()` が**黙って無視される**ため、静的化したいページ
+> （FAQ・法務・会社案内）には `export const prerender = true` を明示的に書く — 書き忘れると
+> 一覧は出るのに個別ページだけ 500 になり、原因が分かりにくい（`apps/public/tests/e2e/` で検証している）。
+
+**直書きページ・定数の注意点**
 
 - FAQ・法務ページは**ログイン状態に依存しない**ため `export const prerender = true` を付けてビルド時に確定させる（PRD-02 §9）
+- **特定商取引法に基づく表示（SCR-32）の送料・税・支払方法は `lib/commerce.ts` から描画する。**
+  ページに直接書くと、カート計算と法定表示で金額が食い違う（GOV-01 D-024）
 - 利用規約の**現行バージョン文字列は定数 1 箇所**（例 `apps/public/src/lib/terms-version.ts`）で持ち、
   規約ページと申請フォームの両方がそれを参照する。申請時に `applications.agreed_terms_version` へ記録し、
   サーバー側で現行バージョンとの一致を検証する（DEV-04 §6-1、DEV-07 §5-1）。規約本文を書き換えたら
   この定数も必ず更新する — **文面だけ変えてバージョンを据え置くと、誰がどの版に同意したのか追跡できなくなる**
 - 規約文面を含む変更は法務レビューを経た PR でのみマージする（管理画面が無いため、この確認は PR レビューにしか置けない — DEV-03 §4、OPS-01 §5）
+- `inquiries.type` には**定数の id だけを保存し、表示ラベルを保存しない**。ラベルを保存すると文言を直した瞬間に過去データと食い違う（D-024）
+
+### 1-2. 画面 ID とルートの対応（確定）
+
+Astro のルーティングはファイルパスがそのまま URL になるため、ルート登録ファイルを別に持たない。
+**本表が画面 ID と実装パスの対応の正本**であり、PRD-04 §3 の画面一覧と 1 対 1 で対応する。
+
+| 画面 ID | ルート | 実装パス | 配信 |
+| --- | --- | --- | :---: |
+| SCR-01 | `/` | `pages/index.astro` | SSR |
+| SCR-02 | `/products` | `pages/products/index.astro` | SSR（D-021）|
+| SCR-03 | `/products/[slug]` | `pages/products/[slug].astro` | SSR（D-021）|
+| SCR-04 | `/diagnosis` | `pages/diagnosis/index.astro` | SSG（Coming soon — D-023）|
+| SCR-05 | `/apply` | `pages/apply/index.astro` | SSR |
+| SCR-06 | `/apply/complete` | `pages/apply/complete.astro` | SSR |
+| SCR-07 | `/login` | `pages/login.astro` | SSR |
+| SCR-08 | `/auth/[provider]` · `/auth/[provider]/callback` | `pages/auth/[provider]/{index,callback}.ts` | SSR（画面なし）|
+| SCR-09 | `/activate/[token]` | `pages/activate/[token].astro` | SSR |
+| SCR-10 | `/login/forgot` | `pages/login/forgot.astro` | SSR |
+| SCR-11 | `/login/reset/[token]` | `pages/login/reset/[token].astro` | SSR |
+| SCR-12 | `/mypage` | `pages/mypage/index.astro` | SSR（要ログイン）|
+| SCR-13 | `/mypage/profile` | `pages/mypage/profile.astro` | SSR（要ログイン）|
+| SCR-14 | `/mypage/company` | `pages/mypage/company.astro` | SSR（要ログイン）|
+| SCR-15 | `/mypage/addresses` | `pages/mypage/addresses/index.astro` | SSR（要ログイン）|
+| SCR-16 | `/mypage/addresses/new` | `pages/mypage/addresses/new.astro` | SSR（要ログイン）|
+| SCR-17 | `/mypage/addresses/[public_id]/edit` | `pages/mypage/addresses/[public_id]/edit.astro` | SSR（要ログイン）|
+| SCR-18 | `/mypage/orders` | `pages/mypage/orders/index.astro` | SSR（要ログイン）|
+| SCR-19 | `/mypage/orders/[public_id]` | `pages/mypage/orders/[public_id].astro` | SSR（要ログイン）|
+| SCR-20 | `/mypage/withdrawal` | `pages/mypage/withdrawal.astro` | SSR（要ログイン）|
+| SCR-21 | `/cart` | `pages/cart.astro` | SSR（要ログイン）|
+| SCR-22 | `/checkout` | `pages/checkout/index.astro` | SSR（要ログイン）|
+| SCR-23 | `/checkout/thanks` | `pages/checkout/thanks.astro` | SSR（要ログイン）|
+| SCR-24 | `/checkout/failed` | `pages/checkout/failed.astro` | SSR（要ログイン）|
+| SCR-25 | `/news` | `pages/news/index.astro` | SSR（D-021）|
+| SCR-26 | `/news/[slug]` | `pages/news/[slug].astro` | SSR（D-021）|
+| SCR-27 | `/faq` | `pages/faq.astro` | **SSG** |
+| SCR-28 | `/terms` | `pages/terms.astro` | **SSG** |
+| SCR-29 | `/privacy` | `pages/privacy.astro` | **SSG** |
+| SCR-30 | `/contact` | `pages/contact/index.astro` | SSR |
+| SCR-31 | `/contact/complete` | `pages/contact/complete.astro` | SSR |
+| SCR-32 | `/law` | `pages/law.astro` | **SSG** |
+| SCR-33 | `/404` | `pages/404.astro` | SSR |
+| SCR-34 | `/500` | `pages/500.astro` | SSR |
+| SCR-35 | — | `pages/api/v1/auth/logout.ts` | API（画面なし）|
+| SCR-36 | `/apply/cancel/[token]` | `pages/apply/cancel/[token].astro` | SSR |
+
+| 画面 ID | ルート | 実装パス |
+| --- | --- | --- |
+| ADM-01 | `/` | `pages/index.astro` |
+| ADM-12 | `/applications` | `pages/applications/index.astro` |
+| ADM-13 | `/applications/[public_id]` | `pages/applications/[public_id].astro` |
+| ADM-14 | `/organizations` | `pages/organizations/index.astro` |
+| ADM-15 | `/organizations/[public_id]` | `pages/organizations/[public_id].astro` |
+| ADM-16 | `/organizations/[public_id]/members` | `pages/organizations/[public_id]/members.astro` |
+| ADM-17 | `/orders` | `pages/orders/index.astro` |
+| ADM-18 | `/orders/[public_id]` | `pages/orders/[public_id].astro` |
+| ADM-22 | `/inquiries` | `pages/inquiries/index.astro` |
+| ADM-23 | `/inquiries/[public_id]` | `pages/inquiries/[public_id].astro` |
+| ADM-24 | `/audit-logs` | `pages/audit-logs/index.astro` |
+
+**URL の規約**
+
+- 可変部は連番 ID を使わない（DEV-01 §8）。**D1 のリソースは `public_id`（ULID）、Content Collections のリソースは `slug`**
+- 管理画面に `/admin` 接頭辞を付けない。`apps/admin` はサブドメインに丸ごとデプロイされる（DEV-04 §1-1）
+- `apps/admin` の `/` は**ダッシュボード**（ADM-01）。ログイン画面は持たない（Cloudflare Access — GOV-01 D-022）
+- 一覧の絞り込み条件は URL クエリに持つ（`/products?concern=…&animal=…`）。リロード・共有可能にするため
 
 ---
 
@@ -184,9 +290,12 @@ JS で隠す実装は、未承認の利用者にソース上で見えてしま�
 `CLAUDE.md` を正本とする。設計上の原則：
 
 - 認可は Astro ページのフロントマター（サーバー側で実行される先頭のスクリプト）の冒頭で必ず
-  実行し、AdminUser のセッション（ロール区分なし — GOV-01 D-014）または Member の Organization スコープを取得して Service に渡す。API ルートもハンドラの先頭で
-  同様に認可を行う（`Confirmed`。`middleware.ts` はセキュリティヘッダー専用で
-  認証・認可は行わない — DEV-05 §1 が正本）。**ページは 401 を返さずリダイレクトする**（API ルートとの違い）。
+  実行し、Member の Organization スコープを取得して Service に渡す。API ルートもハンドラの先頭で
+  同様に認可を行う。**ページは 401 を返さずリダイレクトする**（API ルートとの違い）。
+  `apps/public` の `middleware.ts` はセキュリティヘッダーと会員ルートの `Cache-Control` 専用で
+  認証・認可は行わない（DEV-05 §1 が正本）。**`apps/admin` は例外**で、Cloudflare Access の JWT 検証のみ
+  middleware で行う（全ルートが管理系であり、ページごとに書くと 1 枚でも書き漏らせば素通りするため — GOV-01 D-022、DEV-02 §1-1）。
+  AdminUser はロール区分を持たないため、それ以上の認可分岐はない（GOV-01 D-014）。
 - Svelte アイランドの `onMount()` はデータ読み込みと初期化のみ。状態遷移・外部 API・メール
   送信等の副作用はユーザー操作のイベントハンドラ内で行う（DEV-01 §8）。
 - Astro/Svelte にはフレームワーク標準の DI コンテナはない。Service 関数は明示的に import して
@@ -273,8 +382,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 
 | 画面種別 | UI ライブラリ | 理由 |
 | --- | :---: | --- |
-| ダッシュボード・管理画面（ADM-00〜24） | ✅ shadcn-svelte | 想定ユースケース（DEV-01 §1） |
-| 公開画面・マイページ（SCR-01〜35） | ❌ | プレーン Tailwind + Astro/Svelte で個別実装（`public-design` スキル。DEV-01 §1、PRD-04 §3-1） |
+| ダッシュボード・管理画面（ADM-01〜25） | ✅ shadcn-svelte | 想定ユースケース（DEV-01 §1） |
+| 公開画面・マイページ（SCR-01〜36） | ❌ | プレーン Tailwind + Astro/Svelte で個別実装（`public-design` スキル。DEV-01 §1、PRD-04 §3-1） |
 
 ---
 
@@ -297,19 +406,23 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
   UX 目的でのみ許可し、確定判定はサーバー側で再度行う。
 - 最低発注金額（BIZ-03 §3-1）のチェックはクライアント側でも表示するが、**確定判定は必ず
   `POST /api/v1/checkout` 側で行う**（クライアントの検証だけでは回避される）。
-- 診断のルール評価はクライアント側で完結させてよい（ルールは公開情報のため）。ただし
-  推奨商品の商品情報は API 経由で取得する — 公開状態の判定をサーバー側に残すため（DEV-04 §5-8）。
+- 診断のルール評価はクライアント側で完結させてよい（ルールは公開情報のため）。ただし MVP では
+  診断自体が Coming soon 表示であり、評価ロジックを実装しない（GOV-01 D-023、DEV-04 §5-8）。
+- **卸価格をクライアント側に渡さない。** Svelte アイランドの props に入れた時点でクライアントの
+  HTML に現れるため、出し分けは必ずサーバー側（`.astro` のフロントマター）で行う（PRD-02 §2-3）。
 
 ---
 
-## 8. ファイルアップロード
+## 8. 画像の扱い（ファイルアップロードは無い）
 
-- MIME / 拡張子 / サイズ / 実バイトの 4 重検証（DEV-02 §4 の基準に準拠）
-- ファイル名は ULID で renaming
-- ストレージは Cloudflare R2（`env.BUCKET`）。操作は Service 層に置く（コンポーネントから
-  直接触らない）
-- 商品画像（F-06-04）は複数枚 + 表示順を持つ（DEV-07 §6-6）。アップロード後に順序変更できる UI とし、
-  削除は R2 → 行の順で処理する（DEV-05 §3）
+**アップロード機能を持たない**（GOV-01 D-020）。R2 バケットも `BUCKET` バインディングも無く、
+アップロードを受けるフォーム・エンドポイントを追加しないこと。
+
+- 商品画像は `apps/public/src/assets/img/` にコミットし、`astro:assets` の `<Image>` で描画する。
+  ビルド時に WebP 変換・リサイズ・`width`/`height` 付与が行われる
+- 商品 Markdown の frontmatter は画像への**相対パス**を持つ。複数枚と表示順も frontmatter の配列で表す
+- `<img>` の直書きは避ける。`astro:assets` を通さないと最適化も寸法属性も付かず、CLS の原因になる
+- 意味を持つ画像には必ず代替テキストを付ける（§9、PRD-04 §7）
 
 ---
 

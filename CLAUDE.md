@@ -2,33 +2,74 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## About this template
+## About this project
 
-This repository is not a specific project — it's the **standard template** the team uses as the
-starting point for a new project, built for Astro SSR on Cloudflare Workers. Individual projects
-are created by copying/forking it.
+**ペット漢方 卸売サイト** — a B2B wholesale site for pet Kampo supplements, built on Astro SSR +
+Cloudflare Workers. Retailers submit an application, the operator screens it, and approved
+organizations get member accounts that can see wholesale prices and place orders. The service name
+and domain are still working titles (GOV-02 TBD-01 / TBD-16).
 
 `apps/public` is the main domain, `apps/admin` a subdomain of the same service. They are separate
-Workers but share one D1, one R2 bucket, and the schema in `packages/schema`.
+Workers sharing **one D1 and nothing else** — no R2 bucket (D-020), and only public has KV.
 
-## Bootstrapping a new project
+- **Specs**: `docs/` (25 documents, filled in for this project). `docs/00_README.md` first.
+- **Decisions**: `docs/5-governance/01-decision-log.md` (GOV-01, D-001〜D-024) is the record of
+  every project-level decision and why. **Read it before proposing a different approach** — most of
+  the surprising choices below are explained there.
+- **Open questions**: `docs/5-governance/02-open-questions.md` (GOV-02). The P0s are the legal copy
+  (TBD-11), the Cloudflare Access rollout (TBD-32), and go-live setup.
 
-The ordered procedure is in `README.md`. Two constraints that bite silently, and belong here
-because they apply whenever the subject comes up:
+## What this project adopts and drops
+
+The template this repo started from ships features whole so they can be removed cleanly. What
+happened here:
+
+| Feature | State |
+| --- | --- |
+| public-side login (`members`) | **kept**. Members reach orders through `memberships` → `organizations` (D-004); OAuth via Arctic is planned (LINE / Google / Facebook) |
+| contact form (`inquiries`) | **kept**, but the columns differ from the template: `content` / `assignee_id` / `memo` plus `company_name` and `phone` (DEV-07 §7-2) |
+| password reset | **members only**. The template's `password_reset_tokens` is admin-only — repoint it at `members` or replace it. Admins have no password to reset (D-022) |
+| admin login (`admin_sessions`) | **deleted** (D-022). Authentication is Cloudflare Access. `admin_users` stays as a ledger with no `password_hash`, because `activity_log.causer_id`, `inquiries.assignee_id` and `applications.reviewer_id` reference it |
+| file uploads (`media`, R2) | **deleted** (D-020). No `BUCKET` binding, no `r2_buckets`, no bucket. Product images are committed under `apps/public/src/assets/img/` |
+| AI features | **not adopted** (D-005). The product diagnosis is rule-based, and ships as a Coming soon page for now (D-023) |
+
+Two constraints that bite silently, and belong here because they apply whenever the subject comes
+up:
 
 - **`database_id` must be identical in both apps.** It also keys the local sqlite file, so a
   mismatch gives each app its own database with no error.
-- **Deleting an unused feature must happen before the first `pnpm db:generate`.** After that the
-  migration contains its tables and removing them is a migration, not a deletion.
+- **Deleting a feature must happen before the first `pnpm db:generate`.** After that the migration
+  contains its tables and removing them is a migration, not a deletion. `media` comes out under this
+  rule; `migrations/` has not been generated yet.
 
-What comes out for each feature:
+## Content lives outside D1
 
-| No… | Delete |
-| --- | --- |
-| public-side login | `members` / `member_sessions`; public's `lib/server/{auth,services/auth.ts,services/members.ts,validation/auth.ts}`, `pages/{login.astro,mypage,api/v1/auth}`, `lib/components/{login-form,logout-button}.svelte`; public's KV binding and its `SESSION_TTL_DAYS` / `AUTH_LOCKOUT_*` vars |
-| contact form | `inquiries`; both apps' `inquiries` services, validation, routes and tests |
-| file uploads | `media`; admin's `media` service, validation, routes and tests; the `BUCKET` binding in both apps and `r2Buckets` in admin's `vitest.config.ts` |
-| password reset | `password_reset_tokens` |
+Products, manufacturers, brands, per-organization wholesale prices, news and the diagnosis rules are
+**Markdown in `packages/content`**. Categories, concern tags, the FAQ, commerce constants (shipping,
+tax, minimum order, payment methods) and the inquiry type list are **TypeScript constants**. Terms,
+privacy and the legal notice are plain `.astro`. **D1 holds only transactional data** — applications,
+organizations, members, carts, orders, payments, inquiries, audit log (D-017, D-018, D-024).
+
+Consequences worth knowing before you touch anything:
+
+- **There is no content management screen and no plan for one.** Changing a product price or
+  publishing a news post is a deploy. Do not add CRUD for content to `apps/admin` — the admin screens
+  are ADM-01/12/13/14/15/16/17/18/22/23/24 and nothing else (PRD-04 §3-2).
+- **Never put `prerender = true` on the product or news pages** (D-021). Prices live in the build
+  output, so a static page publishes every organization's wholesale price to anonymous visitors. The
+  same goes for passing a price into a Svelte island — it lands in the client HTML.
+- **`cart_items.product_slug`, `order_items.product_slug` and the `org_code` in the price files
+  cannot have foreign keys** — the referent isn't in D1. Validate existence in the service layer;
+  that check is the only thing standing in.
+- **Display order values from the order's own snapshot columns** (`product_name_snapshot`,
+  `unit_price_snapshot`), never by re-reading the Markdown. Re-reading rewrites every past order
+  whenever a price changes (DEV-07 §6-0).
+- A product's `slug` is referenced by past orders, the diagnosis rules and the public URL. **Treat it
+  as immutable** and add a redirect if a rename is unavoidable.
+- `draft` and `visibility: client_only` must be filtered in **the listing, the detail page and the
+  sitemap**. Filtering only the listing leaves the detail URL live (D-018).
+- Read collections through `apps/public/src/lib/catalog.ts`, not `getCollection()` scattered across
+  pages — the `draft` / `discontinued` filtering is what gets forgotten.
 
 ## Commands
 
@@ -41,7 +82,7 @@ What comes out for each feature:
 | `pnpm build` | |
 | `pnpm db:generate` | Drizzle → `packages/schema/migrations/` |
 | `pnpm db:migrate` | Applies to the shared local D1 |
-| `pnpm --filter admin seed -- --table=admin_users --email=… --password=… --name=…` | `--table=members` for the public side. Values need `=`, not a space |
+| `pnpm --filter admin seed -- --table=members --email=… --password=… --name=…` | Values need `=`, not a space. **There is no `--table=admin_users` path any more** — admins are provisioned on their first Access-authenticated request (D-022) |
 
 ## Container
 
@@ -65,8 +106,8 @@ Both apps open the same store: `persistState: { path: "../../.wrangler-state" }`
 `astro.config.mjs`, and every wrangler CLI call passes `--persist-to ../../.wrangler-state`. Drop
 that flag and you silently get a second, empty database.
 
-`packages/schema/migrations/` is generated, not shipped — the template has none, each project
-generates its own and commits them. Two consequences:
+`packages/schema/migrations/` is generated, not shipped — it does not exist yet, and the first
+`pnpm db:generate` creates it (commit the result). Two consequences:
 
 - Deleting `migrations/` means deleting `.wrangler-state/` too. Regenerating produces a new random
   filename, which no longer matches what `d1_migrations` recorded, and the next apply fails with
@@ -93,28 +134,51 @@ app's `build` script, so CI works too.
 ## Architecture
 
 ```
-apps/public   main domain: content pages, member login
-apps/admin    subdomain: admin console (shadcn-svelte lives here only)
+apps/public   main domain: catalog, applications, news, member login, cart and orders
+apps/admin    subdomain: screening, organizations, orders, inquiries, audit log
+              (shadcn-svelte lives here only; no content management — D-017)
 packages/schema      Drizzle tables, ULID, D1 client
 packages/server-kit  password hashing, lockout, session rules, HTTP envelope
-packages/content     developer-maintained Markdown for Content Collections
+                     (only apps/public uses the auth half now — D-022)
+packages/content     developer-maintained Markdown: products, manufacturers, brands,
+                     prices, news, diagnosis
 ```
 
 Layering inside an app is `pages/ → services/ → schema`. API routes parse input with Zod, call a
-service, and convert thrown `AppError`s with `toErrorResponse`. Pages guard themselves — there is
-no auth middleware, and unlike an API route a page redirects instead of answering 401.
+service, and convert thrown `AppError`s with `toErrorResponse`. Content Collections bypass this —
+pages read them directly through `lib/catalog.ts`, because the service layer is the D1-and-authz
+boundary and build-time data sits outside it.
 
-Client-maintained content belongs in D1 with an admin screen; developer-maintained content belongs
-in `packages/content` as Markdown. Prefer Content Collections when the choice is open — it costs no
-database reads.
+Pages guard themselves — unlike an API route a page redirects instead of answering 401. **`apps/admin`
+is the exception**: its `middleware.ts` verifies the Access JWT for every route, because every route
+there is privileged and one missed page is a hole (D-022).
+
+The placement rule is "who updates it": the operator updates it → D1 with an admin screen; a
+developer updates it → `packages/content` or a constant. In this project the answer came out
+"developer" for **all** public content, which is why there is no CMS (DEV-06 §1-1 is the source of
+truth).
 
 ## Authentication
 
-AdminUser and Member sessions never share a table or cookie: an admin token must not authenticate
-on the public site. What they do share is `packages/server-kit/src/auth/session.ts` — token
-generation, TTL validation and the expiry/status check. Change those in one place.
+**The two sides no longer share a mechanism.** `apps/admin` is behind Cloudflare Access and has no
+login page, no session table and no password (D-022); `apps/public` keeps D1 sessions for members.
+The rule to hold onto is therefore not "keep them separate" but **never reintroduce an app-level
+login to `apps/admin`** — two doors into the admin means the strictest Access policy can be walked
+around.
 
-Two rules that look like implementation details but are not:
+For `apps/admin`:
+
+- Verify the JWT in `middleware.ts` against the team's public keys **and the AUD tag**, then hand the
+  result down through `Astro.locals`. Handlers must not read `Cf-Access-Jwt-Assertion` themselves.
+- Edge verification alone is not enough: a request that reaches the Worker URL directly never passed
+  through Access, so the header is absent and must be rejected.
+- Local dev and e2e cannot pass Access, so a `DEV_ADMIN_EMAIL` fallback exists. **A unit test pins
+  that it is inert when `APP_ENV=production`** — this is the fail-closed equivalent of the env rule
+  below.
+- `admin_users.status = inactive` is refused even with a valid JWT. It is the second lock for when
+  someone is removed from the Access policy but not from the ledger.
+
+For `apps/public`, two rules that look like implementation details but are not:
 
 - Miss paths (`unknown email`, `deactivated`) still run `burnPasswordVerification`. Returning early
   makes them answer far faster than a real account, which is a usable enumeration oracle.
@@ -127,7 +191,8 @@ redirects would go out cacheable. The admin subdomain needs no equivalent.
 
 Lockout counts per IP as well as per account, and locally every request arrives from `127.0.0.1` —
 so five failed attempts lock every account for 15 minutes, and the symptom is a 429 on a password
-that is correct. Clear it from `apps/admin`, where both the binary and the relative path resolve:
+that is correct. The KV binding lives in `apps/public`, but clear it from `apps/admin`, where both
+the binary and the relative path resolve:
 
 ```bash
 npx wrangler kv key list --binding KV --local --persist-to ../../.wrangler-state
@@ -140,13 +205,20 @@ Unit tests run inside workerd via `@cloudflare/vitest-plugin`, not Node — `has
 Crypto and lockout needs a real KV. It peers on `vitest ^4.1.0`; vitest 5 makes miniflare fail to
 boot with a bare `SyntaxError`.
 
-E2E seeds its own account in `globalSetup`, so no env vars are needed. `pnpm test:e2e` runs with
-`--concurrency=1`: both suites drive a real dev server against the one local D1, and running them
-in parallel corrupts it.
+E2E seeds its own **member** account in `globalSetup`, so no env vars are needed; the admin suite
+relies on the `DEV_ADMIN_EMAIL` fallback instead, since Playwright cannot pass Access. `pnpm test:e2e`
+runs with `--concurrency=1`: both suites drive a real dev server against the one local D1, and
+running them in parallel corrupts it.
 
-Cover what E2E cannot reach — fail-closed config, expiry, timing parity — in Vitest. Cover
-hydration in E2E: a missing `client:*` directive still renders server-side, so only an interaction
-catches it.
+Product and news fixtures are the **real** `packages/content` files, not a test-only collection —
+schema violations are supposed to fail the build, and a separate fixture set would route around that
+check.
+
+Cover what E2E cannot reach — fail-closed config (including the Access fallback), expiry, timing
+parity, price resolution, and the fact that no other organization's price reaches a response — in
+Vitest. Cover hydration in E2E: a missing `client:*` directive still renders server-side, so only an
+interaction catches it. The e2e assertion that an anonymous visitor sees no wholesale price also
+catches an accidental `prerender = true` (D-021).
 
 ## MCP servers
 
