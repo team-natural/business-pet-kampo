@@ -1,0 +1,57 @@
+---
+// SCR-22 発注内容の確認。
+import Layout from "../../layouts/Layout.astro";
+import { PAYMENT_METHODS } from "../../lib/commerce";
+import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+
+// TODO(Phase C): カート明細・配送先・合計を表示し、POST /api/v1/checkout へ結線する。
+// 最低発注金額と発注単位の確定判定はサーバー側（checkout）で行う。
+const addresses: { publicId: string; recipientName: string; address: string }[] = [];
+---
+
+<Layout title="ご発注手続き">
+  <main>
+    <h1>ご発注手続き</h1>
+
+    <form method="post" action="/api/v1/checkout">
+      <fieldset>
+        <legend>お届け先</legend>
+        {
+          addresses.map((address) => (
+            <label>
+              <input type="radio" name="shippingAddressId" value={address.publicId} required />
+              {address.recipientName} / {address.address}
+            </label>
+          ))
+        }
+        {
+          addresses.length === 0 && (
+            <p>
+              <a href="/mypage/addresses/new">配送先を登録する</a>
+            </p>
+          )
+        }
+      </fieldset>
+
+      <fieldset>
+        <legend>お支払い方法</legend>
+        {
+          PAYMENT_METHODS.map((method) => (
+            <label>
+              <input type="radio" name="paymentMethod" value={method.id} required />
+              {method.label} — {method.description}
+            </label>
+          ))
+        }
+      </fieldset>
+
+      <label>備考<textarea name="notes"></textarea></label>
+      <button type="submit">この内容で発注する</button>
+    </form>
+
+    <a href="/cart">カートへ戻る</a>
+  </main>
+</Layout>

@@ -1,0 +1,28 @@
+---
+// SCR-27。ログイン状態に依存しないので静的化する（DEV-06 §11）。
+import Layout from "../layouts/Layout.astro";
+import { FAQ_CATEGORIES, faqItemsByCategory } from "../lib/faq";
+
+export const prerender = true;
+---
+
+<Layout title="よくある質問">
+  <main>
+    <h1>よくある質問</h1>
+    {
+      FAQ_CATEGORIES.map((category) => (
+        <section>
+          <h2>{category.label}</h2>
+          <dl>
+            {faqItemsByCategory(category.id).map((item) => (
+              <>
+                <dt>{item.question}</dt>
+                <dd>{item.answer}</dd>
+              </>
+            ))}
+          </dl>
+        </section>
+      ))
+    }
+  </main>
+</Layout>

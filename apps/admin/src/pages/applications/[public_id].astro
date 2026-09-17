@@ -1,0 +1,46 @@
+---
+// ADM-13 申請詳細・審査。承認時に取引先コード（org_code）を採番する画面でもある（D-019）。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { allowedTransitions, getApplicationByPublicId } from "../../lib/server/services/applications";
+
+await requireAdminUser(Astro);
+
+const application = await getApplicationByPublicId(Astro.locals.db, Astro.params.public_id!);
+// 遷移可能なときだけボタンを活性化する。不正遷移は API 側でも 409 で拒否される（DEV-06 §4-3）。
+const transitions = allowedTransitions(application.status);
+---
+
+<Layout title={`${application.companyName} — 申請詳細`}>
+  <main class="mx-auto w-full max-w-4xl px-6 py-10">
+    <a href="/applications" class="text-sm">← 申請一覧</a>
+    <h1 class="mt-2 text-2xl font-semibold">{application.companyName}</h1>
+    <p class="text-sm">ステータス: {application.status}</p>
+
+    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
+      <dt>法人番号</dt><dd>{application.corporateNumber ?? "—"}</dd>
+      <dt>事業者種別</dt><dd>{application.businessType ?? "—"}</dd>
+      <dt>業種</dt><dd>{application.industry ?? "—"}</dd>
+      <dt>所在地</dt><dd>{application.postalCode} {application.address}</dd>
+      <dt>代表者</dt><dd>{application.representativeName}</dd>
+      <dt>ご担当者</dt><dd>{application.contactName}（{application.contactDepartment ?? "—"}）</dd>
+      <dt>連絡先</dt><dd>{application.phone} / {application.email}</dd>
+      <dt>Web / SNS</dt><dd>{application.website ?? "—"} / {application.sns ?? "—"}</dd>
+      <dt>実店舗</dt><dd>{application.hasPhysicalStore ? "あり" : "なし"}</dd>
+      <dt>販売予定チャネル</dt><dd>{application.plannedSalesChannels ?? "—"}</dd>
+      <dt>希望商品</dt><dd>{application.desiredProducts ?? "—"}</dd>
+      <dt>希望支払方法</dt><dd>{application.desiredPaymentMethod ?? "—"}</dd>
+      <dt>ご相談内容</dt><dd>{application.notes ?? "—"}</dd>
+      <dt>同意した規約版</dt><dd>{application.agreedTermsVersion}</dd>
+    </dl>
+
+    {
+      /* TODO(Phase C): 審査メモの保存・差し戻し・承認・否認を API へ結線する。
+        承認フォームでは org_code を採番して送る（採番後は変更しない）。 */
+    }
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">審査</h2>
+      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
+    </section>
+  </main>
+</Layout>

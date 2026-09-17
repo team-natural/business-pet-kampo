@@ -1,0 +1,47 @@
+---
+// ADM-22 お問い合わせ一覧。カーソル方式なので総件数と最終ページを出さない（DEV-06 §4-2）。
+import Layout from "../../layouts/Layout.astro";
+import { decodeCursor, encodeCursor } from "@app/server-kit/http";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { listInquiries } from "../../lib/server/services/inquiries";
+
+await requireAdminUser(Astro);
+
+const { items, nextId } = await listInquiries(Astro.locals.db, { beforeId: decodeCursor(Astro.url.searchParams.get("cursor")) });
+---
+
+<Layout title="お問い合わせ — 管理画面">
+  <main class="mx-auto w-full max-w-6xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">お問い合わせ</h1>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>受信日時</th><th>会社名</th><th>お名前</th><th>種別</th><th>ステータス</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((inquiry) => (
+            <tr>
+              <td>{inquiry.createdAt}</td>
+              <td>{inquiry.companyName ?? "—"}</td>
+              <td>
+                <a href={`/inquiries/${inquiry.id}`}>{inquiry.name}</a>
+              </td>
+              <td>{inquiry.inquiryType ?? "—"}</td>
+              <td>{inquiry.status}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {items.length === 0 && <p class="mt-6">お問い合わせはありません。</p>}
+
+    {
+      nextId && (
+        <a class="mt-6 inline-block text-sm" href={`/inquiries?cursor=${encodeCursor(nextId)}`}>
+          次のページ
+        </a>
+      )
+    }
+  </main>
+</Layout>

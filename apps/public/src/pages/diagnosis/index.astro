@@ -1,0 +1,16 @@
+---
+// SCR-04 商品選び診断。設問と判定ルールが未確定のため MVP からは外し、Coming soon を出す（D-023）。
+// 設問が固まったら packages/content/diagnosis/*.md を追加してここをウィザードに差し替える。
+// 判定はクライアント側で完結してよいが、**診断結果に卸価格を含めない**（PRD-02 §2-3）。
+import Layout from "../../layouts/Layout.astro";
+
+export const prerender = true;
+---
+
+<Layout title="商品選び診断">
+  <main>
+    <h1>商品選び診断</h1>
+    <p>ただいま準備中です。公開までは商品一覧から条件を絞ってお探しください。</p>
+    <a href="/products">商品一覧を見る</a>
+  </main>
+</Layout>

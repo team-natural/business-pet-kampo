@@ -1,10 +1,54 @@
 ---
+// SCR-01 トップページ。新着商品とお知らせを出すため SSR（お知らせに取引先限定が混ざる — D-021）。
 import Layout from "../layouts/Layout.astro";
-import Counter from "../lib/components/counter.svelte";
+import { listNews, listProducts } from "../lib/catalog";
+import { memberSession } from "../lib/server/auth/page";
+import { viewerFor } from "../lib/server/auth/session";
+
+const session = await memberSession(Astro);
+const viewer = viewerFor(session);
+
+const [products, news] = await Promise.all([listProducts(), listNews(viewer)]);
 ---
 
-<Layout title="apps/public">
-  <img src="/logo.svg" alt="ロゴ" width="211" height="55" />
-  <h1>apps/public</h1>
-  <Counter client:visible />
+<Layout title="ペット漢方 卸売サイト">
+  <main>
+    {/* TODO(Phase B): ヒーロー・導線・サービス紹介を public-design スキルで作る。 */}
+    <h1>ペット漢方 卸売サイト</h1>
+    <p>動物病院・ペットショップ・トリミングサロン向けの卸売サイトです。</p>
+
+    <nav>
+      <a href="/products">商品を見る</a>
+      <a href="/diagnosis">商品選び診断</a>
+      <a href="/apply">新規取引のお申し込み</a>
+      {session ? <a href="/mypage">マイページ</a> : <a href="/login">ログイン</a>}
+    </nav>
+
+    <section>
+      <h2>取扱商品</h2>
+      <ul>
+        {
+          products.slice(0, 6).map((product) => (
+            <li>
+              <a href={`/products/${product.id}`}>{product.data.name}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section>
+      <h2>お知らせ</h2>
+      <ul>
+        {
+          news.slice(0, 5).map((entry) => (
+            <li>
+              <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
+              <a href={`/news/${entry.id}`}>{entry.data.title}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </main>
 </Layout>

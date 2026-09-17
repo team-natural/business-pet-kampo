@@ -1,0 +1,56 @@
+---
+// ADM-18 受注詳細。表示はすべて order_items のスナップショット列から — Markdown を読み直すと
+// 価格改定で過去の注文金額が変わる（DEV-07 §6-0）。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { allowedTransitions, getOrderByPublicId } from "../../lib/server/services/orders";
+
+await requireAdminUser(Astro);
+
+const { order, items, shippingAddress } = await getOrderByPublicId(Astro.locals.db, Astro.params.public_id!);
+const transitions = allowedTransitions(order.status);
+---
+
+<Layout title={`${order.orderNumber} — 受注詳細`}>
+  <main class="mx-auto w-full max-w-4xl px-6 py-10">
+    <a href="/orders" class="text-sm">← 受注一覧</a>
+    <h1 class="mt-2 text-2xl font-semibold">{order.orderNumber}</h1>
+    <p class="text-sm">{order.status} / {order.paymentStatus}（{order.paymentMethod}）</p>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>商品</th><th>単価</th><th>数量</th><th>小計</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((item) => (
+            <tr>
+              <td>
+                {item.name}
+                {item.code ? `（${item.code}）` : ""}
+              </td>
+              <td>{item.unitPrice.toLocaleString()} 円</td>
+              <td>{item.quantity}</td>
+              <td>{item.subtotal.toLocaleString()} 円</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+
+    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
+      <dt>小計</dt><dd>{order.subtotal.toLocaleString()} 円</dd>
+      <dt>送料</dt><dd>{order.shippingFee.toLocaleString()} 円</dd>
+      <dt>消費税</dt><dd>{order.tax.toLocaleString()} 円</dd>
+      <dt>合計</dt><dd>{order.total.toLocaleString()} 円</dd>
+      <dt>お届け先</dt><dd>{Object.values(shippingAddress).join(" ")}</dd>
+      <dt>備考</dt><dd>{order.notes ?? "—"}</dd>
+    </dl>
+
+    {/* TODO(Phase C): ステータス変更・入金確認・配送情報登録・キャンセルを API へ結線する。 */}
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">操作</h2>
+      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
+    </section>
+  </main>
+</Layout>

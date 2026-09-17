@@ -1,0 +1,39 @@
+---
+// ADM-16 所属 Member 一覧。**参照専用** — 作成・編集・削除・パスワード変更は持たせない
+// （Member は AdminUser と完全に別系統のアカウント — PRD-04 §3-2）。
+import Layout from "../../../layouts/Layout.astro";
+import { requireAdminUser } from "../../../lib/server/auth/access";
+import { findOrganizationRow, listOrganizationMembers } from "../../../lib/server/services/organizations";
+
+await requireAdminUser(Astro);
+
+const organization = await findOrganizationRow(Astro.locals.db, Astro.params.public_id!);
+const members = await listOrganizationMembers(Astro.locals.db, organization.id);
+---
+
+<Layout title={`${organization.name} の所属担当者`}>
+  <main class="mx-auto w-full max-w-4xl px-6 py-10">
+    <a href={`/organizations/${organization.publicId}`} class="text-sm">← 取引先詳細</a>
+    <h1 class="mt-2 text-2xl font-semibold">{organization.name} の所属担当者</h1>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>お名前</th><th>メールアドレス</th><th>アカウント</th><th>所属</th><th>参加日</th></tr>
+      </thead>
+      <tbody>
+        {
+          members.map((member) => (
+            <tr>
+              <td>{member.name}</td>
+              <td>{member.email}</td>
+              <td>{member.memberStatus}</td>
+              <td>{member.membershipStatus}</td>
+              <td>{member.joinedAt}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {members.length === 0 && <p class="mt-6">所属している担当者はいません。</p>}
+  </main>
+</Layout>

@@ -1,0 +1,39 @@
+---
+// SCR-32 特定商取引法に基づく表示。送料・税・支払方法は必ず lib/commerce.ts から描画する —
+// ページに直接書くとカートの計算と法定表示が食い違う（D-024）。
+import Layout from "../layouts/Layout.astro";
+import { FREE_SHIPPING_THRESHOLD, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, SHIPPING_FEE, TAX_RATE, formatYen } from "../lib/commerce";
+
+export const prerender = true;
+
+// TODO(TBD-01 / TBD-16): 運営会社名・所在地・連絡先・責任者名が確定したらここを埋める。
+const rows = [
+  { label: "販売業者", value: "（TBD-16 運営会社名）" },
+  { label: "運営責任者", value: "（TBD-16 責任者名）" },
+  { label: "所在地", value: "（TBD-16 所在地）" },
+  { label: "連絡先", value: "（TBD-16 電話番号・メールアドレス）" },
+  { label: "販売価格", value: `各商品ページに表示する卸価格（税抜）。消費税率は ${Math.round(TAX_RATE * 100)}% です。` },
+  { label: "商品代金以外の必要料金", value: `送料 ${formatYen(SHIPPING_FEE)}（税抜・全国一律）。税抜 ${formatYen(FREE_SHIPPING_THRESHOLD)} 以上のご発注で送料無料。` },
+  { label: "最低発注金額", value: `税抜 ${formatYen(MINIMUM_ORDER_SUBTOTAL)}` },
+  { label: "支払方法", value: PAYMENT_METHODS.map((method) => method.label).join(" / ") },
+  { label: "支払時期", value: PAYMENT_METHODS.map((method) => `${method.label}: ${method.description}`).join(" ") },
+  { label: "引渡時期", value: "（TBD 出荷リードタイム）" },
+  { label: "返品・交換", value: "（TBD-11 返品条件）" },
+];
+---
+
+<Layout title="特定商取引法に基づく表示">
+  <main>
+    <h1>特定商取引法に基づく表示</h1>
+    <dl>
+      {
+        rows.map((row) => (
+          <>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </>
+        ))
+      }
+    </dl>
+  </main>
+</Layout>

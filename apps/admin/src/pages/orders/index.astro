@@ -1,0 +1,65 @@
+---
+// ADM-17 受注一覧。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { type OrderStatus, listOrders } from "../../lib/server/services/orders";
+
+await requireAdminUser(Astro);
+
+const STATUSES: OrderStatus[] = ["received", "confirming", "preparing", "shipped", "completed", "cancelled"];
+const params = Astro.url.searchParams;
+const status = params.get("status");
+
+const { items, page, perPage, total } = await listOrders(Astro.locals.db, {
+  status: STATUSES.includes(status as OrderStatus) ? (status as OrderStatus) : undefined,
+  page: Number(params.get("page") ?? 1),
+});
+const lastPage = Math.max(1, Math.ceil(total / perPage));
+---
+
+<Layout title="受注 — 管理画面">
+  <main class="mx-auto w-full max-w-6xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">受注（{total}）</h1>
+
+    <form method="get" class="mt-6 flex gap-2">
+      <select name="status" class="rounded border px-3 py-2">
+        <option value="">すべてのステータス</option>
+        {
+          STATUSES.map((value) => (
+            <option value={value} selected={status === value}>
+              {value}
+            </option>
+          ))
+        }
+      </select>
+      <button type="submit" class="rounded border px-4 py-2">絞り込む</button>
+    </form>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>注文番号</th><th>取引先</th><th>発注日</th><th>ステータス</th><th>お支払い</th><th>合計</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((order) => (
+            <tr>
+              <td>
+                <a href={`/orders/${order.id}`}>{order.orderNumber}</a>
+              </td>
+              <td>
+                {order.organizationName}（{order.orgCode}）
+              </td>
+              <td>{order.placedAt}</td>
+              <td>{order.status}</td>
+              <td>{order.paymentStatus}</td>
+              <td>{order.total.toLocaleString()} 円</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {items.length === 0 && <p class="mt-6">該当する受注はありません。</p>}
+
+    <p class="mt-6 text-sm">{page} / {lastPage}</p>
+  </main>
+</Layout>

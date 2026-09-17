@@ -1,0 +1,25 @@
+---
+// SCR-26 お知らせ詳細。一覧から外すだけでは詳細 URL が生きたまま残るため、ここでも除外する（D-018）。
+import { render } from "astro:content";
+import Layout from "../../layouts/Layout.astro";
+import { getNewsEntry } from "../../lib/catalog";
+import { memberSession } from "../../lib/server/auth/page";
+import { viewerFor } from "../../lib/server/auth/session";
+
+const viewer = viewerFor(await memberSession(Astro));
+const entry = await getNewsEntry(Astro.params.slug!, viewer);
+if (!entry) return Astro.rewrite("/404");
+
+const { Content } = await render(entry);
+---
+
+<Layout title={`${entry.data.title} — お知らせ`}>
+  <main>
+    <article>
+      <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
+      <h1>{entry.data.title}</h1>
+      <Content />
+    </article>
+    <a href="/news">お知らせ一覧へ戻る</a>
+  </main>
+</Layout>

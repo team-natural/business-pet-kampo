@@ -1,0 +1,24 @@
+---
+// SCR-13 アカウント情報。
+import Layout from "../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+---
+
+<Layout title="アカウント情報 — マイページ">
+  <main>
+    <h1>アカウント情報</h1>
+
+    {/* TODO(Phase C): GET /api/v1/me で現在値を表示し、PATCH /api/v1/me へ結線する。 */}
+    <form method="post" action="/api/v1/me">
+      <label>お名前<input type="text" name="name" required /></label>
+      <label>メールアドレス<input type="email" name="email" required /></label>
+      <label>電話番号<input type="tel" name="phone" /></label>
+      <button type="submit">保存する</button>
+    </form>
+
+    <a href="/mypage">マイページへ戻る</a>
+  </main>
+</Layout>

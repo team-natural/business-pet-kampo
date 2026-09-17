@@ -1,0 +1,19 @@
+---
+// SCR-11 パスワードの再設定。トークンの検証はサーバー側（POST 側）で行う。
+import Layout from "../../../layouts/Layout.astro";
+
+const { token } = Astro.params;
+---
+
+<Layout title="新しいパスワードの設定">
+  <main>
+    <h1>新しいパスワードの設定</h1>
+
+    {/* TODO(Phase C): POST /api/v1/auth/password/reset へ結線する。期限切れ・使用済みは同じ文言で返す。 */}
+    <form method="post" action="/api/v1/auth/password/reset">
+      <input type="hidden" name="token" value={token} />
+      <label>新しいパスワード<input type="password" name="password" required minlength="12" autocomplete="new-password" /></label>
+      <button type="submit">パスワードを設定する</button>
+    </form>
+  </main>
+</Layout>

@@ -1,0 +1,63 @@
+---
+// ADM-14 取引先一覧。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { type OrganizationStatus, listOrganizations } from "../../lib/server/services/organizations";
+
+await requireAdminUser(Astro);
+
+const STATUSES: OrganizationStatus[] = ["active", "suspended", "terminated"];
+const params = Astro.url.searchParams;
+const status = params.get("status");
+
+const { items, page, perPage, total } = await listOrganizations(Astro.locals.db, {
+  status: STATUSES.includes(status as OrganizationStatus) ? (status as OrganizationStatus) : undefined,
+  keyword: params.get("q") ?? undefined,
+  page: Number(params.get("page") ?? 1),
+});
+const lastPage = Math.max(1, Math.ceil(total / perPage));
+---
+
+<Layout title="取引先 — 管理画面">
+  <main class="mx-auto w-full max-w-6xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">取引先（{total}）</h1>
+
+    <form method="get" class="mt-6 flex gap-2">
+      <input type="search" name="q" value={params.get("q") ?? ""} placeholder="会社名" class="rounded border px-3 py-2" />
+      <select name="status" class="rounded border px-3 py-2">
+        <option value="">すべてのステータス</option>
+        {
+          STATUSES.map((value) => (
+            <option value={value} selected={status === value}>
+              {value}
+            </option>
+          ))
+        }
+      </select>
+      <button type="submit" class="rounded border px-4 py-2">絞り込む</button>
+    </form>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>取引先コード</th><th>会社名</th><th>ステータス</th><th>発注可否</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((organization) => (
+            <tr>
+              <td>{organization.orgCode}</td>
+              <td>
+                <a href={`/organizations/${organization.id}`}>{organization.name}</a>
+              </td>
+              <td>{organization.status}</td>
+              <td>{organization.orderEnabled ? "可" : "不可"}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {items.length === 0 && <p class="mt-6">該当する取引先はありません。</p>}
+
+    <p class="mt-6 text-sm">{page} / {lastPage}</p>
+  </main>
+</Layout>

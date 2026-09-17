@@ -1,0 +1,33 @@
+---
+// SCR-15 配送先一覧。自 Organization のものだけを扱う（DEV-02 §3-1）。
+import Layout from "../../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+
+// TODO(Phase C): listShippingAddresses(db, organization.id) を呼ぶ。クエリには必ず
+// WHERE organization_id = ? を含める（取得後にアプリ側で突き合わせる形にしない）。
+const addresses: { publicId: string; recipientName: string; address: string; isDefault: boolean }[] = [];
+---
+
+<Layout title="配送先 — マイページ">
+  <main>
+    <h1>配送先</h1>
+    <a href="/mypage/addresses/new">配送先を追加する</a>
+
+    <ul>
+      {
+        addresses.map((address) => (
+          <li>
+            <span>{address.recipientName}</span>
+            <span>{address.address}</span>
+            {address.isDefault && <span>既定</span>}
+            <a href={`/mypage/addresses/${address.publicId}/edit`}>編集</a>
+          </li>
+        ))
+      }
+    </ul>
+    {addresses.length === 0 && <p>登録済みの配送先はありません。</p>}
+  </main>
+</Layout>

@@ -1,0 +1,17 @@
+---
+// SCR-24 決済失敗。カートは残したまま戻せるようにする（失敗のたびに組み直させない）。
+import Layout from "../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+---
+
+<Layout title="お支払いを完了できませんでした">
+  <main>
+    <h1>お支払いを完了できませんでした</h1>
+    <p>カードの情報をご確認のうえ、もう一度お試しください。銀行振込への変更も可能です。</p>
+    <a href="/checkout">ご発注手続きへ戻る</a>
+    <a href="/cart">カートを見る</a>
+  </main>
+</Layout>

@@ -49,6 +49,9 @@ describe("getSession", () => {
     await expect(getSession(cookiesWith(token), db)).resolves.toEqual({
       memberId: member.id,
       memberPublicId: member.publicId,
+      // No membership seeded here, so there is no organization to scope by — and every
+      // order-related path refuses rather than falling back to an unscoped query.
+      organization: null,
     });
   });
 

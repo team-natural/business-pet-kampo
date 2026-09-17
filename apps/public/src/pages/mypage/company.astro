@@ -1,0 +1,34 @@
+---
+// SCR-14 会社情報。項目によっては運営の確認が必要な変更申請になる（F-05-03）。
+import Layout from "../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+
+const organization = session.organization;
+---
+
+<Layout title="会社情報 — マイページ">
+  <main>
+    <h1>会社情報</h1>
+
+    {
+      organization ? (
+        <dl>
+          <dt>会社名</dt>
+          <dd>{organization.name}</dd>
+          <dt>取引先コード</dt>
+          <dd>{organization.orgCode}</dd>
+          <dt>取引状況</dt>
+          <dd>{organization.status}</dd>
+        </dl>
+      ) : (
+        <p>所属する取引先が見つかりません。お問い合わせください。</p>
+      )
+    }
+
+    {/* TODO(Phase C): PATCH /api/v1/me/company へ結線する。運営確認が必要な項目は変更申請として扱う。 */}
+    <a href="/mypage">マイページへ戻る</a>
+  </main>
+</Layout>

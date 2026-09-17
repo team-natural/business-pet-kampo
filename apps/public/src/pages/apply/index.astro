@@ -1,0 +1,60 @@
+---
+// SCR-05 新規取引申請。入力項目が多いため 4 ステップに分割する（DEV-06 §4-4）。
+// 同意ステップでは現行の規約バージョンを hidden で送り、サーバー側で現行版と一致を検証する。
+import Layout from "../../layouts/Layout.astro";
+import { PAYMENT_METHODS } from "../../lib/commerce";
+import { CURRENT_TERMS_VERSION } from "../../lib/terms-version";
+---
+
+<Layout title="新規取引のお申し込み">
+  <main>
+    <h1>新規取引のお申し込み</h1>
+
+    {/* TODO(Phase B/C): 4 ステップ（会社情報 / 担当者情報 / 取引希望条件 / 同意）に分割し、POST /api/v1/applications へ結線する。 */}
+    <form method="post" action="/api/v1/applications">
+      <fieldset>
+        <legend>会社情報</legend>
+        <label>会社名<input type="text" name="companyName" required /></label>
+        <label>法人番号<input type="text" name="corporateNumber" /></label>
+        <label>事業者種別<input type="text" name="businessType" /></label>
+        <label>業種<input type="text" name="industry" /></label>
+        <label>郵便番号<input type="text" name="postalCode" required /></label>
+        <label>住所<input type="text" name="address" required /></label>
+        <label>代表者名<input type="text" name="representativeName" required /></label>
+        <label>Web サイト<input type="url" name="website" /></label>
+        <label>SNS<input type="text" name="sns" /></label>
+        <label><input type="checkbox" name="hasPhysicalStore" value="1" />実店舗がある</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>ご担当者情報</legend>
+        <label>ご担当者名<input type="text" name="contactName" required /></label>
+        <label>部署<input type="text" name="contactDepartment" /></label>
+        <label>電話番号<input type="tel" name="phone" required /></label>
+        <label>メールアドレス<input type="email" name="email" required /></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>取引希望条件</legend>
+        <label>販売予定チャネル<input type="text" name="plannedSalesChannels" /></label>
+        <label>ご希望の商品<input type="text" name="desiredProducts" /></label>
+        <label>
+          ご希望の支払方法
+          <select name="desiredPaymentMethod">
+            <option value="">選択してください</option>
+            {PAYMENT_METHODS.map((method) => <option value={method.id}>{method.label}</option>)}
+          </select>
+        </label>
+        <label>ご相談内容<textarea name="notes"></textarea></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>同意</legend>
+        <input type="hidden" name="agreedTermsVersion" value={CURRENT_TERMS_VERSION} />
+        <label><input type="checkbox" name="agreedToTerms" value="1" required /><a href="/terms">利用規約</a>・<a href="/privacy">プライバシーポリシー</a>に同意します</label>
+      </fieldset>
+
+      <button type="submit">申し込む</button>
+    </form>
+  </main>
+</Layout>

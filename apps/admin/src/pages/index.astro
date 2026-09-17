@@ -2,15 +2,16 @@
 // ADM-01. `/` is the dashboard, not a login screen — authentication is Cloudflare Access (D-022).
 import Layout from "../layouts/Layout.astro";
 import { requireAdminUser } from "../lib/server/auth/access";
+import { getDashboardCounts } from "../lib/server/services/dashboard";
 
 const admin = await requireAdminUser(Astro);
+const counts = await getDashboardCounts(Astro.locals.db);
 
-// Counts come from the application/order services once they exist (Phase C).
 const tiles = [
-  { label: "未審査の申請", value: "—", href: "/applications" },
-  { label: "要確認の注文", value: "—", href: "/orders" },
-  { label: "入金待ち", value: "—", href: "/orders?payment_status=unpaid" },
-  { label: "出荷待ち", value: "—", href: "/orders?status=preparing" },
+  { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received" },
+  { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming" },
+  { label: "入金待ち", value: counts.awaitingPayment, href: "/orders" },
+  { label: "出荷待ち", value: counts.awaitingShipment, href: "/orders?status=preparing" },
 ];
 ---
 

@@ -1,0 +1,78 @@
+---
+// SCR-02 商品一覧。SSR 固定 — prerender すると全取引先の卸価格が静的 HTML に焼き込まれる（D-021）。
+import Layout from "../../layouts/Layout.astro";
+import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, listProducts, resolveWholesalePrice } from "../../lib/catalog";
+import { memberSession } from "../../lib/server/auth/page";
+import { viewerFor } from "../../lib/server/auth/session";
+
+const params = Astro.url.searchParams;
+const animal = params.get("animal");
+
+const filter = {
+  animal: animal === "dog" || animal === "cat" ? (animal as Animal) : undefined,
+  category: params.get("category") ?? undefined,
+  concern: params.get("concern") ?? undefined,
+  keyword: params.get("q") ?? undefined,
+};
+
+// null for anyone who must not see a wholesale price (PRD-02 §2-3). The price is resolved on the
+// server and never handed to a client island.
+const viewer = viewerFor(await memberSession(Astro));
+const products = await listProducts(filter);
+const prices = await Promise.all(products.map((product) => resolveWholesalePrice(product, viewer)));
+---
+
+<Layout title="商品一覧">
+  <main>
+    <h1>商品一覧</h1>
+
+    <form method="get">
+      <input type="search" name="q" value={filter.keyword ?? ""} placeholder="商品名・商品コード" />
+      <select name="animal">
+        <option value="">すべての動物</option>
+        {
+          ANIMALS.map((option) => (
+            <option value={option.id} selected={filter.animal === option.id}>
+              {option.label}
+            </option>
+          ))
+        }
+      </select>
+      <select name="category">
+        <option value="">すべてのカテゴリー</option>
+        {
+          PRODUCT_CATEGORIES.map((option) => (
+            <option value={option.id} selected={filter.category === option.id}>
+              {option.label}
+            </option>
+          ))
+        }
+      </select>
+      <select name="concern">
+        <option value="">すべての悩み</option>
+        {
+          CONCERNS.map((option) => (
+            <option value={option.id} selected={filter.concern === option.id}>
+              {option.label}
+            </option>
+          ))
+        }
+      </select>
+      <button type="submit">絞り込む</button>
+    </form>
+
+    <ul>
+      {
+        products.map((product, index) => (
+          <li>
+            <a href={`/products/${product.id}`}>{product.data.name}</a>
+            <p>{product.data.summary}</p>
+            {prices[index] === null ? <p>卸価格は承認済みの取引先アカウントでご確認いただけます。</p> : <p>卸価格 {prices[index]?.toLocaleString()} 円（税抜）</p>}
+          </li>
+        ))
+      }
+    </ul>
+
+    {products.length === 0 && <p>条件に一致する商品がありません。</p>}
+  </main>
+</Layout>

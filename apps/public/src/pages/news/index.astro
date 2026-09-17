@@ -1,0 +1,28 @@
+---
+// SCR-25 お知らせ一覧。SSR 固定 — visibility: client_only の出し分けはセッション検証が要る（D-021）。
+import Layout from "../../layouts/Layout.astro";
+import { listNews } from "../../lib/catalog";
+import { memberSession } from "../../lib/server/auth/page";
+import { viewerFor } from "../../lib/server/auth/session";
+
+const viewer = viewerFor(await memberSession(Astro));
+const entries = await listNews(viewer);
+---
+
+<Layout title="お知らせ">
+  <main>
+    <h1>お知らせ</h1>
+    <ul>
+      {
+        entries.map((entry) => (
+          <li>
+            <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
+            <a href={`/news/${entry.id}`}>{entry.data.title}</a>
+            {entry.data.visibility === "client_only" && <span>取引先限定</span>}
+          </li>
+        ))
+      }
+    </ul>
+    {entries.length === 0 && <p>お知らせはまだありません。</p>}
+  </main>
+</Layout>

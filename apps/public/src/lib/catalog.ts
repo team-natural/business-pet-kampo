@@ -132,7 +132,7 @@ export async function referencedOrgCodes(): Promise<string[]> {
 // Public URLs only: drafts, client-only news and discontinued products stay out of the sitemap,
 // which is the third place the filtering has to happen (D-018).
 export async function sitemapPaths(): Promise<string[]> {
-  const [products, news, brands] = await Promise.all([listProducts(), listNews(null), listBrands()]);
+  const [products, news] = await Promise.all([listProducts(), listNews(null)]);
 
-  return [...products.map((entry) => `/products/${entry.id}`), ...news.map((entry) => `/news/${entry.id}`), ...brands.map((entry) => `/brands/${entry.id}`)];
+  return [...products.map((entry) => `/products/${entry.id}`), ...news.map((entry) => `/news/${entry.id}`)];
 }

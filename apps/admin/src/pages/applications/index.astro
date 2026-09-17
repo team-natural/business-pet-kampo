@@ -1,0 +1,64 @@
+---
+// ADM-12 新規取引申請の一覧。絞り込み条件は URL クエリに持つ（共有・リロード可能にするため）。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { type ApplicationStatus, listApplications } from "../../lib/server/services/applications";
+
+await requireAdminUser(Astro);
+
+const STATUSES: ApplicationStatus[] = ["received", "reviewing", "needs_confirmation", "approved", "rejected", "withdrawn"];
+const params = Astro.url.searchParams;
+const status = params.get("status");
+
+const { items, page, perPage, total } = await listApplications(Astro.locals.db, {
+  status: STATUSES.includes(status as ApplicationStatus) ? (status as ApplicationStatus) : undefined,
+  keyword: params.get("q") ?? undefined,
+  page: Number(params.get("page") ?? 1),
+});
+const lastPage = Math.max(1, Math.ceil(total / perPage));
+---
+
+<Layout title="新規取引申請 — 管理画面">
+  <main class="mx-auto w-full max-w-6xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">新規取引申請（{total}）</h1>
+
+    <form method="get" class="mt-6 flex gap-2">
+      <input type="search" name="q" value={params.get("q") ?? ""} placeholder="会社名" class="rounded border px-3 py-2" />
+      <select name="status" class="rounded border px-3 py-2">
+        <option value="">すべてのステータス</option>
+        {
+          STATUSES.map((value) => (
+            <option value={value} selected={status === value}>
+              {value}
+            </option>
+          ))
+        }
+      </select>
+      <button type="submit" class="rounded border px-4 py-2">絞り込む</button>
+    </form>
+
+    {/* TODO(Phase B): admin-design スキルで shadcn-svelte の Table / Badge に置き換える。 */}
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>申請日</th><th>会社名</th><th>ご担当者</th><th>ステータス</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((application) => (
+            <tr>
+              <td>{application.appliedAt}</td>
+              <td>
+                <a href={`/applications/${application.id}`}>{application.companyName}</a>
+              </td>
+              <td>{application.contactName}</td>
+              <td>{application.status}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {items.length === 0 && <p class="mt-6">該当する申請はありません。</p>}
+
+    <p class="mt-6 text-sm">{page} / {lastPage}</p>
+  </main>
+</Layout>

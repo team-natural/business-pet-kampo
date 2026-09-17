@@ -1,0 +1,42 @@
+---
+// ADM-23 お問い合わせ詳細。担当者とメモはこの画面からのみ更新する（公開側の入力対象外）。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { allowedTransitions, getInquiryByPublicId } from "../../lib/server/services/inquiries";
+
+await requireAdminUser(Astro);
+
+const inquiry = await getInquiryByPublicId(Astro.locals.db, Astro.params.public_id!);
+const transitions = allowedTransitions(inquiry.status);
+---
+
+<Layout title={`${inquiry.name} — お問い合わせ`}>
+  <main class="mx-auto w-full max-w-4xl px-6 py-10">
+    <a href="/inquiries" class="text-sm">← お問い合わせ一覧</a>
+    <h1 class="mt-2 text-2xl font-semibold">{inquiry.name}</h1>
+    <p class="text-sm">{inquiry.status}</p>
+
+    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
+      <dt>会社名</dt><dd>{inquiry.companyName ?? "—"}</dd>
+      <dt>メールアドレス</dt><dd>{inquiry.email}</dd>
+      <dt>電話番号</dt><dd>{inquiry.phone ?? "—"}</dd>
+      <dt>種別</dt><dd>{inquiry.inquiryType ?? "—"}</dd>
+      <dt>受信日時</dt><dd>{inquiry.createdAt}</dd>
+    </dl>
+
+    <section class="mt-6">
+      <h2 class="text-lg font-semibold">お問い合わせ内容</h2>
+      <p class="mt-2 text-sm whitespace-pre-wrap">{inquiry.content}</p>
+    </section>
+
+    {
+      /* TODO(Phase B/C): 対応開始・完了・差し戻しのボタンと、メモの保存を結線する
+        （POST /api/v1/inquiries/{id}/start 等）。 */
+    }
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">対応</h2>
+      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし"}</p>
+      <p class="mt-2 text-sm">メモ: {inquiry.memo ?? "—"}</p>
+    </section>
+  </main>
+</Layout>

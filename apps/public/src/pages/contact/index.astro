@@ -1,0 +1,29 @@
+---
+// SCR-30 お問い合わせ。送信先は POST /api/v1/inquiries（認証不要）。
+import Layout from "../../layouts/Layout.astro";
+import { INQUIRY_TYPES } from "../../lib/inquiry";
+---
+
+<Layout title="お問い合わせ">
+  <main>
+    <h1>お問い合わせ</h1>
+
+    {/* TODO(Phase C): 送信・バリデーション表示を結線する。status / assignee / memo は送らない（DEV-07 §7-2）。 */}
+    <form method="post" action="/api/v1/inquiries">
+      <label>会社名<input type="text" name="companyName" maxlength="100" /></label>
+      <label>お名前<input type="text" name="name" maxlength="100" required /></label>
+      <label>メールアドレス<input type="email" name="email" maxlength="255" required /></label>
+      <label>電話番号<input type="tel" name="phone" maxlength="20" /></label>
+      <label>
+        お問い合わせ種別
+        <select name="inquiryType">
+          <option value="">選択してください</option>
+          {INQUIRY_TYPES.map((type) => <option value={type.id}>{type.label}</option>)}
+        </select>
+      </label>
+      <label>お問い合わせ内容<textarea name="content" maxlength="2000" required></textarea></label>
+      <label><input type="checkbox" name="agreed" required />プライバシーポリシーに同意します</label>
+      <button type="submit">送信する</button>
+    </form>
+  </main>
+</Layout>

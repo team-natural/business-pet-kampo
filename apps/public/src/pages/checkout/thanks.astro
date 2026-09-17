@@ -1,0 +1,19 @@
+---
+// SCR-23 発注完了。
+import Layout from "../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+
+const orderNumber = Astro.url.searchParams.get("order");
+---
+
+<Layout title="ご発注ありがとうございました">
+  <main>
+    <h1>ご発注ありがとうございました</h1>
+    {orderNumber && <p>注文番号: {orderNumber}</p>}
+    <p>確認メールをお送りしました。銀行振込をお選びの場合は、ご入金の確認後に出荷手配を行います。</p>
+    <a href="/mypage/orders">発注履歴を見る</a>
+  </main>
+</Layout>

@@ -1,0 +1,49 @@
+---
+// ADM-24 管理操作履歴。追記のみで、削除も編集もしない（DEV-07 §10）。
+import Layout from "../../layouts/Layout.astro";
+import { decodeCursor, encodeCursor } from "@app/server-kit/http";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { listActivityLogs } from "../../lib/server/services/audit-logs";
+
+await requireAdminUser(Astro);
+
+const logName = Astro.url.searchParams.get("log_name");
+const { items, nextId } = await listActivityLogs(Astro.locals.db, {
+  beforeId: decodeCursor(Astro.url.searchParams.get("cursor")),
+  logName: logName ?? undefined,
+});
+---
+
+<Layout title="管理操作履歴 — 管理画面">
+  <main class="mx-auto w-full max-w-6xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">管理操作履歴</h1>
+
+    <table class="mt-6 w-full text-sm">
+      <thead>
+        <tr><th>日時</th><th>種別</th><th>イベント</th><th>内容</th><th>操作者</th></tr>
+      </thead>
+      <tbody>
+        {
+          items.map((entry) => (
+            <tr>
+              <td>{entry.createdAt}</td>
+              <td>{entry.logName ?? "—"}</td>
+              <td>{entry.event ?? "—"}</td>
+              <td>{entry.description}</td>
+              <td>{entry.causerType ?? "system"}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+    {items.length === 0 && <p class="mt-6">記録はありません。</p>}
+
+    {
+      nextId && (
+        <a class="mt-6 inline-block text-sm" href={`/audit-logs?cursor=${encodeCursor(nextId)}${logName ? `&log_name=${logName}` : ""}`}>
+          次のページ
+        </a>
+      )
+    }
+  </main>
+</Layout>

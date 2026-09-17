@@ -1,0 +1,48 @@
+---
+// ADM-15 取引先詳細・編集。タブ構成は「基本情報 / 個別卸価格 / 所属担当者 / 危険操作」で、
+// 危険操作は独立タブに隔離する（DEV-06 §4-5）。
+import Layout from "../../layouts/Layout.astro";
+import { requireAdminUser } from "../../lib/server/auth/access";
+import { allowedTransitions, getOrganizationByPublicId } from "../../lib/server/services/organizations";
+
+await requireAdminUser(Astro);
+
+const organization = await getOrganizationByPublicId(Astro.locals.db, Astro.params.public_id!);
+const transitions = allowedTransitions(organization.status);
+---
+
+<Layout title={`${organization.name} — 取引先詳細`}>
+  <main class="mx-auto w-full max-w-4xl px-6 py-10">
+    <a href="/organizations" class="text-sm">← 取引先一覧</a>
+    <h1 class="mt-2 text-2xl font-semibold">{organization.name}</h1>
+
+    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
+      <dt>取引先コード</dt><dd>{organization.orgCode}</dd>
+      <dt>ステータス</dt><dd>{organization.status}</dd>
+      <dt>発注可否</dt><dd>{organization.orderEnabled ? "可" : "不可"}</dd>
+      <dt>請求先</dt><dd>{organization.billingPostalCode ?? "—"} {organization.billingAddress ?? ""}</dd>
+    </dl>
+
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">個別卸価格</h2>
+      {/* 参照表示のみ。価格の編集経路は持たない — 正本は packages/content/prices/*.md（D-019）。 */}
+      <p class="text-sm">
+        適用中の個別価格は <code>packages/content/prices/*.md</code>（orgCode: {organization.orgCode}）が正本です。変更はコミットとデプロイで行います。
+      </p>
+    </section>
+
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">所属担当者</h2>
+      <a href={`/organizations/${organization.id}/members`} class="text-sm">所属 Member 一覧を見る</a>
+    </section>
+
+    {
+      /* TODO(Phase C): 基本情報の保存と、停止 / 再開 / 取引終了を API へ結線する。
+        危険操作は確認ダイアログ必須（DEV-06 §4-4）。 */
+    }
+    <section class="mt-8">
+      <h2 class="text-lg font-semibold">危険操作</h2>
+      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
+    </section>
+  </main>
+</Layout>

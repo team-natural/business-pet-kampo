@@ -1,0 +1,104 @@
+---
+// SCR-03 商品詳細。SSR 固定（D-021）。getStaticPaths は使わず、リクエスト時に slug で引く。
+import { render } from "astro:content";
+import Layout from "../../layouts/Layout.astro";
+import { categoryLabel, concernLabel, getBrand, getManufacturer, getProduct, resolveWholesalePrice } from "../../lib/catalog";
+import { memberSession } from "../../lib/server/auth/page";
+import { viewerFor } from "../../lib/server/auth/session";
+
+const product = await getProduct(Astro.params.slug!);
+if (!product) return Astro.rewrite("/404");
+
+const session = await memberSession(Astro);
+const viewer = viewerFor(session);
+const price = await resolveWholesalePrice(product, viewer);
+
+const [brand, manufacturer, body] = await Promise.all([getBrand(product.data.brand), getManufacturer(product.data.manufacturer), render(product)]);
+const { Content } = body;
+---
+
+<Layout title={`${product.data.name} — 商品詳細`}>
+  <main>
+    <h1>{product.data.name}</h1>
+    <p>{product.data.summary}</p>
+
+    <dl>
+      {
+        product.data.code && (
+          <>
+            <>
+              <dt>商品コード</dt>
+              <dd>{product.data.code}</dd>
+            </>
+          </>
+        )
+      }
+      <dt>ブランド</dt><dd>{brand?.data.name ?? product.data.brand}</dd>
+      <dt>メーカー</dt><dd>{manufacturer?.data.name ?? product.data.manufacturer}</dd>
+      <dt>カテゴリー</dt><dd>{categoryLabel(product.data.category)}</dd>
+      {
+        product.data.concerns.length > 0 && (
+          <>
+            <>
+              <dt>気になる点</dt>
+              <dd>{product.data.concerns.map(concernLabel).join("・")}</dd>
+            </>
+          </>
+        )
+      }
+      {
+        product.data.volume && (
+          <>
+            <>
+              <dt>内容量</dt>
+              <dd>{product.data.volume}</dd>
+            </>
+          </>
+        )
+      }
+      {
+        product.data.ingredients && (
+          <>
+            <>
+              <dt>原材料</dt>
+              <dd>{product.data.ingredients}</dd>
+            </>
+          </>
+        )
+      }
+      {
+        product.data.usage && (
+          <>
+            <>
+              <dt>使用方法</dt>
+              <dd>{product.data.usage}</dd>
+            </>
+          </>
+        )
+      }
+    </dl>
+
+    <Content />
+
+    {
+      price === null ? (
+        <section>
+          <p>卸価格は承認済みの取引先アカウントでご確認いただけます。</p>
+          <a href="/apply">新規取引を申し込む</a> / <a href={`/login?next=/products/${product.id}`}>ログイン</a>
+        </section>
+      ) : (
+        <section>
+          <p>
+            卸価格 {price.toLocaleString()} 円（税抜） / 発注単位 {product.data.orderUnit}
+          </p>
+          {/* TODO(Phase C): POST /api/v1/cart/items へ結線する。卸価格を island の props に渡さないこと（D-021）。 */}
+          <form method="post" action="/api/v1/cart/items">
+            <input type="hidden" name="productSlug" value={product.id} />
+            <input type="number" name="quantity" min={product.data.orderUnit} step={product.data.orderUnit} value={product.data.orderUnit} />
+            <button type="submit">カートに追加</button>
+          </form>
+        </section>
+      )
+    }
+  </main>
+</Layout>

@@ -1,0 +1,29 @@
+---
+// SCR-17 配送先の編集。URL の可変部は public_id（ULID）— 連番 id を出さない（DEV-01 §8）。
+import Layout from "../../../../layouts/Layout.astro";
+import { loginRedirect, memberSession } from "../../../../lib/server/auth/page";
+
+const session = await memberSession(Astro);
+if (!session) return loginRedirect(Astro);
+
+const publicId = Astro.params.public_id!;
+// TODO(Phase C): 自 Organization の配送先だけを引く。見つからなければ 404 相当に落とす
+// （他社の配送先の存在を推測させない）。
+---
+
+<Layout title="配送先の編集 — マイページ">
+  <main>
+    <h1>配送先の編集</h1>
+
+    <form method="post" action={`/api/v1/addresses/${publicId}`}>
+      <label>宛名<input type="text" name="recipientName" required /></label>
+      <label>郵便番号<input type="text" name="postalCode" required /></label>
+      <label>住所<input type="text" name="address" required /></label>
+      <label>電話番号<input type="tel" name="phone" required /></label>
+      <label><input type="checkbox" name="isDefault" value="1" />既定の配送先にする</label>
+      <button type="submit">保存する</button>
+    </form>
+
+    <a href="/mypage/addresses">配送先一覧へ戻る</a>
+  </main>
+</Layout>
