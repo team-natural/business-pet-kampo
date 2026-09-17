@@ -68,14 +68,14 @@ related-docs:
 | Feature / Integration Test | エンドポイント動作 | Astro API Route（`apps/*/src/pages/api/**/*.ts`） | Vitest（同上）または Playwright の `request` | 認証が必要なルートは全て | PR 時 |
 | Architecture Test | レイヤー境界遵守（DEV-01 §4/§5） | Astro Page/API Route → Service → D1 の依存方向 | `eslint-plugin-boundaries`（確定済み。詳細は §3-3） | エラー 0 件 | PR 時（Lint 自動） |
 | Integration Test | 外部 API 連携 | Stripe / メール配信 | Vitest + モック（DEV-10 §9 のモック方針参照） | 主要連携 100% | PR 時 |
-| E2E Test（**導入済み**・CI で実行） | 主要フロー | 管理画面ログイン / Member 認証 / 新規取引申請 / 診断 / カート・発注 / お問い合わせ送信 | Playwright（`playwright` MCP は design-review 用、テストランナーとしても同ツール） | ハイドレーション（`client:*` 忘れ）は E2E でしか捕まらない（§3-5） | PR 時 |
+| E2E Test（**導入済み**・CI で実行） | 主要フロー | Member 認証 / 商品閲覧と卸価格の出し分け / お問い合わせ送信（実装済み）、新規取引申請 / カート・発注（実装に合わせて追加）。**管理画面ログインは存在しない**（GOV-01 D-022） | Playwright（`playwright` MCP は design-review 用、テストランナーとしても同ツール） | ハイドレーション（`client:*` 忘れ）は E2E でしか捕まらない（§3-5） | PR 時 |
 | Static Analysis | 型安全性 | 全 `.ts` / `.astro` / `.svelte` コード | ESLint + TypeScript strict（`astro/tsconfigs/strict`）。`pnpm typecheck`（各アプリで `wrangler types` → `astro check`） | エラー 0 件 | PR 時 |
 | Style Check | コードスタイル | 全コード | Prettier + ESLint。`pnpm check` は format:check + lint + typecheck + **単体テスト**をまとめて実行する | 100% Pass | PR 時（Hook 自動 — `.claude/hooks/format-and-check.sh`） |
 | Security Test | 脆弱性検知 | 依存関係 / コード | Dependabot / `security-review` スキル | High 以上 0 件 | 自動検知 / リリース前 |
 
 > カバレッジ計測ツールは未導入のため、数値目標は置かない。代わりに「何を必ず検証するか」を上表と §3-5 で定める。
 >
-> D1 を使うテストは `tests/setup.ts` がマイグレーションを適用する。`packages/schema/migrations/` はリポジトリに同梱されない生成物なので、**`pnpm db:generate` を先に実行する必要がある**（`pnpm test:e2e` も同様）。
+> D1 を使うテストは `tests/setup.ts` がマイグレーションを適用する。`packages/schema/migrations/` は**初回生成済みでコミット済み**（`0000_*.sql`）なので、クローン直後でも `pnpm test` / `pnpm test:e2e` が動く。スキーマを変更したときだけ `pnpm db:generate` を実行してコミットする（DEV-07 §9）。
 
 ### 3-2. AI 機能のテスト戦略
 
@@ -166,7 +166,7 @@ AI による自動レビュー（実装規約の正本: `CLAUDE.md`、DEV-01 §9
 テストツールは Vitest（単体）+ Playwright（E2E）で導入済み（DEV-01 §1）。
 
 ```bash
-# 単体テスト（全パッケージ）。migrations/ が未生成なら先に pnpm db:generate
+# 単体テスト（全パッケージ）。migrations/ はコミット済みなので追加の準備は不要
 pnpm test
 
 # 特定パッケージのみ

@@ -18,8 +18,8 @@
   // someone sets it there (D-022, pinned by tests/unit/access.test.ts).
   "vars": {
     "APP_ENV": "development",
-    "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
-    "ACCESS_AUD": "replace-with-access-aud-tag",
+    "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "replace-with-access-aud-tag",
     "DEV_ADMIN_EMAIL": "dev-admin@example.test",
   },
 
@@ -40,8 +40,8 @@
     "staging": {
       "vars": {
         "APP_ENV": "staging",
-        "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
-        "ACCESS_AUD": "replace-with-access-aud-tag-staging",
+        "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+        "CF_ACCESS_AUD": "replace-with-access-aud-tag-staging",
       },
       "d1_databases": [
         {
@@ -55,8 +55,8 @@
     "production": {
       "vars": {
         "APP_ENV": "production",
-        "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
-        "ACCESS_AUD": "replace-with-access-aud-tag-production",
+        "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+        "CF_ACCESS_AUD": "replace-with-access-aud-tag-production",
       },
       "d1_databases": [
         {

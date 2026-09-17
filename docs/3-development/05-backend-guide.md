@@ -273,11 +273,13 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
   手動でファイルを追加する
 - デバッグ用の一時的な `console.log` / `debugger` を残さない（構造化ログ出力のための `console.log`
   呼び出しは対象外 — DEV-01 §4「可観測性優先」）
-- 業務上の可変パラメータ（最低発注金額・送料・送料無料条件・セッション TTL・ロックアウト閾値等）は Service に
-  ハードコードしない。非機密の値は `wrangler.jsonc` の `vars`、機密の値は Cloudflare Workers Secrets
-  （`wrangler secret put`）で管理し、ローカル開発は `.dev.vars`（gitignored）に記載する
-  （デプロイなしに環境ごとの再調整を可能にするため）。外部サービスの ID・認証情報も同様の
-  方式とし、`.astro` / `.svelte` / `.ts` への直書きを禁止する
+- 環境ごとに変わる値（セッション TTL・ロックアウト閾値・Access の team domain と AUD・外部サービスの
+  ID と認証情報）は Service にハードコードしない。非機密の値は `wrangler.jsonc` の `vars`、機密の値は
+  Cloudflare Workers Secrets（`wrangler secret put`）で管理し、ローカル開発は `.dev.vars`（gitignored）
+  に記載する
+- **商取引条件（最低発注金額・送料・送料無料条件・税率）はこの例外**で、env ではなく
+  `apps/public/src/lib/commerce.ts` の定数で持つ（GOV-01 D-024）。カートの計算と特定商取引法に基づく
+  表示（SCR-32）を同じ 1 箇所から描画するためで、env に分けると環境ごとに法定表示と請求額が食い違う
 - **セッション TTL・ロックアウト閾値の env は未設定なら例外を投げる。** `Number(undefined)` は `NaN` で、
   `NaN` との比較はすべて false になるため、ロックアウトが黙って無効化される（DEV-02 §7、DEV-03 §3-5）
 - 利用規約の現行バージョン文字列も同様に定数 1 箇所で持ち、申請時に検証する（DEV-04 §6-1）

@@ -74,7 +74,7 @@ Site（運営: 1 事業者・1 運営チーム。マルチテナント SaaS で�
 | 概念 | 役割 | 例 |
 | --- | --- | --- |
 | Site | サービス全体の運営（自社）。`AdminUser`（ロール区分なし）を持つ | 運営会社 |
-| AdminUser | 管理画面にログインする運営メンバー | 商品担当、審査担当 |
+| AdminUser | 管理画面を利用する運営メンバー（Cloudflare Access で認証。アプリにログイン画面は無い — GOV-01 D-022） | 審査担当、受注担当 |
 | Organization | 承認済み取引先 1 社（`Member` が所属する単位） | ペットショップ A 社 |
 | Member | Organization に所属し、`apps/public` のマイページにログインする担当者 | ペットショップ A 社の仕入れ担当者 |
 | Membership | Member の Organization への所属（ロールは `client_user` のみ） | 担当者甲がペットショップ A 社に所属 |
@@ -203,7 +203,7 @@ classDiagram
 
 | エンティティ | 責務 | 主要属性 |
 | --- | --- | --- |
-| AdminUser | 管理画面にログインする運営メンバー（`apps/admin`） | name, email, status |
+| AdminUser | 管理画面を利用する運営メンバー（`apps/admin`。認証は Cloudflare Access、本表は台帳 — GOV-01 D-022） | name, email, status |
 | Organization | 承認済み取引先 1 社。Application の承認によってのみ作成される | name, status, orderEnabled |
 | Member | Organization に所属し `apps/public` のマイページにログインする担当者。AdminUser とは別系統（DEV-02 参照） | name, email, status, ログイン方法（§3-3 SocialAccount） |
 | Membership | Member × Organization の所属 | memberId, organizationId, role（`client_user` 固定、将来拡張余地）, status |

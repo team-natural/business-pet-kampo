@@ -612,7 +612,7 @@ erDiagram
 | 大きな変更 | ALTER の実行時間を試算し、無停止で完了できる範囲に分割する |
 | シーダー | 投入対象のマスタが D1 に存在しないため（GOV-01 D-017）、マスタ用シーダーは設けない。初期 AdminUser も Access 通過時に自動プロビジョニングされるため不要（GOV-01 D-022）。Member 側の動作確認用シードのみ `pnpm --filter admin seed -- --table=members --email=… --password=… --name=…` を残す（`apps/admin/scripts/seed-user.mjs`。値は `=` で渡す — 空白区切りは不可） |
 
-> **`packages/schema/migrations/` はリポジトリに同梱されない生成物である。** 初回 `pnpm db:generate` で作られ、以降はコミットする。2 つの落とし穴：
+> **`packages/schema/migrations/` は生成物だがコミットする。** 初回生成（`0000_familiar_junta.sql`）は完了しており、以降は差分生成の結果を都度コミットする。2 つの落とし穴：
 >
 > - `migrations/` を消すなら `.wrangler-state/` も消す。再生成すると新しいランダムなファイル名になり、`d1_migrations` の記録と一致せず次の適用が `table already exists` で失敗する
 > - `.sql` だけ消すと `meta/` が残り、drizzle-kit は「変更なし」と判断して何も生成しない

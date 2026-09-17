@@ -63,7 +63,7 @@ git commit / git push                     → 人間がやる（AI は実行し�
 │                              scripts/seed-user.mjs, tests/, vitest.config.ts, playwright.config.ts）
 ├── packages/
 │   ├── schema/             ← Drizzle スキーマ正本（src/schema.ts, src/ulid.ts, src/client.ts）。
-│   │                          migrations/ はテンプレートに同梱しない生成物 — 初回 pnpm db:generate で作られる
+│   │                          migrations/ は生成物だがコミット済み（0000_*.sql）。スキーマ変更時のみ再生成する
 │   ├── server-kit/         ← 両アプリ共通のサーバー基盤（パスワードハッシュ、ロックアウト、
 │   │                          セッション規則、HTTP エンベロープ）
 │   └── content/            ← 開発者が更新する Markdown（Content Collections の実体）
@@ -283,10 +283,10 @@ git commit / git push                     → 人間がやる（AI は実行し�
     認可チェック（admin / editor のロール検証）は Service 層で必ず強制（DEV-01 §4）
   → §3-2 で生成した雛形の穴埋めが中心。生成物が埋めていない箇所は
     `.claude/skills/scaffold/SKILL.md` の Step 4 に一覧がある
-  → 管理画面のログインは 1 枚目の作業に含める（バックエンドは実装済み、UI からの結線が残っている）
+  → 管理画面にログイン画面は無い（Cloudflare Access — GOV-01 D-022）。1 枚目は ADM-01 ダッシュボード
 
 テスト: 機能ごとに書いてもステップ 6 でまとめて書いてもよい（§3-0 の注記）
-  ! pnpm test        # migrations/ が未生成なら先に pnpm db:generate
+  ! pnpm test        # migrations/ はコミット済み。スキーマを変えた時だけ pnpm db:generate
 ```
 
 > コード変更のたびに hooks（`format-and-check.sh`）が Prettier → `eslint --fix` → `pnpm typecheck`
@@ -298,7 +298,7 @@ git commit / git push                     → 人間がやる（AI は実行し�
 
 ```
 1. 型チェック・Lint・整形の最終確認: ! pnpm check
-2. テスト: ! pnpm test        # migrations/ が未生成なら先に pnpm db:generate
+2. テスト: ! pnpm test        # migrations/ はコミット済み。スキーマを変えた時だけ pnpm db:generate
              ! pnpm test:e2e    # Playwright。spec が 0 件なら何も検証されない点に注意
 3. 「変更内容をレビューして」と人間目線のセルフレビューを依頼
    （このリポジトリ専用の reviewer スキルは無い。Claude Code 本体の code-review が使える）
@@ -308,9 +308,9 @@ git commit / git push                     → 人間がやる（AI は実行し�
 ```
 
 > CI（`.github/workflows/ci.yml`）が `dev` / `main` 宛の PR と push で
-> `pnpm check` → `pnpm db:generate` → `pnpm test` → `pnpm build` を回す（DEV-08 §3）。
-> `db:generate` を挟むのは、テンプレートが `migrations/` を同梱しないため（案件では差分なしで
-> 終わり、スキーマのドリフト検出も兼ねる）。E2E は CI では実行していない。
+> `pnpm db:generate` → `pnpm check` → `pnpm test:e2e` → `pnpm build` を回す（DEV-08 §3）。
+> `db:generate` は通常は差分なしで終わり、**スキーマ変更のコミット漏れの検出**を兼ねる。
+> E2E も CI で実行する。
 
 ### 3-4. コミット・プッシュ手順
 

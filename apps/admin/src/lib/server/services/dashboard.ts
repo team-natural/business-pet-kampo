@@ -3,36 +3,32 @@ import { applications, orders } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { eq, inArray, sql } from "drizzle-orm";
 
-async function countWhere(db: DbClient, query: Promise<{ total: number }[]>): Promise<number> {
+async function countOf(query: Promise<{ total: number }[]>): Promise<number> {
   const [row] = await query;
   return row?.total ?? 0;
 }
 
 export async function getDashboardCounts(db: DbClient) {
   const [pendingApplications, confirmingOrders, awaitingPayment, awaitingShipment] = await Promise.all([
-    countWhere(
-      db,
+    countOf(
       db
         .select({ total: sql<number>`count(*)` })
         .from(applications)
         .where(inArray(applications.status, ["received", "reviewing", "needs_confirmation"])),
     ),
-    countWhere(
-      db,
+    countOf(
       db
         .select({ total: sql<number>`count(*)` })
         .from(orders)
         .where(eq(orders.status, "confirming")),
     ),
-    countWhere(
-      db,
+    countOf(
       db
         .select({ total: sql<number>`count(*)` })
         .from(orders)
         .where(inArray(orders.paymentStatus, ["unpaid", "awaiting_transfer"])),
     ),
-    countWhere(
-      db,
+    countOf(
       db
         .select({ total: sql<number>`count(*)` })
         .from(orders)

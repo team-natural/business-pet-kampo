@@ -257,7 +257,8 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | --- | --- | --- | --- |
 | admin | GET | `/api/v1/orders` | 受注一覧・検索（注文番号・取引先・注文日・ステータス） |
 | admin | GET | `/api/v1/orders/{public_id}` | 受注詳細 |
-| admin | PATCH | `/api/v1/orders/{public_id}` | ステータス変更（状態遷移。DEV-09）・配送情報登録・管理メモ |
+| admin | PATCH | `/api/v1/orders/{public_id}` | 配送情報登録・管理メモ（**`status` は受け取らない**。遷移は下のサブルート） |
+| admin | POST | `/api/v1/orders/{public_id}/{transition}` | 受注ステータスの遷移（`confirm` / `prepare` / `ship` / `complete`。1 遷移 1 ルート。DEV-09 §2-5） |
 | admin | POST | `/api/v1/orders/{public_id}/confirm-payment` | 銀行振込の入金確認（消込） |
 | admin | POST | `/api/v1/orders/{public_id}/cancel` | キャンセル処理・返金状況更新 |
 
@@ -266,14 +267,17 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | アプリ | メソッド | パス | 用途 | 認証 |
 | --- | --- | --- | --- | --- |
 | public | POST | `/api/v1/inquiries` | お問い合わせ送信 | 不要 |
-| admin | GET | `/api/v1/inquiries` | お問い合わせ一覧・検索 | Access |
-| admin | GET / PATCH | `/api/v1/inquiries/{public_id}` | 詳細 / 対応状況・担当者・メモ更新 | Access |
+| admin | GET | `/api/v1/inquiries` | お問い合わせ一覧・検索（カーソル方式 — §3-2） | Access |
+| admin | GET | `/api/v1/inquiries/{public_id}` | 詳細 | Access |
+| admin | PATCH | `/api/v1/inquiries/{public_id}` | 管理メモの更新（**`status` は受け取らない**） | Access |
+| admin | DELETE | `/api/v1/inquiries/{public_id}` | 迷惑メール等の削除（監査ログに内容を残す） | Access |
+| admin | POST | `/api/v1/inquiries/{public_id}/start` · `/resolve` · `/reopen` | 対応状況の遷移（1 遷移 1 ルート。担当者は `start` が記録する） | Access |
 
 > **お知らせに API は存在しない**（GOV-01 D-018）。実体は `packages/content/news/*.md` で、一覧・詳細ページがサーバー側で読む。`visibility: client_only` と `draft` の除外は**一覧・詳細・サイトマップの 3 か所すべて**で行う（DEV-07 §7-1）。
 >
 > **診断の API も持たない**（GOV-01 D-023）。設問と判定ロジックが未確定のため、`/diagnosis` は Coming soon 表示のページのみを用意し、`POST /api/v1/diagnosis/result` は実装しない。実装する際も「質問セット取得」の API は不要で（質問・選択肢はビルド時に HTML へ含まれる）、必要になるのは回答から推奨商品を解決する 1 本だけになる。診断結果に卸価格を含めてはならない（PRD-02 §2-3）。
 >
-> `POST /api/v1/inquiries` は `type` / `name` / `email` / `content` 等のみを受け取る。**`status` はサーバーが `new` で決め打ちし、`assignee_id` / `memo` はフォームから受け取らない**（DEV-07 §7-2）。`type` は `lib/inquiry.ts` の id に限定して検証する（GOV-01 D-024）。
+> `POST /api/v1/inquiries` は `company_name` / `name` / `email` / `phone` / `inquiry_type` / `content` のみを受け取る。**`status` はサーバーが `new` で決め打ちし、`assignee_id` / `memo` はフォームから受け取らない**（DEV-07 §7-2）。`type` は `lib/inquiry.ts` の id に限定して検証する（GOV-01 D-024）。
 
 ### 5-9. 管理ダッシュボード・監査ログ（AdminUser 限定）
 

@@ -18,8 +18,8 @@ export default defineConfig(async () => ({
         bindings: {
           TEST_MIGRATIONS: existsSync(migrationsPath) ? await readD1Migrations(migrationsPath) : [],
           APP_ENV: "development",
-          ACCESS_TEAM_DOMAIN: "example.cloudflareaccess.com",
-          ACCESS_AUD: "test-aud-tag",
+          CF_ACCESS_TEAM_DOMAIN: "example.cloudflareaccess.com",
+          CF_ACCESS_AUD: "test-aud-tag",
           DEV_ADMIN_EMAIL: "dev-admin@example.test",
         },
       },

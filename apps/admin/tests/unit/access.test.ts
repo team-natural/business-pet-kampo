@@ -15,7 +15,7 @@ const TEAM_DOMAIN = "example.cloudflareaccess.com";
 const ISSUER = `https://${TEAM_DOMAIN}`;
 const AUD = "test-aud-tag";
 
-const baseEnv = { APP_ENV: "development", ACCESS_TEAM_DOMAIN: TEAM_DOMAIN, ACCESS_AUD: AUD, DEV_ADMIN_EMAIL: "dev-admin@example.test" };
+const baseEnv = { APP_ENV: "development", CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN, CF_ACCESS_AUD: AUD, DEV_ADMIN_EMAIL: "dev-admin@example.test" };
 
 const encode = (value: object) => btoa(JSON.stringify(value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 
@@ -65,8 +65,8 @@ beforeEach(async () => {
 describe("readAccessConfig", () => {
   it("throws on missing config instead of verifying against nothing", () => {
     expect(() => readAccessConfig({ ...baseEnv, APP_ENV: undefined })).toThrow();
-    expect(() => readAccessConfig({ ...baseEnv, ACCESS_TEAM_DOMAIN: undefined })).toThrow();
-    expect(() => readAccessConfig({ ...baseEnv, ACCESS_AUD: undefined })).toThrow();
+    expect(() => readAccessConfig({ ...baseEnv, CF_ACCESS_TEAM_DOMAIN: undefined })).toThrow();
+    expect(() => readAccessConfig({ ...baseEnv, CF_ACCESS_AUD: undefined })).toThrow();
   });
 
   it("drops the dev fallback in production", () => {

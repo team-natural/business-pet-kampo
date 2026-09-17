@@ -14,8 +14,8 @@ const JWKS_MIN_REFETCH_MS = 5 * 60 * 1000;
 
 export interface AccessEnv {
   APP_ENV?: string;
-  ACCESS_TEAM_DOMAIN?: string;
-  ACCESS_AUD?: string;
+  CF_ACCESS_TEAM_DOMAIN?: string;
+  CF_ACCESS_AUD?: string;
   DEV_ADMIN_EMAIL?: string;
 }
 
@@ -33,10 +33,10 @@ export function readAccessConfig(env: AccessEnv): AccessConfig {
   const appEnv = env.APP_ENV;
   if (!appEnv) throw new Error("APP_ENV is not set.");
 
-  const teamDomain = env.ACCESS_TEAM_DOMAIN;
-  const aud = env.ACCESS_AUD;
-  if (!teamDomain) throw new Error("ACCESS_TEAM_DOMAIN is not set.");
-  if (!aud) throw new Error("ACCESS_AUD is not set.");
+  const teamDomain = env.CF_ACCESS_TEAM_DOMAIN;
+  const aud = env.CF_ACCESS_AUD;
+  if (!teamDomain) throw new Error("CF_ACCESS_TEAM_DOMAIN is not set.");
+  if (!aud) throw new Error("CF_ACCESS_AUD is not set.");
 
   return {
     issuer: `https://${teamDomain}`,

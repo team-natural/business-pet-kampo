@@ -6,3 +6,8 @@
 # (D-022). wrangler.jsonc already sets a default — override it to see your own name in the
 # audit log. It is ignored when APP_ENV=production.
 # DEV_ADMIN_EMAIL=you@example.com
+
+# Only needed if you point local dev at a real Access application; wrangler.jsonc carries the
+# placeholders otherwise (DEV-08 §8).
+# CF_ACCESS_TEAM_DOMAIN=example.cloudflareaccess.com
+# CF_ACCESS_AUD=

@@ -355,6 +355,56 @@ related-docs:
 | 決定者 | Tech Lead |
 | 関連 TBD | TBD-11（法務文面の確定。表示は定数から描画する形で先に組める） |
 
+### D-025：Access JWT の検証は Web Crypto で自前実装し、`jose` を導入しない
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-17 |
+| カテゴリ | 設計 |
+| 決定内容 | `Cf-Access-Jwt-Assertion` の RS256 検証を `crypto.subtle.importKey` + `verify` で実装し、チームの JWKS（`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`）をモジュールスコープに 1 時間キャッシュする。`jose` を含む JWT ライブラリは追加しない。DEV-01 §3 の「`jose` 不採用」は**自前発行の JWT セッションを禁じるもの**であり、外部 IdP が発行した JWT の検証はこの決定で明示的に例外ではないことを確定する |
+| 背景 | D-022 で Access を採用した時点で「JWT を検証する」必要が生じたが、DEV-01 の不採用リストが `jose` を一律に禁じており、実装が禁止事項に見える状態だった。検証に必要なのは JWKS の取得と RS256 の署名検証だけで、いずれも Workers の Web Crypto に標準実装されている。依存を増やさない方が、Workers 対応の確認コストも供給網リスクも小さい |
+| 影響範囲 | DEV-01 §2・§3, DEV-02 §1-1, `apps/admin/src/lib/server/auth/access.ts` |
+| 決定者 | Tech Lead |
+| 関連 TBD | TBD-32 |
+| 実装上の注意 | `alg` を RS256 に固定する（`none` / HS256 への差し替えを拒否）。`aud`・`iss`・`exp` を全て検証する — 1 つでも落とすと別 Access アプリ向けのトークンが通る。未知の `kid` での再取得は 5 分に 1 回までに制限する（偽の `kid` を連打されると certs への転送が増える） |
+
+### D-026：ローカル開発・E2E の Access バイパスは `DEV_ADMIN_EMAIL` とし、既定値を `wrangler.jsonc` に持つ
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-17 |
+| カテゴリ | 設計 / 運用 |
+| 決定内容 | `apps/admin` の development 環境の `vars` に `DEV_ADMIN_EMAIL`（既定 `dev-admin@example.test`）を置き、Access のヘッダーが無いリクエストをこの email として扱う。staging / production の `vars` には**置かない**うえ、`APP_ENV=production` では値があっても無視する。この二重の歯止めを Vitest で固定する |
+| 背景 | TBD-32 の暫定方針を実装として確定させたもの。`.dev.vars` は gitignored であり、CI（E2E）とクローン直後の開発機では値が存在しない。既定値をコミットしておけば、どちらも設定なしで動く。Member 側の E2E が自分でアカウントをシードするのと同じ考え方である |
+| 影響範囲 | DEV-02 §1-1, DEV-03 §3-5, DEV-08 §8, `apps/admin/wrangler.jsonc`, `apps/admin/tests/unit/access.test.ts` |
+| 決定者 | Tech Lead |
+| 関連 TBD | TBD-32（残りは Access Application の作成手順と AUD tag の取得） |
+| 再評価条件 | 本番相当の環境で Access を通したテストが必要になった時点で、サービストークン方式を検討する |
+
+### D-027：商取引条件は環境変数ではなく TypeScript 定数で持つ（D-024 の適用範囲確定）
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-17 |
+| カテゴリ | 設計 |
+| 決定内容 | 最低発注金額・送料・送料無料条件・税率を `wrangler.jsonc` の `vars`（`MIN_ORDER_AMOUNT` / `SHIPPING_FEE` / `FREE_SHIPPING_THRESHOLD`）では持たず、`apps/public/src/lib/commerce.ts` の定数に一本化する。env で持つのはセッション TTL・ロックアウト閾値・Access の設定・外部サービスの資格情報に限る |
+| 背景 | D-024 が定数化を決めた一方、DEV-05 §10 と DEV-08 §8 は「デプロイなしに調整できるよう vars で持つ」と書いており、正面から矛盾していた。環境ごとに値を変えられる構造は、**特定商取引法に基づく表示（SCR-32）とカートの計算が環境ごとに食い違う**余地を作る。価格改定にデプロイが必要な点は D-019 で既に受け入れている |
+| 影響範囲 | DEV-05 §10, DEV-08 §8, `apps/public/src/lib/commerce.ts` |
+| 決定者 | Tech Lead |
+| 関連 TBD | — |
+
+### D-028：受注・お問い合わせの状態遷移は 1 遷移 1 ルートで受ける
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-17 |
+| カテゴリ | 設計 |
+| 決定内容 | `status` を `PATCH` のボディで受け取らず、`POST /{public_id}/{transition}` のサブルートで受ける。`PATCH` が扱うのは自由記述の列（管理メモ・配送情報・担当者）だけとする。申請（`/approve`・`/reject`）と取引先（`/suspend`・`/resume`・`/terminate`）は当初からこの形であり、受注とお問い合わせを揃えた |
+| 背景 | DEV-04 §5-7 が受注だけ「PATCH でステータス変更」と書いており、参照実装（`inquiries`）とスキャフォールドの規約（1 遷移 1 ルート）に反していた。URL に遷移が現れる方が、許可された遷移の一覧がルーティングから読め、監査ログのイベント名とも 1 対 1 で対応する |
+| 影響範囲 | DEV-04 §5-7・§5-8, `.claude/skills/scaffold/SKILL.md`, `apps/admin/src/pages/api/v1/{orders,inquiries}/` |
+| 決定者 | Tech Lead |
+| 関連 TBD | — |
+
 ---
 
 ## 3. 記録すべき意思決定の種別

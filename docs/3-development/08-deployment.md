@@ -97,8 +97,9 @@ CD を GitHub Actions に置かないのは、Workers Builds が GitHub 連携�
 
 ```
 1. pnpm/setup（Node + pnpm + 依存インストール。require-lockfile で lockfile 必須）
-2. pnpm db:generate      ← check より前。migrations/ は同梱しないため、
-                            check 内の単体テストも e2e もこれ無しでは動かない
+2. pnpm db:generate      ← migrations/ はコミット済みなので通常は差分なしで終わる。
+                            スキーマ変更のコミット漏れをここで検出する
+
 3. pnpm check（format:check + lint + typecheck + 単体テストを Turborepo が fan out）
 4. playwright install chromium（キャッシュあり）
 5. pnpm test:e2e（--concurrency=1。両スイートが同じローカル D1 を使うため）
@@ -264,16 +265,14 @@ DEV_ADMIN_EMAIL=
 # ↓ 未設定なら例外を投げる（Number(undefined) は NaN で、比較が全て false になり
 #   ロックアウトが黙って無効化されるため。DEV-02 §7、DEV-03 §3-5）
 SESSION_TTL_DAYS=
-AUTH_LOCKOUT_MAX_ATTEMPTS=
-AUTH_LOCKOUT_WINDOW_MINUTES=
-AUTH_LOCKOUT_DURATION_MINUTES=
+AUTH_LOCKOUT_MAX_ATTEMPTS=   # 上限回数
+AUTH_LOCKOUT_MINUTES=        # 超過後のロック時間（カウンタの TTL も兼ねる）
 # パスワードリセットトークンの HMAC 署名鍵（Web Crypto。Workers Secrets）
 SESSION_SIGNING_KEY=
 
-# 業務閾値（DEV-05 §10。デプロイなしに調整できるよう vars で持つ）
-MIN_ORDER_AMOUNT=            # 税抜 10000（BIZ-03 §3-1）
-SHIPPING_FEE=                # 税抜 1000（BIZ-03 §3-2）
-FREE_SHIPPING_THRESHOLD=     # 税抜 30000（同上）
+# 業務閾値（最低発注金額・送料・送料無料条件・税率）は **env に置かない**。
+# apps/public/src/lib/commerce.ts の定数 1 箇所から、カートの計算と特定商取引法に基づく表示
+# （SCR-32）の両方を描画する（GOV-01 D-024）。env に分けると法定表示と請求額が食い違う。
 
 # 外部サービス連携のキー（決済 / メール / OAuth / エラー監視）は
 # DEV-10 §10 が正本。同じキーを本書に再掲しない

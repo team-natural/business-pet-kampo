@@ -38,9 +38,9 @@ up:
 
 - **`database_id` must be identical in both apps.** It also keys the local sqlite file, so a
   mismatch gives each app its own database with no error.
-- **Deleting a feature must happen before the first `pnpm db:generate`.** After that the migration
-  contains its tables and removing them is a migration, not a deletion. `media` comes out under this
-  rule; `migrations/` has not been generated yet.
+- **That window has closed.** `0000_familiar_junta.sql` exists, so dropping a table is now a
+  migration rather than a deletion. `media`, `admin_sessions` and `password_reset_tokens` were
+  removed before it was generated; anything else goes out forward-only (DEV-07 §9).
 
 ## Content lives outside D1
 
@@ -106,8 +106,9 @@ Both apps open the same store: `persistState: { path: "../../.wrangler-state" }`
 `astro.config.mjs`, and every wrangler CLI call passes `--persist-to ../../.wrangler-state`. Drop
 that flag and you silently get a second, empty database.
 
-`packages/schema/migrations/` is generated, not shipped — it does not exist yet, and the first
-`pnpm db:generate` creates it (commit the result). Two consequences:
+`packages/schema/migrations/` is generated but committed — `0000_familiar_junta.sql` and its
+`meta/` snapshots are in the repo, so a fresh clone can run the tests. Regenerate only when the
+schema changes, and commit the result. Two consequences:
 
 - Deleting `migrations/` means deleting `.wrangler-state/` too. Regenerating produces a new random
   filename, which no longer matches what `d1_migrations` recorded, and the next apply fails with
