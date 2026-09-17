@@ -28,7 +28,9 @@ DEV-07 §1's type conventions exactly:
 - Timestamps: `TEXT` ISO 8601; `created_at` defaults via `strftime(...)`, `updated_at` is set by
   the Service layer (no DB-side auto-update trigger unless one already exists for that table)
 - No soft deletes — an explicit `status` column instead
-- No `organization_id` or other tenant-scope column (single-operator premise, DEV-01 §4)
+- Order-related tables (`memberships`, `shipping_addresses`, `cart_items`, `orders`, `payments`)
+  carry `organization_id`: that column is the tenant boundary (DEV-07 §1), and
+  `tests/conventions.test.ts` asserts it. A table outside that set does not get one
 
 Also update the ERD Mermaid block between `<!-- ERD:START -->` / `<!-- ERD:END -->` in DEV-07 §2
 so it stays in sync with §3/§4 (DEV-07's own stated rule).
@@ -39,9 +41,8 @@ Translate the DEV-07 column table to Drizzle's `sqlite-core` API: `snake_case` D
 first argument, `camelCase` TS property names, indexes/unique constraints returned from the
 table's extra-config callback as an array — `(table) => [index(...), uniqueIndex(...)]`.
 
-`schema.ts` already holds DEV-07 §3-1〜§3-3's standard tables (admin_users, admin_sessions,
-password_reset_tokens, members, member_sessions, media, inquiries, activity_log), so follow
-their house style rather than inventing one: the shared
+`schema.ts` already holds this project's 16 tables (DEV-07 §3), so follow their house style
+rather than inventing one: the shared
 `createdAt()` helper for the `strftime(...)` default, `publicId` alongside the internal integer
 primary key, and the extra-config callback form above. Optional tables (orders, ai_jobs …) are
 adoption-gated and get added only when the project adopts them.
@@ -76,10 +77,10 @@ pnpm run db:generate
 This runs `drizzle-kit generate` from `packages/schema`, diffing `schema.ts` against
 `migrations/meta/` snapshots and writing new SQL to `packages/schema/migrations/NNNN_<name>.sql`.
 
-On a fresh project there is no `migrations/` directory yet — the template deliberately ships none
-(CLAUDE.md, "Local database"). drizzle-kit creates it, and because there is no prior
-snapshot to diff against, that first run emits a clean `0000_*.sql` containing exactly the project's
-tables. Commit the result; from then on every run is an incremental diff.
+`migrations/` exists from `0000_familiar_junta.sql` onwards, so every run is now an incremental
+diff against `migrations/meta/`. Commit the generated SQL. Deleting `migrations/` to "start over"
+also means deleting `.wrangler-state/`, or the next apply fails with `table already exists`
+(CLAUDE.md, "Local database").
 No live D1 connection is needed for this step. Read the generated SQL — confirm it's additive
 (new `CREATE TABLE`/`CREATE INDEX`/forward-only `ALTER`) and matches DEV-07's forward-only
 migration policy (DEV-07 §9). If it wants to drop or rebuild a column in a way `ALTER TABLE`
@@ -97,8 +98,10 @@ pnpm --filter @app/schema test
 
 `tests/conventions.test.ts` enforces the mechanical half of DEV-07 §12 — index naming, a unique
 index on `public_id`, an index on every foreign key, `_at` columns stored as TEXT, a defaulted
-`created_at`, no soft deletes, no tenant column. Do not weaken a rule to make a new table pass;
-either the table is wrong, or the convention changed and DEV-07 changes with it.
+`created_at`, no soft deletes, `organization_id` on the order-related tables, the snapshot columns
+on `order_items`, and the absence of any admin session or password storage (D-022). Do not weaken
+a rule to make a new table pass; either the table is wrong, or the convention changed and DEV-07
+changes with it.
 
 The rest of §12 is judgment a test cannot make, so check it by reading: state values match
 DEV-09, AdminUser and Member session tables stay separate, and the ERD block from Step 1 matches

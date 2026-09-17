@@ -28,11 +28,11 @@ columns and DEV-09 the state machine; without it, the table and the request are 
 
 | Decision | How to settle it |
 | --- | --- |
-| External key | `publicId` if the table has one, otherwise its natural unique key (`key` on `media`). Never the integer `id` |
+| External key | `publicId` if the table has one, otherwise its natural unique key (`provider_event_id` on `payment_event_logs`). Never the integer `id` |
 | Which app | Who performs the operation. A visitor writing means it belongs in `apps/public`; an operator reading or handling it belongs in `apps/admin`. Both may touch the same table — they share a D1 and must not import each other |
 | Client-writable columns | Everything except the key, `status`, the timestamps, and anything the server sets from the session |
 | Operations | Not every resource gets full CRUD. Ask what a person actually does with it: nobody edits what a visitor submitted, and a lookup table rarely needs a state machine |
-| Roles | `requireRole(session, "editor")` for ordinary writes, `"admin"` where the action is destructive or unlogged |
+| Authorization | `apps/admin`: `requireAdminUser(context)` and nothing more — AdminUser has no role column (D-014), so a generated role branch is wrong and gets deleted. `apps/public`: the Member session plus `requireActiveOrganization`, and every order-related query carries `WHERE organization_id = ?` |
 | Transitions | The legal `from -> to` moves, and for each: does it have a side effect? (`start` assigning the handler is one) |
 
 ## Step 2 — Write it
@@ -50,33 +50,35 @@ Follow the reference file for file. The conventions that matter, in the order th
   columns — a field the server owns must be impossible to send
 - **Lists are keyset-paginated**, `perPage` clamped, `nextId` opaqued by the route with
   `encodeCursor`. Never offset
-- **Routes parse and respond, nothing else.** `requireSession` → `requireRole` → service call →
-  `jsonItem` / `jsonCursorCollection`, with `ZodError` converted to `ValidationError`
+- **Routes parse and respond, nothing else.** `requireAdminUser(context)` → service call →
+  `jsonItem` / `jsonCursorCollection`, with `ZodError` converted to `ValidationError`. The db
+  handle comes from `context.locals.db`, which middleware.ts set alongside the verified Access
+  identity — a route must not read `Cf-Access-Jwt-Assertion` itself (D-022)
 - **One route per transition** (`POST /{id}/start`), not a `PATCH` on `status`
 
 ## Step 3 — The parts no pattern can supply
 
 These are where a new resource actually differs from the reference. Work through each:
 
-- **Session-derived fields** — `authorId`, `handledBy` and the like come from `session`, never the
-  request body
+- **Identity-derived fields** — `assigneeId`, `reviewerId` and the like come from the AdminUser
+  `requireAdminUser` returned (or the Member session), never the request body
 - **Transition side effects** — a move that also assigns, clears or stamps a column
 - **Refinements** — lengths, formats and bounds the column type does not express
 - **Internal FK columns in the response** — map them to the referenced row's public key or drop
   them; passing an integer through is the default mistake
 - **Join rows** — D1 enforces foreign keys, so a delete removes the join rows first, batched
-- **R2-backed resources** — the read paths are ordinary, but anything touching the bucket is
-  hand-written, and the two stores have no transaction between them. Order every write so a row
-  can never point at bytes that are not there: object first on create, row first on delete. Never
-  build the object key from a client-supplied filename
+- **References into packages/content** — `product_slug` and the price files' `org_code` have no
+  foreign key to lean on (D-017・D-019). Resolve them in the service and fail loudly when they do
+  not resolve; for orders, snapshot the resolved name and price onto the row (DEV-07 §6-0)
 - **Unauthenticated routes** — a public write is open by definition; say so in a comment and leave
   abuse handling to the edge
 
 ## Step 4 — Verify
 
 If the resource uses a binding the app's tests have not needed before, add it to the app's
-`vitest.config.ts` (`d1Databases` / `kvNamespaces` / `r2Buckets`) — otherwise every test file in
-that app fails to boot, not just the new one.
+`vitest.config.ts` (`d1Databases`, and `kvNamespaces` in `apps/public`) — otherwise every test
+file in that app fails to boot, not just the new one. There is no R2 binding in either app
+(D-020) and no KV in `apps/admin` (D-022); needing one is a decision, not a config tweak.
 
 ```bash
 pnpm check          # format, lint (layer boundaries), typecheck, unit tests
@@ -87,9 +89,11 @@ Then, for each resource:
 1. **Write the unit tests.** The reference's test file is the checklist: the public shape hides
    internal integers, validation drops server-owned columns, paging clamps and terminates,
    illegal transitions throw and leave no audit entry, missing rows throw `NotFoundError`
-2. **Add every new admin route to the e2e 401 list** in `apps/admin/tests/e2e/login.spec.ts`.
-   There is no auth middleware, so a route that forgets `requireSession` is simply open, and that
-   test is the only place the omission surfaces
+2. **`apps/public`: add every new member-only route to the e2e redirect list.** That app has no
+   auth middleware, so a route that forgets its session check is simply open, and the e2e test is
+   the only place the omission surfaces. `apps/admin` needs no equivalent — `middleware.ts`
+   covers every route there (D-022) — but a new route still calls `requireAdminUser` for the
+   ledger row and the `inactive` refusal
 3. `pnpm test:e2e`
 
 ## Reporting

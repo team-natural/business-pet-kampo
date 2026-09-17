@@ -58,7 +58,8 @@ apps/admin/src/
 
 # Cloudflare バインディングの型（`Cloudflare.Env` として DB / KV）は `wrangler types` が
 # 各アプリ直下に `worker-configuration.d.ts` を生成する（`pnpm typecheck` の第 1 段階）。gitignore
-# 済みの生成物なので、手書きの `env.d.ts` は作らない。
+# 済みの生成物なので、バインディングの型を手書きしない。`src/env.d.ts` は `App.Locals` の宣言
+# （middleware が詰める検証済み ID と db ハンドル）だけを持つ — 生成物には含まれないため。
 
 apps/public/src/
 ├── pages/
