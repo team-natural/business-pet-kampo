@@ -2,9 +2,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-// No account is seeded here: Playwright cannot pass Cloudflare Access, so the dev server signs
-// requests in as DEV_ADMIN_EMAIL (wrangler.jsonc) and the ledger row is provisioned on the first
-// request (D-022). Only the schema has to exist first.
+// No account is seeded here: Playwright cannot pass Cloudflare Access, so the dev server supplies
+// the identity from wrangler.jsonc's `access.dev` block and the ledger row is provisioned on the
+// first request (D-022, D-029). Only the schema has to exist first.
 
 // Resolved from this file, not the cwd: `playwright test --config apps/admin/...` run from the
 // repo root would otherwise point wrangler at paths that do not exist.

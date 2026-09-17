@@ -1,6 +1,6 @@
-// Covers what E2E cannot: the fail-closed half of Cloudflare Access (D-022). Playwright runs
-// against the dev fallback, so only these assertions ever exercise a real token — or prove the
-// fallback is dead in production.
+// Covers what E2E cannot: the fail-closed half of Cloudflare Access (D-022, D-029). Local dev and
+// Playwright run on the ctx.access path, so only these assertions ever exercise the JWT path that
+// production actually uses — or prove that a request without either is refused.
 import { env } from "cloudflare:workers";
 import { adminUsers } from "@app/schema";
 import { createDb } from "@app/schema/client";
@@ -15,7 +15,7 @@ const TEAM_DOMAIN = "example.cloudflareaccess.com";
 const ISSUER = `https://${TEAM_DOMAIN}`;
 const AUD = "test-aud-tag";
 
-const baseEnv = { APP_ENV: "development", CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN, CF_ACCESS_AUD: AUD, DEV_ADMIN_EMAIL: "dev-admin@example.test" };
+const baseEnv = { CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN, CF_ACCESS_AUD: AUD };
 
 const encode = (value: object) => btoa(JSON.stringify(value)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 
@@ -36,6 +36,17 @@ async function signJwt(payload: Record<string, unknown>, options: { alg?: string
 
 function validPayload(overrides: Record<string, unknown> = {}) {
   return { aud: [AUD], iss: ISSUER, exp: Math.floor(Date.now() / 1000) + 600, email: "operator@example.com", ...overrides };
+}
+
+// What middleware.ts passes in: a request plus whatever the adapter put on locals.
+function contextWith(options: { token?: string; identityEmail?: string | null; access?: boolean } = {}) {
+  const headers = options.token ? { "cf-access-jwt-assertion": options.token } : undefined;
+  const access = options.access ? { aud: AUD, getIdentity: async () => (options.identityEmail === null ? undefined : { email: options.identityEmail }) } : undefined;
+
+  return {
+    request: new Request("https://admin.example.com/", { headers }),
+    locals: { cfContext: access ? { access } : undefined },
+  } as unknown as Parameters<typeof resolveAccessEmail>[0];
 }
 
 // One key pair for the file: access.ts caches the team's JWKS in module scope, so rotating the
@@ -64,37 +75,38 @@ beforeEach(async () => {
 
 describe("readAccessConfig", () => {
   it("throws on missing config instead of verifying against nothing", () => {
-    expect(() => readAccessConfig({ ...baseEnv, APP_ENV: undefined })).toThrow();
     expect(() => readAccessConfig({ ...baseEnv, CF_ACCESS_TEAM_DOMAIN: undefined })).toThrow();
     expect(() => readAccessConfig({ ...baseEnv, CF_ACCESS_AUD: undefined })).toThrow();
-  });
-
-  it("drops the dev fallback in production", () => {
-    expect(readAccessConfig(baseEnv).devAdminEmail).toBe("dev-admin@example.test");
-    expect(readAccessConfig({ ...baseEnv, APP_ENV: "production" }).devAdminEmail).toBeNull();
   });
 });
 
 describe("resolveAccessEmail", () => {
-  it("falls back to DEV_ADMIN_EMAIL only outside production", async () => {
-    const request = new Request("https://admin.example.com/");
-
-    await expect(resolveAccessEmail(request, baseEnv)).resolves.toBe("dev-admin@example.test");
-    // The whole point of the fail-closed rule: a header-less request in production is anonymous,
-    // whatever DEV_ADMIN_EMAIL happens to hold.
-    await expect(resolveAccessEmail(request, { ...baseEnv, APP_ENV: "production" })).rejects.toBeInstanceOf(UnauthenticatedError);
+  it("prefers ctx.access, which needs no token and no team config", async () => {
+    // The path wrangler's `access.dev` block drives locally, and the one Cloudflare recommends
+    // wherever the Worker actually receives it.
+    await expect(resolveAccessEmail(contextWith({ access: true, identityEmail: "operator@example.com" }), {})).resolves.toBe("operator@example.com");
   });
 
-  it("verifies a token that is present even when the fallback is available", async () => {
-    const token = await signJwt(validPayload());
-    const request = new Request("https://admin.example.com/", { headers: { "cf-access-jwt-assertion": token } });
+  it("refuses an Access context that carries no email", async () => {
+    // A service token authenticates but names no person, and an audit entry needs someone to
+    // attribute the action to.
+    await expect(resolveAccessEmail(contextWith({ access: true, identityEmail: null }), baseEnv)).rejects.toBeInstanceOf(UnauthenticatedError);
+  });
 
-    await expect(resolveAccessEmail(request, baseEnv)).resolves.toBe("operator@example.com");
+  it("falls back to the verified JWT header when ctx.access is absent", async () => {
+    // Production runs here: a Worker serving static assets sits behind a router that does not
+    // pass ctx.access through (D-029).
+    const token = await signJwt(validPayload());
+    await expect(resolveAccessEmail(contextWith({ token }), baseEnv)).resolves.toBe("operator@example.com");
+  });
+
+  it("refuses a request with neither an Access context nor a token", async () => {
+    await expect(resolveAccessEmail(contextWith(), baseEnv)).rejects.toBeInstanceOf(UnauthenticatedError);
   });
 });
 
 describe("verifyAccessJwt", () => {
-  const config = () => readAccessConfig({ ...baseEnv, APP_ENV: "production" });
+  const config = () => readAccessConfig(baseEnv);
 
   it("accepts a token signed by the team key for this application", async () => {
     await expect(verifyAccessJwt(await signJwt(validPayload()), config())).resolves.toBe("operator@example.com");

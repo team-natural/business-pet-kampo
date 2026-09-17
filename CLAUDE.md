@@ -169,15 +169,19 @@ around.
 
 For `apps/admin`:
 
-- Verify the JWT in `middleware.ts` against the team's public keys **and the AUD tag**, then hand the
-  result down through `Astro.locals`. Handlers must not read `Cf-Access-Jwt-Assertion` themselves.
-- Edge verification alone is not enough: a request that reaches the Worker URL directly never passed
-  through Access, so the header is absent and must be rejected.
-- Local dev and e2e cannot pass Access, so a `DEV_ADMIN_EMAIL` fallback exists. **A unit test pins
-  that it is inert when `APP_ENV=production`** — this is the fail-closed equivalent of the env rule
-  below.
-- `admin_users.status = inactive` is refused even with a valid JWT. It is the second lock for when
-  someone is removed from the Access policy but not from the ledger.
+- `middleware.ts` resolves the identity and hands it down through `Astro.locals`. Handlers must not
+  read `Cf-Access-Jwt-Assertion` themselves. Two paths, in order (D-029):
+  1. `Astro.locals.cfContext.access` → `getIdentity()`. No JWT parsing, per Cloudflare's guidance.
+  2. The header, verified against the team JWKS and the **AUD tag**, with `alg` pinned to RS256.
+     **This is the path production actually runs**: a Worker serving static assets sits behind an
+     internal router that does not pass `ctx.access` through, and Astro's adapter always configures
+     assets. Do not delete it as dead code.
+- Neither available means 403. An identity with no email (a service token) is refused too — an audit
+  entry needs someone to attribute.
+- Local dev and e2e get their identity from `wrangler.jsonc`'s `access.dev` block, which a deployed
+  Worker never receives. There is no env-var bypass; don't add one.
+- `admin_users.status = inactive` is refused even with a valid identity. It is the second lock for
+  when someone is removed from the Access policy but not from the ledger.
 
 For `apps/public`, two rules that look like implementation details but are not:
 
@@ -207,7 +211,8 @@ Crypto and lockout needs a real KV. It peers on `vitest ^4.1.0`; vitest 5 makes 
 boot with a bare `SyntaxError`.
 
 E2E seeds its own **member** account in `globalSetup`, so no env vars are needed; the admin suite
-relies on the `DEV_ADMIN_EMAIL` fallback instead, since Playwright cannot pass Access. `pnpm test:e2e`
+gets its identity from `wrangler.jsonc`'s `access.dev` block, since Playwright cannot pass Access —
+the ledger row is provisioned on the first request. `pnpm test:e2e`
 runs with `--concurrency=1`: both suites drive a real dev server against the one local D1, and
 running them in parallel corrupts it.
 

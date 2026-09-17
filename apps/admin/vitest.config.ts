@@ -17,10 +17,8 @@ export default defineConfig(async () => ({
         d1Databases: ["DB"],
         bindings: {
           TEST_MIGRATIONS: existsSync(migrationsPath) ? await readD1Migrations(migrationsPath) : [],
-          APP_ENV: "development",
-          CF_ACCESS_TEAM_DOMAIN: "example.cloudflareaccess.com",
-          CF_ACCESS_AUD: "test-aud-tag",
-          DEV_ADMIN_EMAIL: "dev-admin@example.test",
+          // The Access tests pass their own config in, so no CF_ACCESS_* binding is needed here.
+          APP_ENV: "test",
         },
       },
     }),

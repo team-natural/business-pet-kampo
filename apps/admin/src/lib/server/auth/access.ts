@@ -1,6 +1,17 @@
-// Cloudflare Access is the only door into apps/admin (D-022). Verifying at the edge is not
-// enough on its own: a request sent straight to the Worker URL never passed Access and arrives
-// without the header, so a missing header is a rejection rather than a fallthrough.
+// Cloudflare Access is the only door into apps/admin (D-022). The identity is read two ways, in
+// this order (D-029):
+//
+//   1. `ctx.access` — what Cloudflare recommends where it is available: Access has already
+//      authenticated the request, so there is nothing to parse or verify.
+//   2. The `Cf-Access-Jwt-Assertion` header, verified against the team's JWKS and the AUD tag.
+//      **This is the path that runs in production here.** A Worker that serves static assets
+//      executes behind an internal router Worker, and that router does not pass `ctx.access`
+//      through; Astro's adapter always configures assets, so the simple path cannot be the only
+//      one. Cloudflare's own guidance for that case is explicit: a self-hosted origin must
+//      validate the token, because the header alone is spoofable.
+//
+// Either way this is fail-closed: no Access context and no valid token means 403, never a
+// fallthrough to "some anonymous admin".
 import type { APIContext } from "astro";
 import { ForbiddenError, UnauthenticatedError } from "@app/server-kit/http";
 import { findOrCreateAdminUserByEmail, touchLastLoginIfStale } from "../services/admin-users";
@@ -13,37 +24,29 @@ const JWKS_TTL_MS = 60 * 60 * 1000;
 const JWKS_MIN_REFETCH_MS = 5 * 60 * 1000;
 
 export interface AccessEnv {
-  APP_ENV?: string;
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
-  DEV_ADMIN_EMAIL?: string;
 }
 
 interface AccessConfig {
   issuer: string;
   aud: string;
-  devAdminEmail: string | null;
 }
+
+// Only what the JWT path needs; `Astro` and an APIContext both satisfy it.
+type AccessRequestContext = Pick<APIContext, "request" | "locals">;
 
 let jwks: { issuer: string; fetchedAt: number; keys: Map<string, CryptoKey> } | null = null;
 
 // Missing config throws instead of defaulting: an undefined team domain would otherwise verify
 // against nothing and let every request through.
 export function readAccessConfig(env: AccessEnv): AccessConfig {
-  const appEnv = env.APP_ENV;
-  if (!appEnv) throw new Error("APP_ENV is not set.");
-
   const teamDomain = env.CF_ACCESS_TEAM_DOMAIN;
   const aud = env.CF_ACCESS_AUD;
   if (!teamDomain) throw new Error("CF_ACCESS_TEAM_DOMAIN is not set.");
   if (!aud) throw new Error("CF_ACCESS_AUD is not set.");
 
-  return {
-    issuer: `https://${teamDomain}`,
-    aud,
-    // The local/E2E fallback, inert in production no matter what the var holds (D-022).
-    devAdminEmail: appEnv === "production" ? null : (env.DEV_ADMIN_EMAIL ?? null),
-  };
+  return { issuer: `https://${teamDomain}`, aud };
 }
 
 // Returns a view over a plain ArrayBuffer: crypto.subtle.verify rejects the SharedArrayBuffer-
@@ -118,21 +121,25 @@ export async function verifyAccessJwt(token: string, config: AccessConfig): Prom
 }
 
 // Called from middleware.ts only — handlers read the result off Astro.locals instead, so that no
-// second place can be tempted to pull `email` out of the header without verifying it.
-export async function resolveAccessEmail(request: Request, env: AccessEnv): Promise<string> {
-  const config = readAccessConfig(env);
-  const token = request.headers.get(ACCESS_JWT_HEADER);
-
-  if (!token) {
-    if (config.devAdminEmail) return config.devAdminEmail;
-    throw new UnauthenticatedError("Cloudflare Access を経由していないリクエストです。");
+// second place can be tempted to pull an identity out of an unverified header.
+export async function resolveAccessEmail(context: AccessRequestContext, env: AccessEnv): Promise<string> {
+  const access = context.locals.cfContext?.access;
+  if (access) {
+    const identity = await access.getIdentity();
+    if (identity?.email) return identity.email;
+    // Access ran but produced no email: a service token, not a person. Nothing to attribute an
+    // audit entry to, so it is refused rather than provisioned.
+    throw new UnauthenticatedError("Access の identity にメールアドレスがありません。");
   }
 
-  return verifyAccessJwt(token, config);
+  const token = context.request.headers.get(ACCESS_JWT_HEADER);
+  if (!token) throw new UnauthenticatedError("Cloudflare Access を経由していないリクエストです。");
+
+  return verifyAccessJwt(token, readAccessConfig(env));
 }
 
 // The Service-layer entry point. AdminUser carries no role (D-014), so this is the whole check:
-// the JWT was verified upstream, and the ledger row is active.
+// the identity was established upstream, and the ledger row is active.
 export async function requireAdminUser(context: APIContext) {
   const email = context.locals.accessEmail;
   if (!email) throw new UnauthenticatedError();

@@ -98,7 +98,7 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - ORM は Drizzle（DEV-01 §1、決定済み）。テストデータ生成のヘルパー（Factory 相当）は Drizzle スキーマの型（`typeof table.$inferInsert`）を使った INSERT ヘルパー関数、またはテスト用シード SQL として用意する
 - 本プロジェクトは発注関連データに Organization 単位のテナント境界を持つ（PRD-02 §2）。複数 Organization・複数 Member を用意し、他 Organization のデータにアクセスできないことを検証するテストデータ生成ヘルパーを用意する（例: `asMemberOf(organization)`）。AdminUser 側はロール区分を持たないため（GOV-01 D-014）、ロール差分のテストは不要
 - Organization スコープ × 操作のマトリクステスト（Vitest のパラメータ化テスト `test.each`）を用意する
-- E2E は `globalSetup` で自身のアカウントをシードする（環境変数の受け渡しは不要）。シードするのは **Member のみ** — AdminUser は Access が認証するため、管理画面の E2E は開発用フォールバックで AdminUser を名乗る（GOV-01 D-022、GOV-02 TBD-32）
+- E2E は `globalSetup` で自身のアカウントをシードする（環境変数の受け渡しは不要）。シードするのは **Member のみ** — AdminUser は Access が認証し、ローカルでは `wrangler.jsonc` の `access.dev` が擬似 identity を供給して初回リクエストで台帳に作られる（GOV-01 D-022・D-029）
 - 商品・お知らせのテストデータは D1 ではなく `packages/content` の Markdown である（GOV-01 D-017・D-018）。**テスト専用のコレクションを別に用意せず、本番と同じファイルを読む** — スキーマ違反はビルド時に落ちるため、テスト用の抜け道を作るとその検証をすり抜ける
 
 ### 3-5. 単体テストと E2E の役割分担（どちらでしか守れないか）
@@ -112,7 +112,7 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - **他社の卸価格が応答に混入しないこと。** Content Collections には全取引先分が含まれるため、絞り込みを誤ると他社価格が出る（DEV-02 §3-1）
 - **取引先別価格ファイルの全エントリが実在する `org_code` を指すこと**、および診断ルールの推奨商品 slug が `draft` / `discontinued` でない商品に解決されること。**これらの参照は外部キー制約で守られない**ため、テストが唯一の防御線（PRD-02 §7、DEV-02 §3-1）
 - **注文明細の表示が `order_items` のスナップショット列から行われること**（Markdown を読み直すと価格改定で過去の注文金額が変わる — DEV-07 §6-0）
-- **Cloudflare Access のバイパスが本番で無効であること**（ローカル/E2E 用フォールバックの fail-closed — GOV-01 D-022、DEV-02 §1-1）
+- **Access の identity が取れないリクエストを拒否すること**（`ctx.access` もヘッダーも無い → 403 の fail-closed）、および JWT フォールバックが `aud` / `iss` / `exp` / `alg` のいずれか 1 つでも不正なトークンを拒否すること（GOV-01 D-029、DEV-02 §1-1）。**ローカルと E2E は `ctx.access` の経路しか通らない**ため、本番の実行経路である JWT 検証はここでしか検証できない
 - 税額・送料の端数処理（BIZ-03 §2-3・§3-2）
 
 逆に以下は E2E でしか捕まらない：
@@ -122,7 +122,7 @@ DEV-01 §4/§5 が定めるレイヤー境界（Astro Page / API Route → Servi
 - **商品・お知らせのページに `prerender = true` を付けてしまうこと**（GOV-01 D-021）。静的化されると未ログインでも卸価格が見えるため、E2E の「未ログインで卸価格が出ない」検証がこれを兼ねる
 - 卸価格の出し分け（未ログイン / ログイン済み・active / ログイン済み・suspended の 3 状態で表示が変わること）
 
-> E2E は Cloudflare Access を通過できないため、管理画面の E2E は開発用フォールバックを前提に組む（GOV-02 TBD-32）。**そのフォールバックが本番で効かないことの検証は上記のとおり単体テスト側の責務**である。
+> E2E は Cloudflare Access を通過できないため、管理画面の E2E は `access.dev` の擬似 identity を前提に組む（GOV-01 D-029）。**この擬似 identity はデプロイ済みの Worker では供給されない**ので、本番でバイパスが効く余地は無い。`identity` を外すと 403 になることはリリース前チェック（DEV-08 §9）で実地確認する。
 
 ---
 

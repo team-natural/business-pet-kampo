@@ -12,15 +12,24 @@
     "enabled": true,
   },
 
+  // Local-only pseudo identity, read by wrangler dev and the Cloudflare Vite plugin. Delete the
+  // `identity` key to reproduce an unauthenticated request; delete the block and the Worker has
+  // no Access context at all. It has no effect on a deployed Worker (D-029).
+  "access": {
+    "dev": {
+      "aud": "business-pet-kampo-admin-dev",
+      "identity": { "email": "dev-admin@example.test" },
+    },
+  },
+
   // vars is non-inheritable, so it's repeated in each env block below.
-  // DEV_ADMIN_EMAIL stands in for Access, which neither local dev nor Playwright can pass. It is
-  // absent from the staging/production blocks, and APP_ENV=production makes it inert even if
-  // someone sets it there (D-022, pinned by tests/unit/access.test.ts).
+  // The CF_ACCESS_* pair is only used by the JWT fallback, which is the path that runs in
+  // production: a Worker serving static assets sits behind an internal router that does not pass
+  // ctx.access through (D-029). Both must be set in every deployed environment.
   "vars": {
     "APP_ENV": "development",
     "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
     "CF_ACCESS_AUD": "replace-with-access-aud-tag",
-    "DEV_ADMIN_EMAIL": "dev-admin@example.test",
   },
 
   // Shared with apps/public: create once, then copy the ids into both. They must match —

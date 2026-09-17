@@ -1,0 +1,4 @@
+# The admin subdomain has nothing public on it. This matters only in the window before the
+# Access application is switched on — after that, no crawler reaches these paths at all.
+User-agent: *
+Disallow: /

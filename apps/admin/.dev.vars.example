@@ -2,12 +2,10 @@
 # Non-secret config goes in wrangler.jsonc `vars`; in staging/production these keys become
 # Workers Secrets (`wrangler secret put`).
 
-# Who you are signed in as locally, since Cloudflare Access cannot be passed on localhost
-# (D-022). wrangler.jsonc already sets a default — override it to see your own name in the
-# audit log. It is ignored when APP_ENV=production.
-# DEV_ADMIN_EMAIL=you@example.com
+# Nothing is required locally. The signed-in identity comes from wrangler.jsonc's `access.dev`
+# block, not from an environment variable — change the email there to see your own name in the
+# audit log (D-029).
 
-# Only needed if you point local dev at a real Access application; wrangler.jsonc carries the
-# placeholders otherwise (DEV-08 §8).
+# Only needed if you point local dev at a real Access application instead of the dev identity.
 # CF_ACCESS_TEAM_DOMAIN=example.cloudflareaccess.com
 # CF_ACCESS_AUD=

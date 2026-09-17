@@ -113,9 +113,14 @@ The admin app has no login page; Cloudflare Access authenticates it (D-022). In 
 3. Copy the team domain and the application's **AUD tag** into `apps/admin`'s `wrangler.jsonc`
    (`CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`) — staging and production have different AUD tags
 
-The Worker verifies the JWT itself as well, because a request sent straight to the `workers.dev` URL
-never passes through Access. Locally, Access does not apply at all: set `DEV_ADMIN_EMAIL` in
-`.dev.vars` and keep the test that proves it is inert in production (DEV-03 §3-5).
+Create the application against the **Worker** (not a hostname or route) and include preview
+deployments, so `workers.dev` and preview URLs cannot be used to walk around it.
+
+The Worker still resolves the identity itself: `ctx.access` where Cloudflare provides it, otherwise
+the `Cf-Access-Jwt-Assertion` header verified against the team JWKS and the AUD tag — which is the
+path that runs here, because a Worker serving static assets does not receive `ctx.access`
+(GOV-01 D-029). Locally you need none of this: `wrangler.jsonc`'s `access.dev` block supplies a
+pseudo identity, and a deployed Worker never receives it.
 
 ### 6. Custom domains
 
@@ -162,8 +167,8 @@ pnpm test:e2e       # needs pnpm db:generate first
 Sign in to the public app at `http://localhost:<APP_PORT_DEV_PUBLIC>` (see step 1) with the account
 from step 8. Use `localhost`, not the network URL the dev server prints — the session cookie is
 `Secure`, and only `localhost` counts as a secure context over plain HTTP. The admin app at
-`<APP_PORT_DEV_ADMIN>` has no login screen; locally it identifies you from `DEV_ADMIN_EMAIL`
-(step 5b).
+`<APP_PORT_DEV_ADMIN>` has no login screen; locally it identifies you from the `access.dev` block in
+`apps/admin/wrangler.jsonc` — change the email there to see your own name in the audit log.
 
 ### 10. Repository
 

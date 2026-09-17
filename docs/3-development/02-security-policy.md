@@ -37,14 +37,19 @@ related-docs:
 
 | 経路 | 認証方式 | セッション / トークン保持 |
 | --- | --- | --- |
-| 管理画面（Web） | **Cloudflare Access**。Worker のドメイン全体に Access Application を設定し、許可した ID プロバイダ・メールアドレスのみ到達できるようにする。アプリは `Cf-Access-Jwt-Assertion` ヘッダーの JWT を検証し、`email` で `admin_users`（DEV-07 §4-1）を引く | Access が管理（セッション寿命は Access 側の設定）。アプリ側はクッキーを発行しない |
-| JWT の検証 | **エッジでの検証だけに依存しない。** `apps/admin/src/middleware.ts` で、チームの公開鍵（`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`）と **AUD tag** を用いて署名・`aud`・`exp` を検証する。Worker の URL へ直接到達された場合、Access を経由しないリクエストはヘッダーを持たないため確実に弾く | — |
-| ユーザー台帳 | 検証済み `email` に対応する `admin_users` の行が無ければ作成する（自動プロビジョニング）。`status = inactive` の行はアプリ側で拒否する — Access のポリシーから外す運用が漏れた場合の二重の歯止め | — |
-| パスワード・リセット・ロックアウト | **アプリ側に存在しない。** すべて Access（と背後の ID プロバイダ）の責務 | — |
-| ローカル開発・E2E | Access を通過できないため env によるフォールバックを用意する。**本番でフォールバックが効かないことを Vitest で固定する**（fail-closed。§1-4） | — |
+| 管理画面（Web） | **Cloudflare Access**。Access Application は**ホスト名やルートではなく Worker を対象**に作成し、Preview deployments も含める（GOV-01 D-029）。ルート単位の設定漏れと、`workers.dev` / Preview URL からの迂回が構造的に消える | Access が管理（セッション寿命は Access 側の設定）。アプリ側はクッキーを発行しない |
+| identity の取得（第 1 経路） | `ctx.access`（Astro では `Astro.locals.cfContext.access`）の有無を fail-closed で確認し、`getIdentity()` から `email` を得る。Access が認証済みのリクエストにのみ付くため、**JWT の手動検証は不要**。`email` を持たない identity（サービストークン）は拒否する — 監査ログに紐づける相手がいないため | — |
+| identity の取得（第 2 経路） | **`ctx.access` が無い場合のみ**、`Cf-Access-Jwt-Assertion` を検証する。チームの公開鍵（`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`）と **AUD tag** で署名・`aud`・`iss`・`exp` を検証し、`alg` は RS256 に固定する。**本プロジェクトではこちらが本番の実行経路**である（静的アセットを配信する Worker は内部ルーターの背後で動き、ルーターは `ctx.access` を渡さない — D-029） | — |
+| ユーザー台帳 | 取得した `email` に対応する `admin_users`（DEV-07 §4-1）の行が無ければ作成する（自動プロビジョニング）。`status = inactive` の行はアプリ側で拒否する — Access のポリシーから外す運用が漏れた場合の二重の歯止め | — |
+| パスワード・リセット・ロックアウト・MFA | **アプリ側に存在しない。** すべて Access と背後の ID プロバイダの責務。MFA は IdP 側で必須化する | — |
+| ローカル開発・E2E | `wrangler.jsonc` の `access.dev` ブロックが擬似 identity を供給する（`wrangler dev` と Cloudflare Vite プラグインの両方で有効）。**env によるバイパスは持たない** — `identity` を外すと 403 になることを実地で確認する | — |
 | SAML / OIDC | Access の ID プロバイダ設定として利用可能（アプリ側の実装は不要） | 具体的なプロバイダは GOV-02 TBD-32 |
 
-> **この変更で消えた攻撃面**: 管理画面へのパスワード総当たり・リセットトークンの漏洩・セッション固定。代わりに**増えた責務**が Access のポリシー管理（誰を許可するか）と JWT 検証の正しさである。前者は運用手順として OPS-02 に、後者はテストとして DEV-03 に置く。
+> **この変更で消えた攻撃面**: 管理画面へのパスワード総当たり・リセットトークンの漏洩・セッション固定。代わりに**増えた責務**が Access のポリシー管理（誰を許可するか）と identity 取得の正しさである。前者は運用手順として OPS-02 に、後者はテストとして DEV-03 に置く。
+>
+> **Access が届かない経路が 2 つある。** `ctx.access` は Service Binding / RPC 越しに伝播しない（呼ばれる側の信頼根拠は「バインディングを宣言した Worker からしか呼べない」ことであって Access ではない）。**Cron Triggers も Access の対象外**で、`scheduled()` ハンドラは Access が不通でも動く — 止まるのは人間の操作経路だけである。
+>
+> **運用上の唯一のリスクはポリシー誤設定による締め出し。** 主ポリシーと独立した経路（別 IdP かサービストークン）のブレークグラスを常設し、復旧は Cloudflare ダッシュボード側で行う。**コードに迂回路を作らない。**
 
 ### 1-2. Member 認証（`apps/public`。PRD-03 FG-01・FG-05）
 

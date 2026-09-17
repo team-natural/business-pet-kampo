@@ -367,19 +367,18 @@ related-docs:
 | 決定者 | Tech Lead |
 | 関連 TBD | TBD-32 |
 | 実装上の注意 | `alg` を RS256 に固定する（`none` / HS256 への差し替えを拒否）。`aud`・`iss`・`exp` を全て検証する — 1 つでも落とすと別 Access アプリ向けのトークンが通る。未知の `kid` での再取得は 5 分に 1 回までに制限する（偽の `kid` を連打されると certs への転送が増える） |
+| 改定 | **D-029 で位置づけが変わった。** JWT 検証は「唯一の手段」ではなく `ctx.access` が使えない場合のフォールバックになった。ただし本プロジェクトでは静的アセットの制約によりそのフォールバックが本番の実行経路であり、この決定の内容自体は有効なまま残る |
 
-### D-026：ローカル開発・E2E の Access バイパスは `DEV_ADMIN_EMAIL` とし、既定値を `wrangler.jsonc` に持つ
+### D-026：ローカル開発・E2E の Access バイパスは `DEV_ADMIN_EMAIL` とし、既定値を `wrangler.jsonc` に持つ（**D-029 により廃止**）
 
 | 項目 | 内容 |
 | --- | --- |
 | 日付 | 2026-09-17 |
 | カテゴリ | 設計 / 運用 |
-| 決定内容 | `apps/admin` の development 環境の `vars` に `DEV_ADMIN_EMAIL`（既定 `dev-admin@example.test`）を置き、Access のヘッダーが無いリクエストをこの email として扱う。staging / production の `vars` には**置かない**うえ、`APP_ENV=production` では値があっても無視する。この二重の歯止めを Vitest で固定する |
-| 背景 | TBD-32 の暫定方針を実装として確定させたもの。`.dev.vars` は gitignored であり、CI（E2E）とクローン直後の開発機では値が存在しない。既定値をコミットしておけば、どちらも設定なしで動く。Member 側の E2E が自分でアカウントをシードするのと同じ考え方である |
+| 決定内容 | ~~`apps/admin` の development 環境の `vars` に `DEV_ADMIN_EMAIL`（既定 `dev-admin@example.test`）を置き、Access のヘッダーが無いリクエストをこの email として扱う~~ |
+| 廃止理由 | `wrangler.jsonc` の `access.dev` ブロック（公式機能）がローカルに擬似 identity を注入するため、env によるバイパスが不要になった（D-029）。**この決定には穴もあった** — 既定ブロックが development であるため、`--env production` を付けずにデプロイすると `DEV_ADMIN_EMAIL` が有効な状態で公開される。`access.dev` はデプロイ済み Worker では無効なので、この経路ごと消える |
 | 影響範囲 | DEV-02 §1-1, DEV-03 §3-5, DEV-08 §8, `apps/admin/wrangler.jsonc`, `apps/admin/tests/unit/access.test.ts` |
 | 決定者 | Tech Lead |
-| 関連 TBD | TBD-32（残りは Access Application の作成手順と AUD tag の取得） |
-| 再評価条件 | 本番相当の環境で Access を通したテストが必要になった時点で、サービストークン方式を検討する |
 
 ### D-027：商取引条件は環境変数ではなく TypeScript 定数で持つ（D-024 の適用範囲確定）
 
@@ -404,6 +403,21 @@ related-docs:
 | 影響範囲 | DEV-04 §5-7・§5-8, `.claude/skills/scaffold/SKILL.md`, `apps/admin/src/pages/api/v1/{orders,inquiries}/` |
 | 決定者 | Tech Lead |
 | 関連 TBD | — |
+
+### D-029：Access の identity は `ctx.access` を優先し、JWT 検証をフォールバックとして残す
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-17 |
+| カテゴリ | 設計 |
+| 決定内容 | `apps/admin` の認証を、社内の他プロジェクトと同じ Workers Access の形に揃える。(a) Access Application は**ホスト名やルートではなく Worker を対象**に作成し、Preview deployments も含める。(b) アプリ側は `ctx.access`（Astro では `Astro.locals.cfContext.access`）の有無を fail-closed で確認し、`getIdentity()` から email を得る。(c) **`ctx.access` が無い場合に限り** `Cf-Access-Jwt-Assertion` を検証する（D-025 の実装をそのまま使う）。(d) ローカルと E2E は `wrangler.jsonc` の `access.dev` ブロックが供給する擬似 identity を使い、env によるバイパスは持たない（D-026 を廃止）。(e) MFA は IdP 側で担保し、アプリに TOTP を実装しない |
+| 背景 | 公式は「Access 有効時は `ctx.access` が提供され、manual JWT validation は不要」としており、他プロジェクトもその前提で統一されている。**ただし本プロジェクトはそのまま適用できない** — 公式ドキュメントは「静的アセットを配信する Worker は内部のルーター Worker の背後で実行され、ルーターは `ctx.access` を渡さない」と明記しており、Astro の Cloudflare アダプタは常に `assets` を構成するため、本番では `ctx.access` が `undefined` になりうる。一方 `Cf-Access-Jwt-Assertion` は認証済みリクエストに必ず付き、公式も「Tunnel 経由でない限りオリジン側でトークンを検証しなければならない（ヘッダーの存在確認だけでは identity 偽装を防げない）」としている。したがって両方を実装し、使える方を使う |
+| 影響範囲 | DEV-01 §2・§3, DEV-02 §1-1, DEV-03 §3-5, DEV-08 §8・§9, OPS-02, `apps/admin/{wrangler.jsonc,src/middleware.ts,src/lib/server/auth/access.ts,src/env.d.ts}` |
+| 決定者 | Tech Lead / 事業責任者 |
+| 関連 TBD | TBD-32（Cloudflare 側の設定手順のみ残る） |
+| 実装上の注意 | `ctx.access` があっても **identity に email が無ければ拒否する**（サービストークンでの到達。監査ログに紐づける相手がいない）。`ctx.access` は Service Binding / RPC 越しに伝播しない — 将来 Worker 間呼び出しを足す場合、呼ばれる側の信頼根拠は「バインディングを宣言した Worker からしか呼べない」ことであって Access ではない。**Cron Triggers は Access の対象外**で、`scheduled()` は Access 不通でも動く（止まるのは人間の操作経路だけ） |
+| 運用上の注意 | ポリシー誤設定による締め出しが唯一の運用リスク。主ポリシーと独立した経路（別 IdP かサービストークン）のブレークグラスを常設し、復旧はダッシュボード側で行う。**コードで迂回路を作らない** |
+| 再評価条件 | Cloudflare が静的アセット配信時にも `ctx.access` を渡すようになった時点で、JWT フォールバックと `CF_ACCESS_*` 変数を削除できる |
 
 ---
 

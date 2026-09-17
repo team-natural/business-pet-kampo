@@ -70,7 +70,7 @@ related-docs:
 | LLM 組み込み | Vercel AI SDK（`ai` + 各プロバイダの `@ai-sdk/*`） | fetch ベースで Workers 対応。プロバイダは Claude / Gemini / ChatGPT のみ。**本プロジェクトでは導入しない**（PRD-05） |
 | OAuth / SSO | Arctic | 軽量・Workers のエッジランタイムで動作する OAuth2 クライアント。LINE ログイン等、専用パッケージが無いプロバイダは同ライブラリの上に自前実装する |
 | API 提供（認証） | 自前実装（D1 裏付けのセッショントークン + httpOnly クッキー。追加ライブラリ不要） | laravel/sanctum 相当の単一パッケージは不採用。**この行の対象は `apps/public` の Member 認証のみ**で、`apps/admin` はアプリ側の認証を一切持たない（Cloudflare Access — GOV-01 D-022、DEV-02 §1-1）。`jose`/JWT ベースのセッションは採用しない — 用途がステートレス API ではなくマイページのログインのみのため、失効可能なセッション方式を優先する。クッキー値の署名は行わない（正当性は毎リクエストのセッション照合が担保する）。招待・パスワードリセット等の単発署名トークンは Web Crypto の HMAC 署名（`crypto.subtle.sign`）で自作し、`jose` は使わない |
-| 管理画面の認証（Access JWT の検証） | Web Crypto API（`crypto.subtle.importKey` + `verify`。追加ライブラリ不要） | Cloudflare Access が付与する `Cf-Access-Jwt-Assertion` の RS256 署名を、チームの JWKS（`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`）と AUD tag で検証する（DEV-02 §1-1）。**検証のためだけに `jose` を導入しない** — §3 の不採用は「JWT をセッションとして自前発行すること」に対するものであり、外部 IdP が発行した JWT の検証は Web Crypto の標準 API で足りる。JWKS は KV ではなくモジュールスコープにキャッシュする（admin に KV バインディングは無い） |
+| 管理画面の認証（Access identity の取得） | `ctx.access`（ランタイム提供。追加ライブラリ不要）。届かない場合のみ Web Crypto API（`crypto.subtle.importKey` + `verify`） | 第 1 経路は `Astro.locals.cfContext.access` の `getIdentity()` で、**JWT の手動検証は不要**（公式）。ただし静的アセットを配信する Worker には `ctx.access` が渡らないため、第 2 経路として `Cf-Access-Jwt-Assertion` を JWKS + AUD tag で検証する（GOV-01 D-029、DEV-02 §1-1）。**どちらの経路でも `jose` は導入しない** — §3 の不採用は「JWT をセッションとして自前発行すること」に対するものであり、外部 IdP が発行した JWT の検証は Web Crypto の標準 API で足りる。JWKS は KV ではなくモジュールスコープにキャッシュする（admin に KV バインディングは無い） |
 | リクエストバリデーション | Zod | Laravel の `FormRequest` 相当の標準機構はない。API ルート（DEV-04）・フォーム（DEV-06）双方の入力検証をこれに統一する。Drizzle スキーマから `drizzle-zod` で自動導出することを優先し、手書きの重複定義を避ける。Content Collections のスキーマ（`packages/content/src/schema.ts`）も同じ Zod で書く |
 | パスワードハッシュ | Web Crypto API（PBKDF2、`crypto.subtle`） | PHP の `bcrypt()` 相当の標準関数はない。`@node-rs/argon2` 等のネイティブ Node アドオンは Workers で動作しないため不採用。Web Crypto は Workers に標準実装済みで追加パッケージ不要。実装は `packages/server-kit` に集約し、AdminUser 側・Member 側で同じ関数を使う |
 | CSRF 対策 | Astro 組み込みの Origin チェック（`security.checkOrigin`、既定で有効） | セッションがクッキーベース（上記）のため必須。GET/HEAD/OPTIONS 以外のリクエストで、`Content-Type` が form 系（`application/x-www-form-urlencoded`/`multipart/form-data`/`text/plain`）または未指定の場合に Origin 検証を強制する（`node_modules/astro/dist/core/app/origin-check.js` 参照）。追加ライブラリ・自前実装は不要。detail は DEV-02 §6 |
@@ -103,7 +103,7 @@ AI・開発者が「一般的なベストプラクティス」として提案・
 | shadcn-svelte 以外の Svelte UI キット（Skeleton、Flowbite-Svelte 等） | 管理画面の UI は shadcn-svelte に統一（PRD-04 / DEV-06 参照） |
 | プレースホルダを使わない SQL 文字列の組み立て | SQL Injection 防止。D1 へのアクセスは必ず `env.DB.prepare(...).bind(...)` または Drizzle 経由 |
 | Drizzle 以外の ORM/クエリビルダ（Prisma、Kysely 等） | Prisma はネイティブバイナリ依存が強く Workers と相性が悪い。ORM は Drizzle に一本化（本書 §1） |
-| `jose` / JWT ベースのセッション、ネイティブ Node アドオン系ハッシュライブラリ（`@node-rs/argon2` 等） | Member 認証は D1 セッション + Web Crypto（PBKDF2）に一本化（本書 §2）。ネイティブアドオンは Workers で動作しない。**Access JWT の検証は例外ではない** — 自前発行のセッションを JWT にしないという意味であり、検証自体も Web Crypto で行うため `jose` は不要（§2） |
+| `jose` / JWT ベースのセッション、ネイティブ Node アドオン系ハッシュライブラリ（`@node-rs/argon2` 等） | Member 認証は D1 セッション + Web Crypto（PBKDF2）に一本化（本書 §2）。ネイティブアドオンは Workers で動作しない。**Access も例外ではない** — identity は第一に `ctx.access` から取り、フォールバックの JWT 検証も Web Crypto で行うため `jose` は不要（§2、GOV-01 D-029） |
 | Vercel AI SDK 以外の LLM クライアント（自作 HTTP クライアント含む） | 統合レイヤーの一元化。プロバイダ切替容易性 |
 | Claude / Gemini / ChatGPT 以外の LLM プロバイダ | コスト・運用範囲の統制 |
 | `tailwind.config.js` | Tailwind v4 は `@theme` CSS-first 方式 |

@@ -228,6 +228,15 @@ flowchart TD
 - [ ] セッション TTL・ロックアウト閾値の env が本番に設定されている（未設定なら起動時に例外 — DEV-02 §7）
 - [ ] SAST / 依存スキャンで High 以上 0 件
 
+**Cloudflare Access（`apps/admin`。GOV-01 D-029）**
+
+- [ ] Access Application を **Worker 指定**で作成（ホスト名やルートではない）。**Preview deployments を含める**
+- [ ] IdP 側で MFA を必須化（アプリに TOTP は実装しない）
+- [ ] **ブレークグラス用の第 2 ポリシー**を、主ポリシーと独立した経路（別 IdP かサービストークン）で常設
+- [ ] `/api/v1/health*` のみを Access のバイパス対象にする（§9。それ以外のパスを含めない）
+- [ ] `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` を環境ごとに設定（静的アセットを配信する Worker には `ctx.access` が渡らないため、**本番はこの JWT 経路で動く**）
+- [ ] **Access を外すと 403 になることを実地で確認**（fail-closed。ローカルでは `access.dev` の `identity` を消して同じ確認ができる）
+
 **運用準備**
 
 - [ ] ログ・アラートの本番設定確認（OPS-02）
@@ -252,13 +261,13 @@ APP_NAME=
 APP_URL=
 APP_ENV=production
 
-# --- apps/admin: Cloudflare Access（GOV-01 D-022、DEV-02 §1-1）---
-# JWT 検証に必須。未設定なら例外を投げる（検証を素通りさせない）
+# --- apps/admin: Cloudflare Access（GOV-01 D-022・D-029、DEV-02 §1-1）---
+# JWT フォールバックに必須。未設定なら例外を投げる（検証を素通りさせない）。
+# 静的アセットを配信する Worker には ctx.access が渡らないため、**本番はこの経路で動く**
 CF_ACCESS_TEAM_DOMAIN=       # 例: example.cloudflareaccess.com
 CF_ACCESS_AUD=               # Access Application の AUD tag（環境ごとに異なる）
-# ローカル開発・E2E 用のフォールバック。APP_ENV=production では無視されることを
-# Vitest で固定する（fail-closed。DEV-03 §3-5、GOV-02 TBD-32）
-DEV_ADMIN_EMAIL=
+# ローカル・E2E 用のバイパス変数は持たない。擬似 identity は wrangler.jsonc の
+# access.dev ブロックが供給し、デプロイ済み Worker では供給されない（D-029）
 
 # --- apps/public: Member 認証（DEV-01 §2、DEV-02 §1-2・§7）---
 # JWT は不採用 — セッションは D1 に保存する

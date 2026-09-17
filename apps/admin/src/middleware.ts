@@ -17,9 +17,9 @@ function withSecurityHeaders(response: Response): Response {
 
 export const onRequest = defineMiddleware(async (context, next) => {
   try {
-    context.locals.accessEmail = await resolveAccessEmail(context.request, env);
+    context.locals.accessEmail = await resolveAccessEmail(context, env);
   } catch (error) {
-    // Only a rejected identity becomes a 403. A missing ACCESS_* var throws on, so a
+    // Only a rejected identity becomes a 403. A missing CF_ACCESS_* var throws on, so a
     // misconfigured deployment fails loudly instead of looking like everyone lost access.
     if (!(error instanceof UnauthenticatedError)) throw error;
     return withSecurityHeaders(new Response("Forbidden", { status: 403, headers: { "content-type": "text/plain; charset=utf-8" } }));
