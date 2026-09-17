@@ -23,20 +23,26 @@ styling/icon rules under `.claude/skills/shadcn-svelte/rules/`. While implementi
   missing. Per CLAUDE.md: never hand-edit `.claude/skills/shadcn-svelte/`, and run
   `pnpm run format` after `add`/`update` since the CLI's own output uses tabs.
 - Look at the most similar existing admin screen for established composition style before
-  inventing a new layout — currently the login screen: `apps/admin/src/pages/index.astro`
-  + `apps/admin/src/lib/components/login-form.svelte`, and the dashboard at
-  `apps/admin/src/pages/dashboard/index.astro`. What the login screen establishes: `Card.Root` >
-  `Card.Header`/`Card.Content`/`Card.Footer` composition, `Field.FieldGroup` > `Field.Field` >
-  `Field.FieldLabel` + control + `Field.FieldError` for form layout (never a bare `div` with
-  `grid gap-*` — the vendored rule in `.claude/skills/shadcn-svelte/rules/forms.md`), and
-  Svelte 5 runes (`$state`) for local form state. It is wired to
-  `POST /api/v1/auth/login`, so it also establishes this project's client-side form conventions:
-  inline per-field errors from the API's 422 envelope, a `role="alert"` form-level message for
-  everything else, and a submit button disabled until `onMount` fires (an island's markup exists
-  before its JS, and a submit in that window is a native POST that loses the input). Follow those
-  three, but treat the *layout* as a minimal scaffold rather than a finished screen. As more admin screens land, treat the most recent screen of the same kind
-  (dashboard/list/form/settings) as the reference instead — this skill doesn't hard-code
-  per-type layouts, because none are established yet.
+  inventing a new layout. **The reference is ADM-01, `apps/admin/src/pages/index.astro`**, built
+  with `apps/admin/src/layouts/Layout.astro`. What it establishes:
+  - The shell: the nav lives in `Layout.astro` as server-rendered markup with `aria-current`,
+    **not** shadcn-svelte's `Sidebar`. Sidebar is a Svelte provider tree, and using it in Astro
+    would mean putting whole pages inside an island — which also drags server-resolved data into
+    the client payload (D-021). Every screen wraps its content in the same
+    `mx-auto w-full max-w-7xl px-5 py-8 sm:px-8` container and gives itself a real `<h1>`
+  - Full `Card.Root` > `Card.Header`/`Card.Title`/`Card.Description`/`Card.Action`/`Card.Content`
+    composition, `Table.Root` with an `sr-only` `Table.Caption` for lists, and `Empty.Root` for
+    the nothing-to-show state — never hand-rolled markup for any of the three
+  - Dates and amounts go through `apps/admin/src/lib/format.ts`. Workers run in UTC, so a raw
+    `created_at` renders nine hours off for the operator
+  - There is no login screen and no logout control anywhere (Cloudflare Access — D-022)
+
+  For forms, follow `.claude/skills/shadcn-svelte/rules/forms.md`: `Field.FieldGroup` >
+  `Field.Field` > `Field.FieldLabel` + control + `Field.FieldError`, never a bare `div` with
+  `grid gap-*`. An island that posts to an API renders per-field errors from the 422 envelope,
+  a `role="alert"` message for everything else, and keeps its submit disabled until `onMount`
+  fires — a submit before hydration is a native POST that loses the input. As more screens land,
+  treat the most recent screen of the same kind (list/detail/form) as the reference.
 - Wrap the page in `apps/admin/src/layouts/Layout.astro` (which imports
   `apps/admin/src/styles/admin.css`) — never `apps/public`'s layout or `global.css`.
 - Styling stays within `admin.css`'s CSS-variable tokens (`--primary`, `--muted-foreground`,

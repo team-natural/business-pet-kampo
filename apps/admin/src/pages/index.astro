@@ -1,34 +1,100 @@
 ---
-// ADM-01. `/` is the dashboard, not a login screen — authentication is Cloudflare Access (D-022).
+// ADM-01. `/` はダッシュボードであってログイン画面ではない（認証は Cloudflare Access — D-022）。
 import Layout from "../layouts/Layout.astro";
+import * as Card from "../lib/components/ui/card";
+import * as Table from "../lib/components/ui/table";
+import * as Empty from "../lib/components/ui/empty";
+import { Badge } from "../lib/components/ui/badge";
+import { formatDateTime } from "../lib/format";
 import { requireAdminUser } from "../lib/server/auth/access";
+import { listActivityLogs } from "../lib/server/services/audit-logs";
 import { getDashboardCounts } from "../lib/server/services/dashboard";
 
 const admin = await requireAdminUser(Astro);
-const counts = await getDashboardCounts(Astro.locals.db);
+const [counts, recent] = await Promise.all([getDashboardCounts(Astro.locals.db), listActivityLogs(Astro.locals.db, { perPage: 5 })]);
 
+// 4 枚の内訳は PRD-04 §4-3-1。件数だけを出し、明細は各一覧が持つ。
 const tiles = [
-  { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received" },
-  { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming" },
-  { label: "入金待ち", value: counts.awaitingPayment, href: "/orders" },
-  { label: "出荷待ち", value: counts.awaitingShipment, href: "/orders?status=preparing" },
+  { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received", cta: "申請を確認する" },
+  { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming", cta: "注文を確認する" },
+  { label: "入金待ち", value: counts.awaitingPayment, href: "/orders", cta: "入金を確認する" },
+  { label: "出荷待ち", value: counts.awaitingShipment, href: "/orders?status=preparing", cta: "出荷を進める" },
 ];
 ---
 
-<Layout title="ダッシュボード — 管理画面">
-  <main class="mx-auto w-full max-w-5xl px-6 py-10">
-    <h1 class="text-2xl font-semibold">ダッシュボード</h1>
-    <p class="mt-1 text-sm text-muted-foreground">{admin.name}（{admin.email}）</p>
+<Layout title="ダッシュボード">
+  <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-8 sm:px-8">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h1 class="text-xl font-semibold">ダッシュボード</h1>
+      <Badge variant="outline">{admin.name}（{admin.email}）</Badge>
+    </div>
 
-    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {
         tiles.map((tile) => (
-          <a href={tile.href} class="rounded-lg border bg-card p-5">
-            <span class="text-sm text-muted-foreground">{tile.label}</span>
-            <span class="mt-2 block text-3xl font-semibold">{tile.value}</span>
-          </a>
+          <Card.Root>
+            <Card.Header>
+              <Card.Title class="text-sm font-medium text-muted-foreground">{tile.label}</Card.Title>
+              <Card.Description class="text-3xl font-semibold text-foreground tabular-nums">{tile.value}</Card.Description>
+            </Card.Header>
+            <Card.Footer>
+              {/* 0 件でも導線を残す。件数タイルは「見に行く場所」であって結果表示ではない。 */}
+              <a href={tile.href} class="text-sm text-primary underline-offset-4 hover:underline">
+                {tile.cta}
+              </a>
+            </Card.Footer>
+          </Card.Root>
         ))
       }
     </div>
-  </main>
+
+    <Card.Root>
+      <Card.Header>
+        <Card.Title>直近の操作履歴</Card.Title>
+        <Card.Description>管理画面で行われた操作の記録です。</Card.Description>
+        <Card.Action>
+          <a href="/audit-logs" class="text-sm text-primary underline-offset-4 hover:underline">すべて見る</a>
+        </Card.Action>
+      </Card.Header>
+      <Card.Content>
+        {
+          recent.items.length === 0 ? (
+            <Empty.Root>
+              <Empty.Header>
+                <Empty.Title>まだ記録がありません</Empty.Title>
+                <Empty.Description>申請の審査や受注の処理を行うと、ここに履歴が残ります。</Empty.Description>
+              </Empty.Header>
+              <Empty.Content>
+                <a href="/applications" class="text-sm text-primary underline-offset-4 hover:underline">
+                  新規取引申請を確認する
+                </a>
+              </Empty.Content>
+            </Empty.Root>
+          ) : (
+            <Table.Root>
+              <Table.Caption class="sr-only">直近 5 件の操作履歴</Table.Caption>
+              <Table.Header>
+                <Table.Row>
+                  <Table.Head>日時</Table.Head>
+                  <Table.Head>操作</Table.Head>
+                  <Table.Head>対象</Table.Head>
+                  <Table.Head>操作者</Table.Head>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {recent.items.map((entry) => (
+                  <Table.Row>
+                    <Table.Cell class="whitespace-nowrap tabular-nums">{formatDateTime(entry.createdAt)}</Table.Cell>
+                    <Table.Cell>{entry.description}</Table.Cell>
+                    <Table.Cell>{entry.subjectType ?? "—"}</Table.Cell>
+                    <Table.Cell>{entry.causerType ?? "システム"}</Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Root>
+          )
+        }
+      </Card.Content>
+    </Card.Root>
+  </div>
 </Layout>

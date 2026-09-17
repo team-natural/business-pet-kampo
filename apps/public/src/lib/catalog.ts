@@ -28,7 +28,7 @@ export const CONCERNS = [
   { id: "aging", label: "高齢化が気になる" },
   { id: "itch", label: "かゆがる" },
   { id: "hair-loss", label: "毛づやが悪い・抜け毛" },
-  { id: "appetite", label: "food が進まない" },
+  { id: "appetite", label: "ごはんが進まない" },
   { id: "diarrhea", label: "お腹がゆるい" },
   { id: "stress", label: "落ち着きがない" },
   { id: "bad-breath", label: "口臭が気になる" },

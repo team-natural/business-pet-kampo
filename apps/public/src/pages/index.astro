@@ -1,7 +1,8 @@
 ---
-// SCR-01 トップページ。新着商品とお知らせを出すため SSR（お知らせに取引先限定が混ざる — D-021）。
+// SCR-01 トップページ。お知らせに取引先限定が混ざるため SSR（D-021）。
 import Layout from "../layouts/Layout.astro";
-import { listNews, listProducts } from "../lib/catalog";
+import { ANIMALS, CONCERNS, categoryLabel, listNews, listProducts } from "../lib/catalog";
+import { FREE_SHIPPING_THRESHOLD, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, formatYen } from "../lib/commerce";
 import { memberSession } from "../lib/server/auth/page";
 import { viewerFor } from "../lib/server/auth/session";
 
@@ -9,46 +10,160 @@ const session = await memberSession(Astro);
 const viewer = viewerFor(session);
 
 const [products, news] = await Promise.all([listProducts(), listNews(viewer)]);
+
+// 卸価格ではなく取引条件。卸売で最初に確認されるのはここで、法定表示（SCR-32）と同じ定数から描く。
+const terms = [
+  { label: "最低発注金額", value: `税抜 ${formatYen(MINIMUM_ORDER_SUBTOTAL)}` },
+  { label: "送料", value: `税抜 ${formatYen(FREE_SHIPPING_THRESHOLD)}以上で無料` },
+  { label: "お支払い", value: PAYMENT_METHODS.map((method) => method.label).join(" / ") },
+];
+
+const steps = [
+  { no: "01", title: "お申し込み", body: "会社情報とご担当者、お取引のご希望をフォームからお送りください。" },
+  { no: "02", title: "審査", body: "内容を確認し、数営業日以内に結果をご連絡します。" },
+  { no: "03", title: "アカウント発行", body: "承認後、ご担当者のアカウントを有効化します。卸価格はここから表示されます。" },
+  { no: "04", title: "ご発注", body: "サイトから発注し、クレジットカードまたは銀行振込でお支払いいただきます。" },
+];
 ---
 
-<Layout title="ペット漢方 卸売サイト">
-  <main>
-    {/* TODO(Phase B): ヒーロー・導線・サービス紹介を public-design スキルで作る。 */}
-    <h1>ペット漢方 卸売サイト</h1>
-    <p>動物病院・ペットショップ・トリミングサロン向けの卸売サイトです。</p>
+<Layout title="トップ">
+  <section class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+    <div class="grid gap-12 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
+      <div>
+        <p class="eyebrow">動物病院・ペットショップ・トリミングサロン向け</p>
+        <h1 class="mt-5 font-display text-4xl leading-relaxed text-balance sm:text-5xl">
+          飼い主に説明できる、<br />漢方を。
+        </h1>
+        <p class="mt-6 max-w-prose leading-loose text-pretty text-ink-soft">原材料と使い方まで開示した、犬猫向けの漢方サプリメントを卸売しています。お取引の承認後は、御社の卸価格でそのままご発注いただけます。</p>
+        <div class="mt-10 flex flex-wrap gap-3">
+          <a href="/apply" class="btn btn-primary">取引を申し込む</a>
+          <a href="/products" class="btn btn-quiet">商品を見る</a>
+        </div>
+      </div>
 
-    <nav>
-      <a href="/products">商品を見る</a>
-      <a href="/diagnosis">商品選び診断</a>
-      <a href="/apply">新規取引のお申し込み</a>
-      {session ? <a href="/mypage">マイページ</a> : <a href="/login">ログイン</a>}
-    </nav>
-
-    <section>
-      <h2>取扱商品</h2>
-      <ul>
+      <dl class="self-start border-t border-rule">
         {
-          products.slice(0, 6).map((product) => (
+          terms.map((term) => (
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <dt class="text-sm text-ink-soft">{term.label}</dt>
+              <dd class="font-mono text-sm tabular-nums">{term.value}</dd>
+            </div>
+          ))
+        }
+        <p class="pt-4 text-xs leading-relaxed text-ink-soft">卸価格は承認済みの取引先アカウントでのみ表示されます。</p>
+      </dl>
+    </div>
+  </section>
+
+  <!-- 署名要素: 薬箪笥の引き出し。装飾ではなく catalog.ts の分類そのもので、商品一覧の絞り込みに直結する。 -->
+  <section aria-labelledby="concerns" class="border-y border-rule bg-paper-sunk">
+    <div class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+      <p class="eyebrow">気になる点から</p>
+      <h2 id="concerns" class="mt-3 font-display text-2xl text-balance">症状の相談から、商品を探す</h2>
+
+      <ul class="mt-8 grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 lg:grid-cols-4">
+        {
+          CONCERNS.map((concern) => (
             <li>
-              <a href={`/products/${product.id}`}>{product.data.name}</a>
+              <a href={`/products?concern=${concern.id}`} class="flex h-full min-h-22 flex-col justify-between bg-paper px-5 py-4 transition-colors hover:bg-paper-sunk focus-visible:bg-paper-sunk">
+                <span>{concern.label}</span>
+                <span aria-hidden="true" class="mt-3 block h-px w-8 bg-vermilion" />
+              </a>
             </li>
           ))
         }
       </ul>
-    </section>
 
-    <section>
-      <h2>お知らせ</h2>
-      <ul>
+      <p class="mt-6 text-sm text-ink-soft">
+        {ANIMALS.map((animal) => animal.label).join("・")}別の絞り込みは<a href="/products" class="underline underline-offset-4 hover:text-vermilion">商品一覧</a>から。
+      </p>
+    </div>
+  </section>
+
+  {/* 商品・お知らせは 0 件なら節ごと出さない。行動を伴わない「ありません」を並べても読者にできることが無い。 */}
+  {
+    products.length > 0 && (
+      <section aria-labelledby="products" class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+        <div class="flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <p class="eyebrow">取扱商品</p>
+            <h2 id="products" class="mt-3 font-display text-2xl text-balance">
+              いま扱っている商品
+            </h2>
+          </div>
+          <a href="/products" class="text-sm underline underline-offset-4 hover:text-vermilion">
+            すべて見る
+          </a>
+        </div>
+
+        <ul class="mt-8 border-t border-rule">
+          {products.slice(0, 6).map((product) => (
+            <li class="border-b border-rule">
+              <a href={`/products/${product.id}`} class="grid gap-1 py-5 transition-colors hover:text-vermilion sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-6">
+                <span class="font-display text-lg">{product.data.name}</span>
+                <span class="font-mono text-xs text-ink-soft">
+                  {categoryLabel(product.data.category)} / {product.data.animals.map((animal) => (animal === "dog" ? "犬" : "猫")).join("・")}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <section aria-labelledby="flow" class="border-t border-rule bg-paper-sunk">
+    <div class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+      <p class="eyebrow">お取引の流れ</p>
+      <h2 id="flow" class="mt-3 font-display text-2xl text-balance">お申し込みから、ご発注まで</h2>
+
+      <ol class="mt-8 grid gap-px bg-rule sm:grid-cols-2 lg:grid-cols-4">
         {
-          news.slice(0, 5).map((entry) => (
-            <li>
-              <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
-              <a href={`/news/${entry.id}`}>{entry.data.title}</a>
+          steps.map((step) => (
+            <li class="bg-paper-sunk px-5 py-6">
+              <span class="font-mono text-xs text-vermilion">{step.no}</span>
+              <h3 class="mt-2 font-display text-lg">{step.title}</h3>
+              <p class="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{step.body}</p>
             </li>
           ))
         }
-      </ul>
-    </section>
-  </main>
+      </ol>
+
+      <a href="/apply" class="btn btn-primary mt-10">取引を申し込む</a>
+    </div>
+  </section>
+
+  {
+    news.length > 0 && (
+      <section aria-labelledby="news" class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+        <div class="flex flex-wrap items-baseline justify-between gap-4">
+          <div>
+            <p class="eyebrow">お知らせ</p>
+            <h2 id="news" class="mt-3 font-display text-2xl text-balance">
+              最近のお知らせ
+            </h2>
+          </div>
+          <a href="/news" class="text-sm underline underline-offset-4 hover:text-vermilion">
+            すべて見る
+          </a>
+        </div>
+
+        <ul class="mt-8 border-t border-rule">
+          {news.slice(0, 4).map((entry) => (
+            <li class="border-b border-rule">
+              <a href={`/news/${entry.id}`} class="grid gap-1 py-5 transition-colors hover:text-vermilion sm:grid-cols-[8rem_1fr] sm:gap-6">
+                <time datetime={entry.data.publishedDate.toISOString()} class="font-mono text-xs text-ink-soft tabular-nums">
+                  {entry.data.publishedDate.toLocaleDateString("ja-JP")}
+                </time>
+                <span>
+                  {entry.data.title}
+                  {entry.data.visibility === "client_only" && <span class="ml-2 border border-rule px-2 py-0.5 text-xs text-ink-soft">取引先限定</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
 </Layout>

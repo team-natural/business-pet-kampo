@@ -1,1 +1,107 @@
 @import "tailwindcss";
+
+/* 公開側のデザイントークン。ここが唯一の定義場所で、ページ側で同じ値を再定義しない
+   （DEV-06 §6）。管理画面は admin.css の別系統で、相互に参照しない。 */
+@theme {
+  --color-paper: #faf8f3;
+  --color-paper-sunk: #f3efe6;
+  --color-ink: #2f4034;
+  --color-ink-soft: #5c6660;
+  --color-vermilion: #a64b3c;
+  --color-rule: #ded8ca;
+
+  /* 見出しは明朝、本文はゴシック、数量・品番は等幅。日本語フォントは端末内蔵のものだけを
+     使う（Web フォントを足すと初期表示が重くなり、店頭のモバイル回線に響く）。 */
+  --font-display: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", serif;
+  --font-sans: "Hiragino Sans", "Yu Gothic", YuGothic, "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html {
+    /* ダークモードは持たない。宣言しておかないと UA がフォーム部品を勝手に反転させる。 */
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "palt";
+    /* ノッチ端末の横向きで、本文が切り欠きの下に潜らないようにする。 */
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+
+  a,
+  button {
+    /* タップ時の 300ms 遅延を消し、端末既定の灰色ハイライトを朱の淡色に置き換える。 */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--color-vermilion) 15%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-vermilion);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--color-vermilion) 18%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* 最小 44px は指の当たり判定。卸の発注は店頭のスマートフォンからが主要ケース（BIZ-01 §3-2）。 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.75rem 1.5rem;
+    border: 1px solid transparent;
+    font-size: 0.9375rem;
+    line-height: 1;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .btn-primary {
+    background-color: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  .btn-primary:hover {
+    background-color: color-mix(in srgb, var(--color-ink) 86%, black);
+  }
+
+  /* 罫色（--color-rule）ではなく淡墨。ボタンの枠線は輪郭そのものなので、飾り罫と違って
+     非テキストコントラスト 3:1 を満たす必要がある（WCAG 1.4.11）。 */
+  .btn-quiet {
+    border-color: var(--color-ink-soft);
+    color: var(--color-ink);
+  }
+
+  .btn-quiet:hover {
+    border-color: var(--color-ink);
+  }
+
+  /* 節の見出しに付く小さなラベル。朱はここと CTA のホバーだけに使い、面では使わない。 */
+  .eyebrow {
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--color-ink-soft);
+  }
+}

@@ -1,11 +1,33 @@
 ---
+// 公開側の共通骨格。ヘッダー・フッター・<head> はここにだけ置き、ページは <main> の中身だけを持つ
+// （DEV-06 §1）。サイト名は TBD-01 が確定するまで作業名のまま。
 import "../styles/global.css";
 
 interface Props {
   title: string;
+  description?: string;
 }
 
-const { title } = Astro.props;
+const { title, description = "動物病院・ペットショップ・トリミングサロン向けに、ペット用漢方サプリメントを卸売しています。" } = Astro.props;
+
+const SITE_NAME = "ペット漢方 卸売";
+const pageTitle = Astro.url.pathname === "/" ? `${SITE_NAME}` : `${title}｜${SITE_NAME}`;
+
+const nav = [
+  { href: "/products", label: "商品" },
+  { href: "/diagnosis", label: "商品選び診断" },
+  { href: "/news", label: "お知らせ" },
+  { href: "/faq", label: "よくある質問" },
+];
+
+const footerNav = [
+  { href: "/contact", label: "お問い合わせ" },
+  { href: "/terms", label: "利用規約" },
+  { href: "/privacy", label: "プライバシーポリシー" },
+  { href: "/law", label: "特定商取引法に基づく表示" },
+];
+
+const path = Astro.url.pathname;
 ---
 
 <!doctype html>
@@ -13,10 +35,70 @@ const { title } = Astro.props;
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf8f3" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title}</title>
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta name="twitter:card" content="summary" />
   </head>
-  <body>
-    <slot />
+
+  <body class="flex min-h-dvh flex-col">
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-ink focus:px-4 focus:py-2 focus:text-paper">本文へ移動</a>
+
+    <header class="border-b border-rule">
+      <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4 sm:px-8">
+        <a href="/" class="font-display text-lg">{SITE_NAME}</a>
+
+        <nav aria-label="メインメニュー" class="order-3 w-full sm:order-none sm:w-auto">
+          <ul class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            {
+              nav.map((item) => (
+                <li>
+                  <a href={item.href} class="inline-block py-1 hover:text-vermilion" aria-current={path === item.href ? "page" : undefined}>
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+
+        <div class="ml-auto flex items-center gap-4 text-sm">
+          <a href="/login" class="py-1 hover:text-vermilion">ログイン</a>
+          <a href="/apply" class="btn btn-primary">取引を申し込む</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" class="flex-1">
+      <slot />
+    </main>
+
+    <footer class="mt-24 border-t border-rule bg-paper-sunk">
+      <div class="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
+        <p class="font-display text-base">{SITE_NAME}</p>
+        <p class="mt-2 max-w-prose text-sm text-pretty text-ink-soft">{description}</p>
+
+        <nav aria-label="フッターメニュー" class="mt-8">
+          <ul class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {
+              footerNav.map((item) => (
+                <li>
+                  <a href={item.href} class="inline-block py-1 hover:text-vermilion">
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+
+        <p class="mt-8 text-xs text-ink-soft">© {new Date().getFullYear()} {SITE_NAME}</p>
+      </div>
+    </footer>
   </body>
 </html>
