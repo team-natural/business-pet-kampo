@@ -24,6 +24,9 @@ export default defineConfig(async () => ({
       },
     }),
   ],
+  // Mirrors tsconfig's paths: source files import through $lib, and vitest resolves modules
+  // itself rather than through astro's config.
+  resolve: { alias: { $lib: path.join(import.meta.dirname, "src/lib") } },
   test: {
     include: ["tests/unit/**/*.test.ts"],
     setupFiles: ["./tests/setup.ts"],

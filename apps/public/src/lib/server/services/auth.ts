@@ -14,8 +14,9 @@ export async function login(db: DbClient, email: string, password: string, ttlDa
   const invalidCredentials = () => new UnauthenticatedError("メールアドレスまたはパスワードが正しくありません。");
 
   // Burn one derivation on the miss paths too, or they answer far faster than a real account —
-  // an enumeration oracle regardless of the message being identical.
-  if (!member || member.status !== "active") {
+  // an enumeration oracle regardless of the message being identical. A null hash is an
+  // OAuth-only member (D-004) and takes the same path.
+  if (!member || member.status !== "active" || member.passwordHash === null) {
     await burnPasswordVerification(password);
     throw invalidCredentials();
   }

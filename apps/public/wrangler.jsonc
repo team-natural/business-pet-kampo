@@ -29,12 +29,7 @@
       "database_id": "replace-with-database-id",
     },
   ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "replace-with-bucket-name",
-    },
-  ],
+  // No R2: there is no upload path, and product images are committed under src/assets/img (D-020).
   "kv_namespaces": [
     {
       "binding": "KV",
@@ -56,7 +51,6 @@
           "database_id": "replace-with-database-id-staging",
         },
       ],
-      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "replace-with-bucket-name-staging" }],
       "kv_namespaces": [{ "binding": "KV", "id": "replace-with-kv-namespace-id-staging" }],
     },
     "production": {
@@ -72,7 +66,6 @@
           "database_id": "replace-with-database-id-production",
         },
       ],
-      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "replace-with-bucket-name-production" }],
       "kv_namespaces": [{ "binding": "KV", "id": "replace-with-kv-namespace-id-production" }],
     },
   },

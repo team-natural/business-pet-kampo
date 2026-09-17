@@ -101,12 +101,44 @@ describe("columns", () => {
   );
 
   it(
-    "has no soft deletes and no tenant scope",
+    "has no soft deletes",
     each((table) => {
-      // Deactivation is a `status` column; the single-operator premise rules out tenant scoping.
-      for (const name of ["deleted_at", "organization_id", "tenant_id"]) {
-        expect(columnNames(table), table.name).not.toContain(name);
-      }
+      // Deactivation is a `status` column.
+      expect(columnNames(table), table.name).not.toContain("deleted_at");
     }),
   );
+});
+
+describe("admin authentication", () => {
+  it("has nowhere to store an admin session or password", () => {
+    // Authentication is Cloudflare Access (D-022). Two doors into apps/admin would mean the
+    // strictest Access policy could be walked around, and a table is how the second one starts.
+    const names = tables.map((table) => table.name);
+    expect(names).not.toContain("admin_sessions");
+    expect(names).not.toContain("admin_password_reset_tokens");
+
+    const adminUsers = tables.find((table) => table.name === "admin_users")!;
+    expect(columnNames(adminUsers)).not.toContain("password_hash");
+  });
+});
+
+describe("the tenant boundary", () => {
+  // Order data is scoped per organization (DEV-07 §1). A table that loses the column still reads
+  // and writes fine — it just stops being scoped, which is why this is asserted rather than
+  // trusted.
+  const SCOPED = ["memberships", "shipping_addresses", "cart_items", "orders", "payments"];
+
+  it(
+    "keeps organization_id on every order-related table",
+    each((table) => {
+      if (!SCOPED.includes(table.name)) return;
+      expect(columnNames(table), table.name).toContain("organization_id");
+    }),
+  );
+
+  it("snapshots the product name and price onto order_items", () => {
+    // Re-reading packages/content instead would rewrite past orders at every price revision.
+    const orderItems = tables.find((table) => table.name === "order_items")!;
+    expect(columnNames(orderItems)).toEqual(expect.arrayContaining(["product_name_snapshot", "unit_price_snapshot", "tax_rate_snapshot"]));
+  });
 });

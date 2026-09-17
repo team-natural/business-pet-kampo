@@ -1,4 +1,8 @@
 # Local secrets for `astro dev`. Copy to `.dev.vars` (gitignored) and fill in.
 # Non-secret config goes in wrangler.jsonc `vars`; in staging/production these keys become
 # Workers Secrets (`wrangler secret put`).
-# Nothing is required by the code that ships today — add keys as the features land.
+
+# Who you are signed in as locally, since Cloudflare Access cannot be passed on localhost
+# (D-022). wrangler.jsonc already sets a default — override it to see your own name in the
+# audit log. It is ignored when APP_ENV=production.
+# DEV_ADMIN_EMAIL=you@example.com

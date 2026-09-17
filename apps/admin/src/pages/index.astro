@@ -1,11 +1,33 @@
 ---
+// ADM-01. `/` is the dashboard, not a login screen — authentication is Cloudflare Access (D-022).
 import Layout from "../layouts/Layout.astro";
-import LoginForm from "../lib/components/login-form.svelte";
+import { requireAdminUser } from "../lib/server/auth/access";
+
+const admin = await requireAdminUser(Astro);
+
+// Counts come from the application/order services once they exist (Phase C).
+const tiles = [
+  { label: "未審査の申請", value: "—", href: "/applications" },
+  { label: "要確認の注文", value: "—", href: "/orders" },
+  { label: "入金待ち", value: "—", href: "/orders?payment_status=unpaid" },
+  { label: "出荷待ち", value: "—", href: "/orders?status=preparing" },
+];
 ---
 
-<Layout title="apps/admin — ログイン">
-  <main class="flex min-h-screen w-full flex-col items-center justify-center gap-8 px-4">
-    <img src="/logo.svg" alt="ロゴ" width="211" height="55" />
-    <LoginForm client:load />
+<Layout title="ダッシュボード — 管理画面">
+  <main class="mx-auto w-full max-w-5xl px-6 py-10">
+    <h1 class="text-2xl font-semibold">ダッシュボード</h1>
+    <p class="mt-1 text-sm text-muted-foreground">{admin.name}（{admin.email}）</p>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {
+        tiles.map((tile) => (
+          <a href={tile.href} class="rounded-lg border bg-card p-5">
+            <span class="text-sm text-muted-foreground">{tile.label}</span>
+            <span class="mt-2 block text-3xl font-semibold">{tile.value}</span>
+          </a>
+        ))
+      }
+    </div>
   </main>
 </Layout>

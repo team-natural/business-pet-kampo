@@ -1,30 +1,25 @@
 // `[id]` is the inquiry's public_id (a ULID), never the internal integer primary key.
 import type { APIContext } from "astro";
-import { env } from "cloudflare:workers";
-import { createDb } from "@app/schema/client";
 import { jsonItem, toErrorResponse } from "@app/server-kit/http";
-import { requireRole, requireSession } from "$lib/server/auth/session";
+import { requireAdminUser } from "$lib/server/auth/access";
 import { deleteInquiry, getInquiryByPublicId } from "$lib/server/services/inquiries";
 
-export async function GET({ params, cookies }: APIContext): Promise<Response> {
+export async function GET(context: APIContext): Promise<Response> {
   try {
-    const db = createDb(env.DB);
-    await requireSession(cookies, db);
-    return jsonItem(await getInquiryByPublicId(db, params.id!));
+    await requireAdminUser(context);
+    return jsonItem(await getInquiryByPublicId(context.locals.db, context.params.id!));
   } catch (error) {
     return toErrorResponse(error);
   }
 }
 
-export async function DELETE({ params, cookies }: APIContext): Promise<Response> {
+export async function DELETE(context: APIContext): Promise<Response> {
   try {
-    const db = createDb(env.DB);
-    const session = await requireSession(cookies, db);
-    // Destructive and unlogged, so it takes the higher role even though editors handle
-    // everything else about an inquiry. Spam is the reason this exists at all.
-    requireRole(session, "admin");
+    // AdminUser carries no role (D-014), so the audit entry in deleteInquiry — not a permission
+    // check — is what makes this destructive route accountable.
+    const admin = await requireAdminUser(context);
 
-    await deleteInquiry(db, params.id!, session);
+    await deleteInquiry(context.locals.db, context.params.id!, admin);
     return new Response(null, { status: 204 });
   } catch (error) {
     return toErrorResponse(error);

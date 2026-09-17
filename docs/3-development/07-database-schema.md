@@ -309,7 +309,7 @@ erDiagram
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
-**Index**: UNIQUE(`public_id`), `status`, `email`
+**Index**: UNIQUE(`public_id`), `status`, `email`, `reviewer_id`, `organization_id`
 
 > `status` の遷移は状態遷移関数経由で行う（DEV-09 参照）。
 >
@@ -331,7 +331,7 @@ erDiagram
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
-**Index**: UNIQUE(`public_id`), UNIQUE(`org_code`), `status`
+**Index**: UNIQUE(`public_id`), UNIQUE(`org_code`), `status`, `application_id`
 
 > **`org_code` は取引先別卸価格ファイル（`packages/content/prices/*.md`）からの参照キー**である（GOV-01 D-019）。`public_id`（ULID）は承認処理まで採番されず Markdown に書けないため、承認時に運営が決める短いコードを別に持つ。**採番後は変更しない** — 変更すると価格ファイルの参照が切れ、外部キー制約では守られないため標準卸価格に黙って戻る。承認画面（ADM-13）で採番し、重複は UNIQUE 制約で弾く。
 
@@ -481,7 +481,7 @@ erDiagram
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
-**Index**: UNIQUE(`public_id`), UNIQUE(`order_number`), `organization_id, status`, `payment_status`
+**Index**: UNIQUE(`public_id`), UNIQUE(`order_number`), `organization_id, status`, `payment_status`, `member_id`
 
 ### 6-3. order_items
 

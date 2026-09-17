@@ -11,13 +11,16 @@ export async function createInquiry(db: DbClient, input: CreateInquiryInput) {
     .insert(inquiries)
     .values({
       publicId: ulid(),
-      type: input.type ?? null,
+      companyName: input.companyName ?? null,
       name: input.name,
       email: input.email,
-      message: input.message,
+      phone: input.phone ?? null,
+      inquiryType: input.inquiryType ?? null,
+      content: input.content,
       // Server-set, not client-set: an inbox a visitor could pre-resolve is not an inbox.
       status: "new",
-      handledBy: null,
+      assigneeId: null,
+      memo: null,
       updatedAt: now,
     })
     .returning();

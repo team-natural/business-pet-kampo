@@ -61,7 +61,7 @@ describe("getSession", () => {
     const member = await insertMember();
     const { token } = await createSession(db, member.id, 30);
 
-    await db.update(members).set({ status: "inactive" }).where(eq(members.id, member.id));
+    await db.update(members).set({ status: "deactivated" }).where(eq(members.id, member.id));
     await expect(getSession(cookiesWith(token), db)).resolves.toBeNull();
 
     await db.update(members).set({ status: "active" }).where(eq(members.id, member.id));
@@ -88,7 +88,7 @@ describe("login", () => {
     await insertMember();
     await expect(login(db, EMAIL, "wrong", 30)).rejects.toBeInstanceOf(UnauthenticatedError);
 
-    await db.update(members).set({ status: "inactive" }).where(eq(members.email, EMAIL));
+    await db.update(members).set({ status: "deactivated" }).where(eq(members.email, EMAIL));
     await expect(login(db, EMAIL, PASSWORD, 30)).rejects.toBeInstanceOf(UnauthenticatedError);
     expect(await db.select().from(memberSessions)).toHaveLength(0);
   });
@@ -100,21 +100,6 @@ describe("login", () => {
 
     expect(unknown).toBe(wrong);
     expect(unknown).not.toContain("nobody@example.com");
-  });
-});
-
-describe("session isolation", () => {
-  it("does not accept a Member token from the admin_sessions table, or vice versa", async () => {
-    // The whole point of the split: apps/admin and apps/public share a D1, so a token minted
-    // for one must be unusable on the other even though both live in the same database.
-    const member = await insertMember();
-    const { token } = await createSession(db, member.id, 30);
-
-    const [adminRow] = await env.DB.prepare("SELECT COUNT(*) AS n FROM admin_sessions WHERE session_token = ?")
-      .bind(token)
-      .all<{ n: number }>()
-      .then((r) => r.results);
-    expect(adminRow?.n).toBe(0);
   });
 });
 

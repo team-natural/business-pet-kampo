@@ -12,8 +12,8 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "check": "pnpm format:check && pnpm lint && turbo run typecheck && turbo run test",
-    "typecheck": "turbo run typecheck",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && turbo run test",
+    "typecheck": "turbo run typecheck --concurrency=1",
     "lint": "eslint .",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e --concurrency=1",

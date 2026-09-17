@@ -7,7 +7,7 @@ import { inquiries } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { desc, eq, lt } from "drizzle-orm";
-import type { Session } from "../auth/session";
+import type { AdminUser } from "./admin-users";
 import { activityLogInsert } from "./activity-log";
 
 export type InquiryStatus = "new" | "in_progress" | "resolved";
@@ -24,16 +24,19 @@ export function allowedTransitions(status: InquiryStatus): InquiryStatus[] {
 
 type InquiryRow = typeof inquiries.$inferSelect;
 
-// `id` and `handled_by` are internal integers. Re-expose an FK only as the referenced row's
+// `id` and `assignee_id` are internal integers. Re-expose an FK only as the referenced row's
 // public key, and only when a screen needs it.
 export function toPublicInquiry(row: InquiryRow) {
   return {
     id: row.publicId,
-    type: row.type,
+    companyName: row.companyName,
     name: row.name,
     email: row.email,
-    message: row.message,
+    phone: row.phone,
+    inquiryType: row.inquiryType,
+    content: row.content,
     status: row.status,
+    memo: row.memo,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -70,7 +73,7 @@ export async function getInquiryByPublicId(db: DbClient, publicId: string) {
   return toPublicInquiry(await findInquiryRow(db, publicId));
 }
 
-export async function deleteInquiry(db: DbClient, publicId: string, session: Session): Promise<void> {
+export async function deleteInquiry(db: DbClient, publicId: string, admin: AdminUser): Promise<void> {
   const row = await findInquiryRow(db, publicId);
   // Logged like a transition, and with enough to identify the row once it is gone.
   await db.batch([
@@ -81,14 +84,14 @@ export async function deleteInquiry(db: DbClient, publicId: string, session: Ses
       subjectType: "Inquiry",
       subjectId: row.id,
       event: "inquiry.deleted",
-      causerId: session.adminUserId,
+      causerId: admin.id,
       properties: { publicId, email: row.email },
     }),
   ]);
 }
 
 // The only writer of `status`, which is what keeps the legal moves reviewable in one place.
-export async function transitionInquiry(db: DbClient, publicId: string, to: InquiryStatus, session: Session) {
+export async function transitionInquiry(db: DbClient, publicId: string, to: InquiryStatus, admin: AdminUser) {
   const row = await findInquiryRow(db, publicId);
   const from = row.status;
 
@@ -102,7 +105,7 @@ export async function transitionInquiry(db: DbClient, publicId: string, to: Inqu
       .set({
         status: to,
         // Taking it on means owning it; handing it back to `new` releases it.
-        handledBy: to === "in_progress" ? session.adminUserId : to === "new" ? null : row.handledBy,
+        assigneeId: to === "in_progress" ? admin.id : to === "new" ? null : row.assigneeId,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(inquiries.id, row.id))
@@ -113,7 +116,7 @@ export async function transitionInquiry(db: DbClient, publicId: string, to: Inqu
       subjectType: "Inquiry",
       subjectId: row.id,
       event: `inquiry.${to}`,
-      causerId: session.adminUserId,
+      causerId: admin.id,
       properties: { from, to },
     }),
   ]);

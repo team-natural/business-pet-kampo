@@ -13,14 +13,19 @@
   },
 
   // vars is non-inheritable, so it's repeated in each env block below.
+  // DEV_ADMIN_EMAIL stands in for Access, which neither local dev nor Playwright can pass. It is
+  // absent from the staging/production blocks, and APP_ENV=production makes it inert even if
+  // someone sets it there (D-022, pinned by tests/unit/access.test.ts).
   "vars": {
-    "SESSION_TTL_DAYS": "30",
-    "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
-    "AUTH_LOCKOUT_MINUTES": "15",
+    "APP_ENV": "development",
+    "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+    "ACCESS_AUD": "replace-with-access-aud-tag",
+    "DEV_ADMIN_EMAIL": "dev-admin@example.test",
   },
 
   // Shared with apps/public: create once, then copy the ids into both. They must match —
-  // database_id also keys the shared local sqlite file. KV is admin-only.
+  // database_id also keys the shared local sqlite file. No KV and no R2 here: lockout counters
+  // belong to apps/public (D-022) and file uploads do not exist (D-020).
   // migrations_dir is non-inheritable, like vars above.
   "d1_databases": [
     {
@@ -30,25 +35,13 @@
       "migrations_dir": "../../packages/schema/migrations",
     },
   ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "replace-with-bucket-name",
-    },
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "KV",
-      "id": "replace-with-kv-namespace-id",
-    },
-  ],
 
   "env": {
     "staging": {
       "vars": {
-        "SESSION_TTL_DAYS": "30",
-        "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
-        "AUTH_LOCKOUT_MINUTES": "15",
+        "APP_ENV": "staging",
+        "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+        "ACCESS_AUD": "replace-with-access-aud-tag-staging",
       },
       "d1_databases": [
         {
@@ -58,14 +51,12 @@
           "migrations_dir": "../../packages/schema/migrations",
         },
       ],
-      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "replace-with-bucket-name-staging" }],
-      "kv_namespaces": [{ "binding": "KV", "id": "replace-with-kv-namespace-id-staging" }],
     },
     "production": {
       "vars": {
-        "SESSION_TTL_DAYS": "30",
-        "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
-        "AUTH_LOCKOUT_MINUTES": "15",
+        "APP_ENV": "production",
+        "ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
+        "ACCESS_AUD": "replace-with-access-aud-tag-production",
       },
       "d1_databases": [
         {
@@ -75,8 +66,6 @@
           "migrations_dir": "../../packages/schema/migrations",
         },
       ],
-      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "replace-with-bucket-name-production" }],
-      "kv_namespaces": [{ "binding": "KV", "id": "replace-with-kv-namespace-id-production" }],
     },
   },
 }
