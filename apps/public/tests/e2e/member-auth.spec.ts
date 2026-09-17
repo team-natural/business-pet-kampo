@@ -56,10 +56,10 @@ test.describe("member login", () => {
     expect(redirect.headers()["cache-control"]).toContain("no-store");
   });
 
-  test("an admin session cookie does not authenticate on the public site", async ({ page, context, baseURL }) => {
-    // Both apps share one D1; the split into member_sessions is what keeps a token minted for
-    // one side unusable on the other.
-    await context.addCookies([{ name: "admin_session", value: "some-admin-token", url: baseURL! }]);
+  test("a forged session cookie authenticates nobody", async ({ page, context, baseURL }) => {
+    // The cookie carries a token, not an identity: every request re-reads member_sessions, so a
+    // made-up value has nothing to match.
+    await context.addCookies([{ name: "member_session", value: "not-a-real-session-token", url: baseURL! }]);
     await page.goto("/mypage");
 
     expect(new URL(page.url()).pathname).toBe("/login");
@@ -79,14 +79,11 @@ test.describe("member login", () => {
 });
 
 test.describe("public site", () => {
-  test("the top page renders and its island hydrates", async ({ page }) => {
+  test("the top page renders", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    // A missing client:* directive still renders server-side, so only an interaction catches it.
-    const counter = page.getByRole("button", { name: /カウント/ });
-    await counter.click();
-    await expect(counter).toHaveText(/カウント: 1/);
+    await expect(page.getByRole("link", { name: "商品を見る" })).toBeVisible();
   });
 
   test("the middleware's security headers are present", async ({ page }) => {
@@ -99,26 +96,47 @@ test.describe("public site", () => {
   });
 
   test("the contact endpoint accepts a post from a visitor with no session", async ({ request, baseURL }) => {
-    // The one unauthenticated write in the template, so here a 401 would be the bug. Astro's
-    // CSRF check still applies, hence the Origin.
+    // The one unauthenticated write on this site, so here a 401 would be the bug. Astro's CSRF
+    // check still applies, hence the Origin.
     const headers = { Origin: baseURL! };
     const created = await request.post("/api/v1/inquiries", {
       headers,
-      data: { type: "general", name: "Visitor", email: "visitor@example.test", message: "Hello" },
+      data: { companyName: "E2E 商店", name: "Visitor", email: "visitor@example.test", inquiryType: "product", content: "Hello" },
     });
     expect(created.status()).toBe(201);
     expect((await created.json()).data.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
 
-    const invalid = await request.post("/api/v1/inquiries", { headers, data: { name: "V", email: "nope", message: "" } });
+    const invalid = await request.post("/api/v1/inquiries", { headers, data: { name: "V", email: "nope", content: "" } });
     expect(invalid.status()).toBe(422);
+
+    // A type outside lib/inquiry.ts would file the row under a category no screen can render.
+    const unknownType = await request.post("/api/v1/inquiries", { headers, data: { name: "V", email: "visitor@example.test", inquiryType: "not-a-type", content: "Hello" } });
+    expect(unknownType.status()).toBe(422);
   });
 
-  test("a Content Collections article renders at its own route", async ({ page }) => {
-    // getStaticPaths is silently ignored under output: "server" without `prerender = true`,
-    // and the failure only shows up on the article route itself.
-    await page.goto("/articles");
-    await page.getByRole("link", { name: /サンプル記事/ }).click();
+  test("a product detail page renders from its Content Collections entry", async ({ page }) => {
+    await page.goto("/products");
+    await page.getByRole("link", { name: /サンプル 関節ケア/ }).click();
 
-    await expect(page.getByRole("heading", { level: 1, name: /サンプル記事/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /サンプル 関節ケア/ })).toBeVisible();
+  });
+
+  test("an anonymous visitor is shown no wholesale price", async ({ page }) => {
+    // Also catches an accidental `prerender = true`: a static product page would carry every
+    // organization's price in its HTML (D-021).
+    const response = await page.goto("/products/sample-joint-care");
+    const html = (await response?.text()) ?? "";
+
+    expect(html).not.toContain("2,400");
+    expect(html).not.toContain("2,200");
+    await expect(page.getByText("卸価格は承認済みの取引先アカウントでご確認いただけます。")).toBeVisible();
+  });
+
+  test("the pages that are prerendered still answer", async ({ request }) => {
+    // getStaticPaths is silently ignored under output: "server", so a page meant to be static is
+    // only proven by requesting it (DEV-06 §1-1).
+    for (const path of ["/faq", "/terms", "/privacy", "/law", "/diagnosis"]) {
+      expect((await request.get(path)).status(), path).toBe(200);
+    }
   });
 });
