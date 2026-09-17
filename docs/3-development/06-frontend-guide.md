@@ -252,6 +252,7 @@ Astro のルーティングはファイルパスがそのまま URL になるた
 | ADM-22 | `/inquiries` | `pages/inquiries/index.astro` |
 | ADM-23 | `/inquiries/[public_id]` | `pages/inquiries/[public_id].astro` |
 | ADM-24 | `/audit-logs` | `pages/audit-logs/index.astro` |
+| ADM-25 | `/404` · `/500` | `pages/404.astro` / `pages/500.astro` |
 
 **URL の規約**
 
@@ -331,8 +332,8 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - 一括操作バーは選択がある時のみ表示し、破壊的操作には shadcn `AlertDialog` 等の確認ダイアログ
   を必須とする。
 - フィルタ状態は URL クエリに反映する（§3）。
-- 監査ログ（ADM-24）・商品一覧（ADM-02）はカーソルページネーション（DEV-04 §3-2）を使うため、
-  「総件数」「最終ページ」を UI に出さない設計にする（カーソル走査では総件数を数えない）。
+- 監査ログ（ADM-24）はカーソルページネーション（DEV-04 §3-2）を使うため、「総件数」「最終ページ」を
+  UI に出さない設計にする（カーソル走査では総件数を数えない）。他の一覧はページ番号方式。
 
 ### 4-3. 詳細画面
 
@@ -350,10 +351,9 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - バリデーションエラーは項目ごとにインライン表示（`FieldError` 相当）。保存中はスピナー等で
   多重送信を防止。
 - 削除等の危険操作は視覚的に区別し（警告色 + 枠）、確認ダイアログを必須とする。
-- 参考実装: `apps/admin/src/pages/index.astro` + `apps/admin/src/lib/components/login-form.svelte`（Card +
-  FieldGroup + Field の組み合わせ）。**これはコンポーネント構成の見本**であり、案件側の作業は
-  ①フォームから API（`POST /api/v1/auth/login`）への結線 ②ログイン後の遷移先（`/dashboard` = ADM-01）の
-  実装の 2 点。`apps/admin` の `/` 自体がログイン画面なので（§1）、遷移先を `/` にするとループする。
+- 構成の基本形は `apps/admin/src/lib/components/ui/` の Card + FieldGroup + Field の組み合わせ。
+  最初に実装するフォームは ADM-13（申請の審査・承認と取引先コードの採番）であり、そこで確定した
+  構成を以降の画面が踏襲する。**管理画面にログインフォームは存在しない**（GOV-01 D-022）。
 - 新規取引申請フォーム（SCR-05）は入力項目が多い（DEV-07 §5-1 の列を参照）ため、
   「会社情報 / 担当者情報 / 取引希望条件 / 同意」の 4 ステップに分割する。規約同意のステップでは
   現行バージョン定数を hidden で送る（§1-1）。
