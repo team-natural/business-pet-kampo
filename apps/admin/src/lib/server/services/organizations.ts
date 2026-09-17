@@ -88,13 +88,9 @@ export async function listOrganizationMembers(db: DbClient, organizationId: numb
   return rows;
 }
 
-// ADM-15 は取引先別の卸価格を**参照表示するだけ**で、編集経路を持たない（D-019）。価格は
-// packages/content/prices/*.md が正本で、org_code で結びつく。
-export async function priceFileHint(row: OrganizationRow): Promise<string> {
-  return `packages/content/prices/*.md（orgCode: ${row.orgCode}）`;
-}
-
 // TODO(Phase C): transitionOrganization / updateOrganization。
+// - ADM-15 の個別卸価格は**参照表示のみ**で編集経路を持たない（D-019）。正本は
+//   packages/content/prices/*.md で、org_code で結びつく
 // - 遷移は上の TRANSITIONS を通す単一関数だけが status を書く
 // - terminated への遷移では所属 Membership を suspended にし、保管期限の起点を記録する（DEV-09 §2-2）
 // - **停止しても進行中のセッションは消さない**（仕様）。発注の拒否は毎リクエストの

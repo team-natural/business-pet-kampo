@@ -1,10 +1,10 @@
 ---
 // SCR-20 退会・取引終了の申請。危険操作なので単独ページに隔離する（DEV-06 §4-4）。
 import Layout from "../../layouts/Layout.astro";
-import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+import { requireMemberSession } from "../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 ---
 
 <Layout title="退会・取引終了のお申し出 — マイページ">

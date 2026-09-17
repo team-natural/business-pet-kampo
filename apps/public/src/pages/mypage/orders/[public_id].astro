@@ -2,10 +2,10 @@
 // SCR-19 発注詳細。金額・商品名は order_items のスナップショット列から表示する — Markdown を
 // 読み直すと価格改定のたびに過去の注文金額が書き換わる（DEV-07 §6-0）。
 import Layout from "../../../layouts/Layout.astro";
-import { loginRedirect, memberSession } from "../../../lib/server/auth/page";
+import { requireMemberSession } from "../../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 
 const publicId = Astro.params.public_id!;
 // TODO(Phase C): 自 Organization の注文だけを引き、見つからなければ 404 相当に落とす。

@@ -1,10 +1,10 @@
 ---
 // SCR-13 アカウント情報。
 import Layout from "../../layouts/Layout.astro";
-import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+import { requireMemberSession } from "../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 ---
 
 <Layout title="アカウント情報 — マイページ">

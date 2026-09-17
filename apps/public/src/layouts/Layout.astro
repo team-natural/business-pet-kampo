@@ -28,6 +28,12 @@ const footerNav = [
 ];
 
 const path = Astro.url.pathname;
+
+// クエリは絞り込みの状態であってページではない（DEV-06 §3）。canonical から落とさないと、
+// /products?concern=… の組み合わせの数だけ同じ内容が別 URL として索引される。
+// 確定ドメイン（TBD-16）が決まったら astro.config の `site` を設定し、リクエストの origin では
+// なくそちらを基準にする。
+const canonicalUrl = new URL(path, Astro.site ?? Astro.url.origin).toString();
 ---
 
 <!doctype html>
@@ -37,12 +43,14 @@ const path = Astro.url.pathname;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#faf8f3" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonicalUrl} />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:url" content={canonicalUrl} />
     <meta name="twitter:card" content="summary" />
   </head>
 

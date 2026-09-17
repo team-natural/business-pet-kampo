@@ -3,10 +3,10 @@
 // HTML に現れる（D-021、DEV-06 §7）。
 import Layout from "../layouts/Layout.astro";
 import { MINIMUM_ORDER_SUBTOTAL, formatYen, orderTotals } from "../lib/commerce";
-import { loginRedirect, memberSession } from "../lib/server/auth/page";
+import { requireMemberSession } from "../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 
 // TODO(Phase C): getCart(db, organization.id, member.id) で明細を解決する。単価は
 // resolveWholesalePrice（取引先別価格 → 標準卸価格）で都度解決する（DEV-07 §6-0）。

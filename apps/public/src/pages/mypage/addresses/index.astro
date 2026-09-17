@@ -1,10 +1,10 @@
 ---
 // SCR-15 配送先一覧。自 Organization のものだけを扱う（DEV-02 §3-1）。
 import Layout from "../../../layouts/Layout.astro";
-import { loginRedirect, memberSession } from "../../../lib/server/auth/page";
+import { requireMemberSession } from "../../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 
 // TODO(Phase C): listShippingAddresses(db, organization.id) を呼ぶ。クエリには必ず
 // WHERE organization_id = ? を含める（取得後にアプリ側で突き合わせる形にしない）。

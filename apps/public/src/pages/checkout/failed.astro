@@ -1,10 +1,10 @@
 ---
 // SCR-24 決済失敗。カートは残したまま戻せるようにする（失敗のたびに組み直させない）。
 import Layout from "../../layouts/Layout.astro";
-import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+import { requireMemberSession } from "../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 ---
 
 <Layout title="お支払いを完了できませんでした">

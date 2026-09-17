@@ -2,10 +2,10 @@
 // SCR-22 発注内容の確認。
 import Layout from "../../layouts/Layout.astro";
 import { PAYMENT_METHODS } from "../../lib/commerce";
-import { loginRedirect, memberSession } from "../../lib/server/auth/page";
+import { requireMemberSession } from "../../lib/server/auth/page";
 
-const session = await memberSession(Astro);
-if (!session) return loginRedirect(Astro);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 
 // TODO(Phase C): カート明細・配送先・合計を表示し、POST /api/v1/checkout へ結線する。
 // 最低発注金額と発注単位の確定判定はサーバー側（checkout）で行う。
