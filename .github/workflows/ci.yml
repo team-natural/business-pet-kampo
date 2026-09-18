@@ -22,7 +22,8 @@ jobs:
           cache: true
           require-lockfile: true
 
-      # migrations/ is generated, not committed, and both `check` and the e2e setup need it.
+      # migrations/ is committed; this re-runs drizzle-kit so a schema change that was not
+      # regenerated shows up as an uncommitted file rather than as a mystery at deploy time.
       - run: pnpm db:generate
 
       - run: pnpm check
