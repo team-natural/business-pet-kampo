@@ -1,9 +1,9 @@
 ---
-// 管理画面の共通骨格。ナビゲーションはここにだけ置き、各画面は <main> の中身だけを持つ。
+// The admin shell. Navigation lives here only; a screen carries the contents of its <main>.
 //
-// shadcn-svelte の Sidebar は使わない。Provider を持つ Svelte ツリーで、Astro では
-// ページ全体を島に入れることになる（サーバー側で解決している値まで props としてクライアントへ
-// 渡ることになり、D-021 の境界と噛み合わない）。ナビは静的マークアップで足りる。
+// Not shadcn-svelte's Sidebar: it is a provider tree, so using it in Astro would put whole pages
+// inside an island and drag server-resolved values into the client payload — the wrong side of
+// the D-021 boundary. Static markup is enough for a nav.
 import "../styles/admin.css";
 
 interface Props {
@@ -11,7 +11,8 @@ interface Props {
 }
 
 const { title } = Astro.props;
-// 単一の式にしておく。<title> の中にテキストと式を混ぜると Prettier が要素の外へ出してしまう。
+// Kept as one expression: mixing text and an expression inside <title> makes Prettier hoist the
+// text out of the element.
 const pageTitle = `${title}｜管理画面`;
 const path = Astro.url.pathname;
 

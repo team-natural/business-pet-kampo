@@ -1,5 +1,6 @@
 ---
-// SCR-24 決済失敗。カートは残したまま戻せるようにする（失敗のたびに組み直させない）。
+// SCR-24. The cart survives so the buyer can retry — a failed payment should not cost them the
+// basket they just assembled.
 import Layout from "../../layouts/Layout.astro";
 import { requireMemberSession } from "../../lib/server/auth/page";
 

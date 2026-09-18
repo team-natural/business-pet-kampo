@@ -1,6 +1,6 @@
 ---
-// ADM-16 所属 Member 一覧。**参照専用** — 作成・編集・削除・パスワード変更は持たせない
-// （Member は AdminUser と完全に別系統のアカウント — PRD-04 §3-2）。
+// ADM-16, the members of one organization. Read-only: no create, edit, delete or password change
+// — members are a separate account system from AdminUser (PRD-04 §3-2).
 import Layout from "../../../layouts/Layout.astro";
 import { requireAdminUser } from "../../../lib/server/auth/access";
 import { findOrganizationRow, listOrganizationMembers } from "../../../lib/server/services/organizations";

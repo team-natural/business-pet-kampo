@@ -1,5 +1,6 @@
-// TODO(Phase C): 数量変更と削除。`[id]` は cart_items の行 id だが、更新・削除は必ず
-// organization_id と member_id を WHERE に含める（他社・他担当者のカートに触れさせない）。
+// TODO(Phase C): quantity change and removal. `[id]` is the cart_items row id, but every update
+// and delete still carries organization_id and member_id in its WHERE clause — nobody reaches
+// another company's cart, or a colleague's.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";

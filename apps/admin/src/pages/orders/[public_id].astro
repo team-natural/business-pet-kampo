@@ -1,6 +1,6 @@
 ---
-// ADM-18 受注詳細。表示はすべて order_items のスナップショット列から — Markdown を読み直すと
-// 価格改定で過去の注文金額が変わる（DEV-07 §6-0）。
+// ADM-18. Everything shown comes from order_items' snapshot columns — re-reading the Markdown
+// would change what a past order says it cost at the next price revision (DEV-07 §6-0).
 import Layout from "../../layouts/Layout.astro";
 import { requireAdminUser } from "../../lib/server/auth/access";
 import { allowedTransitions, getOrderByPublicId } from "../../lib/server/services/orders";
@@ -47,7 +47,7 @@ const transitions = allowedTransitions(order.status);
       <dt>備考</dt><dd>{order.notes ?? "—"}</dd>
     </dl>
 
-    {/* TODO(Phase C): ステータス変更・入金確認・配送情報登録・キャンセルを API へ結線する。 */}
+    {/* TODO(Phase C): wire status transitions, payment confirmation, shipment details and cancellation to the API. */}
     <section class="mt-8">
       <h2 class="text-lg font-semibold">操作</h2>
       <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>

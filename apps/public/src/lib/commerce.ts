@@ -1,6 +1,7 @@
-// Commercial terms, in one place because they appear both in the cart maths and in the 特定商取引法
-// display (SCR-32). Writing them into the page instead makes the legal notice and the invoice
-// disagree the first time one of them changes (D-024, BIZ-03 §3).
+// Commercial terms, in one place because they appear both in the cart maths and in the legal
+// notice required by the Act on Specified Commercial Transactions (SCR-32). Writing them into the
+// page instead makes the notice and the invoice disagree the first time one of them changes
+// (D-024, BIZ-03 §3).
 //
 // Amounts are tax-exclusive yen, matching orders.subtotal / shipping_fee.
 

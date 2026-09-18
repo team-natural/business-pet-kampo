@@ -1,5 +1,5 @@
 ---
-// ADM-01. `/` はダッシュボードであってログイン画面ではない（認証は Cloudflare Access — D-022）。
+// ADM-01. `/` is the dashboard, not a login screen — authentication is Cloudflare Access (D-022).
 import Layout from "../layouts/Layout.astro";
 import * as Card from "../lib/components/ui/card";
 import * as Table from "../lib/components/ui/table";
@@ -13,7 +13,7 @@ import { getDashboardCounts } from "../lib/server/services/dashboard";
 const admin = await requireAdminUser(Astro);
 const [counts, recent] = await Promise.all([getDashboardCounts(Astro.locals.db), listActivityLogs(Astro.locals.db, { perPage: 5 })]);
 
-// 4 枚の内訳は PRD-04 §4-3-1。件数だけを出し、明細は各一覧が持つ。
+// The four tiles are PRD-04 §4-3-1. Counts only; the rows behind them live in each listing.
 const tiles = [
   { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received", cta: "申請を確認する" },
   { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming", cta: "注文を確認する" },
@@ -38,7 +38,7 @@ const tiles = [
               <Card.Description class="text-3xl font-semibold text-foreground tabular-nums">{tile.value}</Card.Description>
             </Card.Header>
             <Card.Footer>
-              {/* 0 件でも導線を残す。件数タイルは「見に行く場所」であって結果表示ではない。 */}
+              {/* The link stays at zero. A count tile is somewhere to go, not a result. */}
               <a href={tile.href} class="text-sm text-primary underline-offset-4 hover:underline">
                 {tile.cta}
               </a>

@@ -1,5 +1,5 @@
-// TODO(Phase C): 銀行振込の入金確認（消込）。payments と orders.payment_status の更新、
-// activity_log の INSERT を 1 つの batch() にまとめる（DEV-09 §2-6）。
+// TODO(Phase C): reconciling a bank transfer. The payments update, the orders.payment_status
+// update and the activity_log INSERT go in one batch() (DEV-09 §2-6).
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

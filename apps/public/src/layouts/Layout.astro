@@ -1,6 +1,6 @@
 ---
-// 公開側の共通骨格。ヘッダー・フッター・<head> はここにだけ置き、ページは <main> の中身だけを持つ
-// （DEV-06 §1）。サイト名は TBD-01 が確定するまで作業名のまま。
+// The public side's shell. Header, footer and <head> live here only; a page carries the contents
+// of its <main> and nothing else (DEV-06 §1). The site name stays a working title until TBD-01.
 import "../styles/global.css";
 
 interface Props {
@@ -29,10 +29,10 @@ const footerNav = [
 
 const path = Astro.url.pathname;
 
-// クエリは絞り込みの状態であってページではない（DEV-06 §3）。canonical から落とさないと、
-// /products?concern=… の組み合わせの数だけ同じ内容が別 URL として索引される。
-// 確定ドメイン（TBD-16）が決まったら astro.config の `site` を設定し、リクエストの origin では
-// なくそちらを基準にする。
+// A query string is filter state, not a page (DEV-06 §3). Dropping it from the canonical URL is
+// what stops every combination of /products?concern=… being indexed as its own copy of the
+// listing. Once the domain is fixed (TBD-16), set `site` in astro.config and base this on that
+// rather than on the request's origin.
 const canonicalUrl = new URL(path, Astro.site ?? Astro.url.origin).toString();
 ---
 

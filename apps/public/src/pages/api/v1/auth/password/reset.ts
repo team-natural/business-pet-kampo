@@ -1,6 +1,6 @@
-// パスワード再設定の実行。
-// TODO(Phase C): トークンを検証し、used_at を立てるのとパスワード更新を同じ batch() にまとめる
-// （片方だけ成功するとトークンが再利用できてしまう）。成功時は既存セッションを全て失効させる。
+// Performing the password reset.
+// TODO(Phase C): verify the token, then stamp used_at and update the password in one batch() —
+// if only one of them lands, the token can be replayed. On success, drop every existing session.
 import { toErrorResponse } from "@app/server-kit/http";
 
 export async function POST(): Promise<Response> {

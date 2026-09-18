@@ -1,4 +1,4 @@
-// 監査ログはカーソル方式。総件数を数えないので meta に total は無い（DEV-04 §3-2）。
+// Keyset paginated: nothing counts the rows, so `meta` carries no total (DEV-04 §3-2).
 import type { APIContext } from "astro";
 import { decodeCursor, encodeCursor, jsonCursorCollection, toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

@@ -1,13 +1,13 @@
 ---
-// SCR-15 配送先一覧。自 Organization のものだけを扱う（DEV-02 §3-1）。
+// SCR-15. Only this organization's addresses (DEV-02 §3-1).
 import Layout from "../../../layouts/Layout.astro";
 import { requireMemberSession } from "../../../lib/server/auth/page";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-// TODO(Phase C): listShippingAddresses(db, organization.id) を呼ぶ。クエリには必ず
-// WHERE organization_id = ? を含める（取得後にアプリ側で突き合わせる形にしない）。
+// TODO(Phase C): call listShippingAddresses(db, organization.id). The scope belongs in the WHERE
+// clause, not in a comparison after the rows come back — a forgotten comparison still runs.
 const addresses: { publicId: string; recipientName: string; address: string; isDefault: boolean }[] = [];
 ---
 

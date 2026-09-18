@@ -24,10 +24,10 @@ export async function getApplicationByPublicId(db: DbClient, publicId: string) {
   return row;
 }
 
-// TODO(Phase C): createApplication / withdrawApplication。
-// - agreedTermsVersion は body の値をそのまま保存せず、**サーバー側の現行版と一致するか検証**する
-//   （DEV-04 §6-1）。一致しない送信は古いフォームからの再送なので拒否する
-// - status はサーバーが received で決め打ちする
-// - 取消はログインを伴わないため、URL のトークンだけが本人性の根拠になる。期限切れ・使用済み・
-//   不正はすべて同じ応答にする（存在の推測を与えない）
-// - 受付メールは batch() の外、ctx.waitUntil() で送る
+// TODO(Phase C): createApplication / withdrawApplication.
+// - do not store the posted agreedTermsVersion as given: compare it with the server's current
+//   constant first (DEV-04 §6-1). A mismatch is a resubmitted stale form and is refused
+// - `status` is server-set to `received`
+// - withdrawal involves no login, so the URL token is the only evidence of who is asking. Expired,
+//   used and forged all answer identically, so nothing confirms an application exists
+// - the acknowledgement mail goes outside the batch(), through ctx.waitUntil()

@@ -1,6 +1,6 @@
 ---
-// SCR-10 パスワード再設定の要求。
-// 存在しないアドレスでも同じ画面・同じ所要時間で返す — 差が出ると会員かどうかを問い合わせられる。
+// SCR-10. An unknown address gets the same screen in the same time as a known one — a difference
+// turns this into a membership oracle.
 import Layout from "../../layouts/Layout.astro";
 ---
 
@@ -9,7 +9,7 @@ import Layout from "../../layouts/Layout.astro";
     <h1>パスワードの再設定</h1>
     <p>ご登録のメールアドレスを入力してください。再設定用のリンクをお送りします。</p>
 
-    {/* TODO(Phase C): POST /api/v1/auth/password/forgot へ結線する。 */}
+    {/* TODO(Phase C): wire to POST /api/v1/auth/password/forgot. */}
     <form method="post" action="/api/v1/auth/password/forgot">
       <label>メールアドレス<input type="email" name="email" required /></label>
       <button type="submit">再設定メールを送る</button>

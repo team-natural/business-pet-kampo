@@ -53,7 +53,7 @@ export const productSchema = z.object({
   // Tax-exclusive yen. The standard wholesale price; a per-organization file overrides it (D-019).
   wholesalePrice: z.number().int().nonnegative(),
   suggestedRetailPrice: z.number().int().nonnegative().optional(),
-  // How many units one order line is counted in (入数).
+  // How many units one order line is counted in (the case quantity).
   orderUnit: z.number().int().positive().default(1),
   // Only set it where the rate differs from lib/commerce.ts's default.
   taxRate: z.number().optional(),

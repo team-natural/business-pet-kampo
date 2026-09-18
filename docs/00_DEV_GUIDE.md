@@ -314,7 +314,9 @@ git commit / git push                     → 人間がやる（AI は実行し�
 
 ### 3-4. コミット・プッシュ手順
 
-> **ルール: コミット・プッシュは人間が行う。AI は `git commit` / `git push` を実行しない。**
+> **ルール: コミット・プッシュは人間が行う。AI は `git commit` / `git push` を勝手に実行しない。**
+> 作業完了は承認ではなく、前回のコミットの承認も次回には及ばない。AI にコミットさせる場合は
+> **1 コミットごとに明示的に許可を出す**（「コミットして良い」と言われていないコミットは無い）。
 
 ```
 1. 「今の変更内容からコミットメッセージの案を出して」と依頼
@@ -323,7 +325,12 @@ git commit / git push                     → 人間がやる（AI は実行し�
 4. ! git push
 ```
 
-リリース前・重要な機能変更後は 1 の前に `security-review` スキルでレビューを依頼する。
+メッセージは 1 行（本文は PR に書く）。リリース前・重要な機能変更後は 1 の前に `security-review`
+スキルでレビューを依頼する。
+
+ルールの正本は CLAUDE.md「Committing」。補助として `.claude/settings.json` の `permissions.ask`
+に `Bash(git commit:*)` を置き、コミット時に必ず許可ダイアログが出るようにしてある
+（`acceptEdits` / `dontAsk` / `bypassPermissions` では飛ばされるので、あくまで補助）。
 
 ---
 

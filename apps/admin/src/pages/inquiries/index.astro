@@ -1,5 +1,5 @@
 ---
-// ADM-22 お問い合わせ一覧。カーソル方式なので総件数と最終ページを出さない（DEV-06 §4-2）。
+// ADM-22. Keyset paginated, so there is no total and no last page to show (DEV-06 §4-2).
 import Layout from "../../layouts/Layout.astro";
 import { decodeCursor, encodeCursor } from "@app/server-kit/http";
 import { requireAdminUser } from "../../lib/server/auth/access";

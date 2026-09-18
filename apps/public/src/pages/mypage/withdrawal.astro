@@ -1,5 +1,5 @@
 ---
-// SCR-20 退会・取引終了の申請。危険操作なので単独ページに隔離する（DEV-06 §4-4）。
+// SCR-20, asking to close the account. Destructive, so it sits on its own page (DEV-06 §4-4).
 import Layout from "../../layouts/Layout.astro";
 import { requireMemberSession } from "../../lib/server/auth/page";
 
@@ -12,7 +12,7 @@ if (session instanceof Response) return session;
     <h1>退会・取引終了のお申し出</h1>
     <p>お申し出の後、運営で内容を確認のうえ手続きを行います。進行中のご発注がある場合は完了後の手続きとなります。</p>
 
-    {/* TODO(Phase C): POST /api/v1/me/withdrawal へ結線し、確認ダイアログを挟む。 */}
+    {/* TODO(Phase C): wire to POST /api/v1/me/withdrawal behind a confirmation dialog. */}
     <form method="post" action="/api/v1/me/withdrawal">
       <label>お申し出の理由<textarea name="reason"></textarea></label>
       <button type="submit">退会を申し出る</button>

@@ -1,8 +1,9 @@
-// 新規取引申請の受付。お問い合わせと同じく認証不要の書き込みで、濫用対策はエッジ（WAF レート
-// 制限）に任せる。
-// TODO(Phase C): createApplicationSchema で検証し、**agreedTermsVersion をサーバー側の現行版と
-// 突き合わせてから**保存する（古いフォームからの再送を弾く — DEV-04 §6-1）。status は received
-// でサーバーが決め打ちする。受付メールは ctx.waitUntil() で送る。
+// A new trading application. Unauthenticated by definition, like the contact form; abuse is
+// handled at the edge (WAF rate limiting) rather than here.
+// TODO(Phase C): validate with createApplicationSchema and compare agreedTermsVersion against
+// the server's current constant before storing — a stale form must not record consent to wording
+// nobody can reconstruct (DEV-04 §6-1). `status` is server-set to `received`. The acknowledgement
+// mail goes out through ctx.waitUntil().
 import { toErrorResponse } from "@app/server-kit/http";
 
 export async function POST(): Promise<Response> {

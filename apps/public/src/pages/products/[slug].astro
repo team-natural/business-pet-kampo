@@ -1,5 +1,5 @@
 ---
-// SCR-03 商品詳細。SSR 固定（D-021）。getStaticPaths は使わず、リクエスト時に slug で引く。
+// SCR-03. Server-rendered, always (D-021). No getStaticPaths — the slug is looked up per request.
 import { render } from "astro:content";
 import Layout from "../../layouts/Layout.astro";
 import { categoryLabel, concernLabel, getBrand, getManufacturer, getProduct, resolveWholesalePrice } from "../../lib/catalog";
@@ -91,7 +91,7 @@ const { Content } = body;
           <p>
             卸価格 {price.toLocaleString()} 円（税抜） / 発注単位 {product.data.orderUnit}
           </p>
-          {/* TODO(Phase C): POST /api/v1/cart/items へ結線する。卸価格を island の props に渡さないこと（D-021）。 */}
+          {/* TODO(Phase C): wire to POST /api/v1/cart/items. Never pass a wholesale price into an island's props (D-021). */}
           <form method="post" action="/api/v1/cart/items">
             <input type="hidden" name="productSlug" value={product.id} />
             <input type="number" name="quantity" min={product.data.orderUnit} step={product.data.orderUnit} value={product.data.orderUnit} />

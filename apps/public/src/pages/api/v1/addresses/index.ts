@@ -17,8 +17,8 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): POST。addressSchema で検証し、organization_id はセッションから入れる（body から
-// 受け取らない）。isDefault を立てるときは既存の既定を同じ batch() で落とす。
+// TODO(Phase C): POST. Validate with addressSchema and take organization_id from the session,
+// never from the body. Setting isDefault clears the previous default in the same batch().
 export async function POST({ cookies }: APIContext): Promise<Response> {
   try {
     const db = createDb(env.DB);

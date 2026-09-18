@@ -1,10 +1,10 @@
-// TODO(Phase C): 発注確定。ここが最低発注金額・発注単位の**確定判定**の場所で、画面側の表示は
-// 判定ではない（DEV-06 §7）。
-// - orders + order_items + payments の INSERT と cart_items の DELETE を 1 つの batch() にまとめる
-// - 商品名・単価・税率はその場で解決した値を order_items にスナップショット保存する（DEV-07 §6-0）
-// - 金額は body から受け取らず lib/commerce.ts の orderTotals で算出する
-// - 配送先は自 Organization のものだけを受け付け、注文にスナップショット保存する
-// - メール送信・決済 API 呼び出しは batch() の外、ctx.waitUntil() で行う
+// TODO(Phase C): placing the order. This is where the minimum-order and order-unit rules are
+// actually decided; what the cart screen shows is display, not a decision (DEV-06 §7).
+// - one batch() for the orders + order_items + payments INSERTs and the cart_items DELETE
+// - snapshot the resolved name, unit price and tax rate onto order_items (DEV-07 §6-0)
+// - never take amounts from the body; compute them with orderTotals from lib/commerce.ts
+// - accept only a shipping address belonging to this organization, and snapshot it onto the order
+// - mail and the payment API go outside the batch(), through ctx.waitUntil()
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";

@@ -1,5 +1,6 @@
 ---
-// ADM-23 お問い合わせ詳細。担当者とメモはこの画面からのみ更新する（公開側の入力対象外）。
+// ADM-23. The assignee and the memo are set here and nowhere else — neither is a form field on
+// the public side.
 import Layout from "../../layouts/Layout.astro";
 import { requireAdminUser } from "../../lib/server/auth/access";
 import { allowedTransitions, getInquiryByPublicId } from "../../lib/server/services/inquiries";
@@ -30,8 +31,8 @@ const transitions = allowedTransitions(inquiry.status);
     </section>
 
     {
-      /* TODO(Phase B/C): 対応開始・完了・差し戻しのボタンと、メモの保存を結線する
-        （POST /api/v1/inquiries/{id}/start 等）。 */
+      /* TODO(Phase B/C): wire the start / resolve / reopen buttons and saving the memo
+        (POST /api/v1/inquiries/{id}/start and friends). */
     }
     <section class="mt-8">
       <h2 class="text-lg font-semibold">対応</h2>

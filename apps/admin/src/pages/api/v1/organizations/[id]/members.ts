@@ -1,4 +1,4 @@
-// ADM-16 は参照専用。Member の作成・編集・削除・パスワード変更は持たせない（PRD-04 §3-2）。
+// ADM-16 is read-only: no create, edit, delete or password change for members (PRD-04 §3-2).
 import type { APIContext } from "astro";
 import { jsonItem, toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

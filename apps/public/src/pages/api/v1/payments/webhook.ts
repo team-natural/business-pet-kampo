@@ -1,9 +1,11 @@
-// 決済サービスからの通知。セッションは無く、**署名検証が唯一の認証**である（DEV-10 §2）。
+// The payment provider's callback. There is no session here: the signature is the whole of the
+// authentication (DEV-10 §2).
 // TODO(Phase C):
-// - 署名を検証してから body を解釈する。検証前に JSON を信用しない
-// - payment_event_logs.provider_event_id の UNIQUE 違反を「処理済み」として 200 で返す。
-//   これが冪等性の実体で、再送のたびに決済状態を二重更新しないための仕組み（DEV-07 §6-5）
-// - 未知のイベント種別は無視して 200。再送され続ける状態を作らない
+// - verify the signature before interpreting the body; never trust the JSON first
+// - treat a UNIQUE violation on payment_event_logs.provider_event_id as "already handled" and
+//   answer 200. That constraint is the idempotency, and it is what stops a redelivery from
+//   applying the payment twice (DEV-07 §6-5)
+// - answer 200 to unknown event types as well, so the provider stops retrying them
 import { toErrorResponse } from "@app/server-kit/http";
 
 export async function POST(): Promise<Response> {

@@ -1,5 +1,5 @@
 ---
-// SCR-16 配送先の追加。
+// SCR-16, adding a shipping address.
 import Layout from "../../../layouts/Layout.astro";
 import { requireMemberSession } from "../../../lib/server/auth/page";
 
@@ -11,7 +11,7 @@ if (session instanceof Response) return session;
   <main>
     <h1>配送先の追加</h1>
 
-    {/* TODO(Phase C): POST /api/v1/addresses へ結線する。organization_id はセッションから決め、body から受け取らない。 */}
+    {/* TODO(Phase C): wire to POST /api/v1/addresses. organization_id comes from the session, never from the body. */}
     <form method="post" action="/api/v1/addresses">
       <label>宛名<input type="text" name="recipientName" required /></label>
       <label>郵便番号<input type="text" name="postalCode" required /></label>

@@ -1,5 +1,6 @@
-// カート内容。明細の単価は保存値ではなく都度解決（取引先別価格 → 標準卸価格）— 保存すると
-// 価格改定後のカートが古い単価のまま発注に進む（DEV-07 §6-0）。
+// Cart contents. Unit prices are resolved per read (the organization's price file, else the list
+// price) rather than stored — a stored price would carry a pre-revision figure into checkout
+// (DEV-07 §6-0).
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
@@ -13,7 +14,7 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
     const session = await requireSession(cookies, db);
     const organization = requireActiveOrganization(session);
 
-    // TODO(Phase C): 単価・小計・税額・送料・合計を載せて返す（DEV-04 §5-5）。
+    // TODO(Phase C): return unit prices, subtotal, tax, shipping and total (DEV-04 §5-5).
     return jsonItem(await listCartItems(db, organization.id, session.memberId));
   } catch (error) {
     return toErrorResponse(error);

@@ -16,7 +16,7 @@ export interface FaqItem {
   answer: string;
 }
 
-// TODO(TBD-11 / 運用確定後): 文面を運用の実態に合わせて確定する。
+// TODO(TBD-11): replace this copy once the legal wording and the operational answers are settled.
 export const FAQ_ITEMS: readonly FaqItem[] = [
   { category: "account", question: "取引を始めるにはどうすればよいですか。", answer: "新規取引申請フォームからお申し込みください。審査のうえ、結果をメールでご連絡します。" },
   { category: "account", question: "審査にはどのくらいかかりますか。", answer: "お申し込みの内容を確認のうえ、数営業日以内にご連絡します。" },

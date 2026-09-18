@@ -38,6 +38,6 @@ export async function getAddress(db: DbClient, organizationId: number, publicId:
   return row;
 }
 
-// TODO(Phase C): createAddress / updateAddress / deleteAddress。既定フラグは 1 件だけになるよう
-// 既定の付け替えと同じ batch() で落とす。削除は過去の注文に影響しない（注文は住所をスナップショット
-// 保存している — DEV-07 §6-2）。
+// TODO(Phase C): createAddress / updateAddress / deleteAddress. Clearing the previous default
+// belongs in the same batch() as setting the new one, so only ever one is flagged. Deleting an
+// address does not disturb past orders — each order snapshots the address (DEV-07 §6-2).

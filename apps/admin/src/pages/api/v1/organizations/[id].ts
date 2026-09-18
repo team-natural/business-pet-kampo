@@ -12,8 +12,9 @@ export async function GET(context: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH。updateOrganizationSchema の列だけを書く。org_code と status はここから
-// 変更しない（前者は価格ファイルの参照キー、後者は遷移関数の管轄）。
+// TODO(Phase C): PATCH, writing only the columns in updateOrganizationSchema. Neither org_code nor
+// status changes here — the price files reference the first, and a transition function owns the
+// second.
 export async function PATCH(context: APIContext): Promise<Response> {
   try {
     await requireAdminUser(context);

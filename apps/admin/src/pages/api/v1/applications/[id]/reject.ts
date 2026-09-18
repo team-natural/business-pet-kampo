@@ -1,4 +1,5 @@
-// TODO(Phase C): 否認。理由を必須にし、通知メールと監査ログを伴う（DEV-09 §2-1）。
+// TODO(Phase C): rejection. The reason is required, and it carries a notification mail and an
+// audit entry (DEV-09 §2-1).
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

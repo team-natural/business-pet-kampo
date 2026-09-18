@@ -12,9 +12,10 @@ export async function GET(context: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH は配送情報と管理メモのみ。ステータスの遷移は 1 遷移 1 ルートのサブルート
-// （/confirm・/prepare・/ship・/complete）で受け、不正遷移は 409 で返す（DEV-04 §5-7、DEV-09 §2-5）。
-// 金額列は受け取らない — 明細のスナップショットと食い違う（DEV-07 §6-0）。
+// TODO(Phase C): PATCH carries shipment details and the memo only. Status moves through one
+// sub-route per transition (/confirm, /prepare, /ship, /complete), and an illegal move answers 409
+// (DEV-04 §5-7, DEV-09 §2-5). No amount column is accepted — it would disagree with the line
+// snapshots (DEV-07 §6-0).
 export async function PATCH(context: APIContext): Promise<Response> {
   try {
     await requireAdminUser(context);

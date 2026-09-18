@@ -1,5 +1,5 @@
 ---
-// ADM-13 申請詳細・審査。承認時に取引先コード（org_code）を採番する画面でもある（D-019）。
+// ADM-13. Also the screen where the partner code (org_code) is assigned on approval (D-019).
 import Layout from "../../layouts/Layout.astro";
 import { requireAdminUser } from "../../lib/server/auth/access";
 import { allowedTransitions, getApplicationByPublicId } from "../../lib/server/services/applications";
@@ -7,7 +7,8 @@ import { allowedTransitions, getApplicationByPublicId } from "../../lib/server/s
 await requireAdminUser(Astro);
 
 const application = await getApplicationByPublicId(Astro.locals.db, Astro.params.public_id!);
-// 遷移可能なときだけボタンを活性化する。不正遷移は API 側でも 409 で拒否される（DEV-06 §4-3）。
+// Buttons are enabled only for moves the state machine allows; the API refuses the rest with 409
+// regardless (DEV-06 §4-3).
 const transitions = allowedTransitions(application.status);
 ---
 
@@ -35,8 +36,8 @@ const transitions = allowedTransitions(application.status);
     </dl>
 
     {
-      /* TODO(Phase C): 審査メモの保存・差し戻し・承認・否認を API へ結線する。
-        承認フォームでは org_code を採番して送る（採番後は変更しない）。 */
+      /* TODO(Phase C): wire saving the review memo, sending back, approving and rejecting to the
+        API. The approval form assigns the org_code, which never changes afterwards. */
     }
     <section class="mt-8">
       <h2 class="text-lg font-semibold">審査</h2>

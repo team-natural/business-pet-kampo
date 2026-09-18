@@ -1,6 +1,6 @@
 ---
-// SCR-19 発注詳細。金額・商品名は order_items のスナップショット列から表示する — Markdown を
-// 読み直すと価格改定のたびに過去の注文金額が書き換わる（DEV-07 §6-0）。
+// SCR-19. Amounts and product names come from order_items' snapshot columns — re-reading the
+// Markdown would rewrite past order totals at every price revision (DEV-07 §6-0).
 import Layout from "../../../layouts/Layout.astro";
 import { requireMemberSession } from "../../../lib/server/auth/page";
 
@@ -8,7 +8,7 @@ const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
 const publicId = Astro.params.public_id!;
-// TODO(Phase C): 自 Organization の注文だけを引き、見つからなければ 404 相当に落とす。
+// TODO(Phase C): read only this organization's orders, and answer 404 when there is no match.
 ---
 
 <Layout title="発注詳細 — マイページ">

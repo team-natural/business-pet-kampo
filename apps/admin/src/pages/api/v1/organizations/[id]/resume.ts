@@ -1,4 +1,4 @@
-// TODO(Phase C): 取引再開（DEV-09 §2-2）。
+// TODO(Phase C): resume trading (DEV-09 §2-2).
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

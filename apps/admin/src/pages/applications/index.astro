@@ -1,5 +1,5 @@
 ---
-// ADM-12 新規取引申請の一覧。絞り込み条件は URL クエリに持つ（共有・リロード可能にするため）。
+// ADM-12. Filters live in the URL query so a filtered view survives a reload and can be shared.
 import Layout from "../../layouts/Layout.astro";
 import { requireAdminUser } from "../../lib/server/auth/access";
 import { type ApplicationStatus, listApplications } from "../../lib/server/services/applications";
@@ -37,7 +37,7 @@ const lastPage = Math.max(1, Math.ceil(total / perPage));
       <button type="submit" class="rounded border px-4 py-2">絞り込む</button>
     </form>
 
-    {/* TODO(Phase B): admin-design スキルで shadcn-svelte の Table / Badge に置き換える。 */}
+    {/* TODO(Phase B): replace with shadcn-svelte's Table and Badge through the admin-design skill. */}
     <table class="mt-6 w-full text-sm">
       <thead>
         <tr><th>申請日</th><th>会社名</th><th>ご担当者</th><th>ステータス</th></tr>

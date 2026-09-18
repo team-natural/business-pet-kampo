@@ -1,4 +1,4 @@
-// `[id]` は申請の public_id（ULID）。
+// `[id]` is the application's public_id (a ULID).
 import type { APIContext } from "astro";
 import { jsonItem, toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";
@@ -13,8 +13,9 @@ export async function GET(context: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH。審査担当者の記録・管理メモ・差し戻しを扱う。申請者が入力した列は
-// 書き換えない。status を直接書かず、遷移は遷移関数（または approve / reject）を通す。
+// TODO(Phase C): PATCH, covering the reviewer, the review memo and sending an application back.
+// What the applicant typed is not rewritten here, and `status` is never assigned directly — it
+// moves through the transition function (or approve / reject).
 export async function PATCH(context: APIContext): Promise<Response> {
   try {
     await requireAdminUser(context);

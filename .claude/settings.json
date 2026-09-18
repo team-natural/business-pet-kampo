@@ -23,6 +23,8 @@
       "mcp__svelte"
     ],
     "ask": [
+      "Bash(git commit)",
+      "Bash(git commit:*)",
       "mcp__playwright__browser_run_code_unsafe",
       "mcp__playwright__browser_file_upload",
       "mcp__playwright__browser_network_request"

@@ -1,7 +1,7 @@
 ---
-// SCR-28 利用規約。文面はここに直書きする（D-016）。
-// 文面を変更したら lib/terms-version.ts の版も同じコミットで更新する — 版を据え置くと、誰が
-// どの版に同意したのか追跡できなくなる（DEV-06 §1-1）。
+// SCR-28. The wording lives in this page (D-016). Change it and change the version in
+// lib/terms-version.ts in the same commit — leaving the version behind makes it impossible to
+// tell afterwards who agreed to which text (DEV-06 §1-1).
 import Layout from "../layouts/Layout.astro";
 import { CURRENT_TERMS_VERSION } from "../lib/terms-version";
 
@@ -13,7 +13,7 @@ export const prerender = true;
     <h1>利用規約</h1>
     <p>版: {CURRENT_TERMS_VERSION}</p>
 
-    {/* TODO(TBD-11 P0): 法務レビュー済みの本文に差し替える。差し替え時は CURRENT_TERMS_VERSION も更新する。 */}
+    {/* TODO(TBD-11 P0): replace with the legally reviewed text, and update CURRENT_TERMS_VERSION with it. */}
     <p>本ページの文面は未確定です（GOV-02 TBD-11）。法務レビューを経た本文に差し替えてください。</p>
   </main>
 </Layout>

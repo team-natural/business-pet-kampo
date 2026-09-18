@@ -1,5 +1,6 @@
 ---
-// SCR-14 会社情報。項目によっては運営の確認が必要な変更申請になる（F-05-03）。
+// SCR-14. Some fields cannot be edited outright — they become a change request the operator
+// confirms (F-05-03).
 import Layout from "../../layouts/Layout.astro";
 import { requireMemberSession } from "../../lib/server/auth/page";
 
@@ -28,7 +29,7 @@ const organization = session.organization;
       )
     }
 
-    {/* TODO(Phase C): PATCH /api/v1/me/company へ結線する。運営確認が必要な項目は変更申請として扱う。 */}
+    {/* TODO(Phase C): wire to PATCH /api/v1/me/company; fields needing operator confirmation become a change request. */}
     <a href="/mypage">マイページへ戻る</a>
   </main>
 </Layout>

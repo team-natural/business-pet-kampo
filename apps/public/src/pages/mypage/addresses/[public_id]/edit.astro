@@ -1,5 +1,6 @@
 ---
-// SCR-17 配送先の編集。URL の可変部は public_id（ULID）— 連番 id を出さない（DEV-01 §8）。
+// SCR-17. The URL parameter is the public_id (a ULID); the internal integer never appears
+// (DEV-01 §8).
 import Layout from "../../../../layouts/Layout.astro";
 import { requireMemberSession } from "../../../../lib/server/auth/page";
 
@@ -7,8 +8,8 @@ const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
 const publicId = Astro.params.public_id!;
-// TODO(Phase C): 自 Organization の配送先だけを引く。見つからなければ 404 相当に落とす
-// （他社の配送先の存在を推測させない）。
+// TODO(Phase C): read only this organization's addresses, and answer 404 when there is no match —
+// anything else lets a visitor probe for addresses belonging to another company.
 ---
 
 <Layout title="配送先の編集 — マイページ">

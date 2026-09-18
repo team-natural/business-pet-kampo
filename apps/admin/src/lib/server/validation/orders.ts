@@ -1,16 +1,17 @@
-// 金額列は 1 つも含まない。合計を管理画面から書き換えられると、注文明細のスナップショットと
-// 請求額が食い違う（DEV-07 §6-0）。
+// Not one amount column. A total editable from the admin screen would disagree with the line
+// snapshots the order was charged from (DEV-07 §6-0).
 import { z } from "zod";
 
 export const updateOrderSchema = z.object({
   notes: z.string().max(2000).optional(),
-  // 配送情報。出荷への遷移とあわせて記録する。
+  // Shipment details, recorded together with the transition to shipped.
   trackingNumber: z.string().max(64).optional(),
   shippedAt: z.iso.datetime().optional(),
 });
 
 export const confirmPaymentSchema = z.object({
-  // 入金額。注文合計と一致しない入金は運用で判断するため、額を受け取って記録する。
+  // The amount received. A transfer that does not match the order total is an operational call,
+  // so the figure is recorded rather than rejected.
   amount: z.number().int().nonnegative(),
   paidAt: z.iso.datetime().optional(),
   memo: z.string().max(1000).optional(),

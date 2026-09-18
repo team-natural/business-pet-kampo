@@ -1,5 +1,6 @@
 ---
-// SCR-02 商品一覧。SSR 固定 — prerender すると全取引先の卸価格が静的 HTML に焼き込まれる（D-021）。
+// SCR-02. Server-rendered, always: prerendering would bake every organization's wholesale price
+// into static HTML (D-021).
 import Layout from "../../layouts/Layout.astro";
 import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, listProducts, resolveWholesalePrice } from "../../lib/catalog";
 import { memberSession } from "../../lib/server/auth/page";

@@ -26,8 +26,9 @@ export async function listCartItems(db: DbClient, organizationId: number, member
   return rows.map(toPublicCartItem);
 }
 
-// TODO(Phase C): addItem / updateQuantity / removeItem と、明細に単価を載せた getCart。
-// - product_slug に外部キーは無い。追加時に catalog.getProduct で存在を確認し、解決できなければ
-//   400 で拒否する（DEV-06 §1-1）
-// - 数量は商品の orderUnit の倍数に丸めず、倍数でなければ拒否する（BIZ-03 §3-1）
-// - 単価は resolveWholesalePrice（取引先別価格 → 標準卸価格）で都度解決する
+// TODO(Phase C): addItem / updateQuantity / removeItem, plus a getCart that carries unit prices.
+// - product_slug has no foreign key. Confirm the product resolves through catalog.getProduct on
+//   add, and refuse with 400 when it does not (DEV-06 §1-1)
+// - do not round a quantity to the product's orderUnit; refuse a quantity that is not a multiple
+//   of it (BIZ-03 §3-1)
+// - resolve unit prices per read with resolveWholesalePrice (organization price, else list price)

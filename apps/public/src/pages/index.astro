@@ -1,5 +1,5 @@
 ---
-// SCR-01 トップページ。お知らせに取引先限定が混ざるため SSR（D-021）。
+// SCR-01. Server-rendered because the news list can contain client-only entries (D-021).
 import Layout from "../layouts/Layout.astro";
 import { ANIMALS, CONCERNS, categoryLabel, listNews, listProducts } from "../lib/catalog";
 import { FREE_SHIPPING_THRESHOLD, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, formatYen } from "../lib/commerce";
@@ -11,7 +11,8 @@ const viewer = viewerFor(session);
 
 const [products, news] = await Promise.all([listProducts(), listNews(viewer)]);
 
-// 卸価格ではなく取引条件。卸売で最初に確認されるのはここで、法定表示（SCR-32）と同じ定数から描く。
+// Trading terms, not wholesale prices. This is what a buyer checks first, and it renders from the
+// same constants as the legal notice (SCR-32) so the two cannot disagree.
 const terms = [
   { label: "最低発注金額", value: `税抜 ${formatYen(MINIMUM_ORDER_SUBTOTAL)}` },
   { label: "送料", value: `税抜 ${formatYen(FREE_SHIPPING_THRESHOLD)}以上で無料` },
@@ -80,7 +81,7 @@ const steps = [
     </div>
   </section>
 
-  {/* 商品・お知らせは 0 件なら節ごと出さない。行動を伴わない「ありません」を並べても読者にできることが無い。 */}
+  {/* Products and news drop their whole section when empty. A "nothing here" line with no action leaves the reader nothing to do. */}
   {
     products.length > 0 && (
       <section aria-labelledby="products" class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">

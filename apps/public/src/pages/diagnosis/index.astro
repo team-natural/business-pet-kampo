@@ -1,7 +1,8 @@
 ---
-// SCR-04 商品選び診断。設問と判定ルールが未確定のため MVP からは外し、Coming soon を出す（D-023）。
-// 設問が固まったら packages/content/diagnosis/*.md を追加してここをウィザードに差し替える。
-// 判定はクライアント側で完結してよいが、**診断結果に卸価格を含めない**（PRD-02 §2-3）。
+// SCR-04. The questions and scoring rules are undecided, so this ships as a coming-soon page and
+// the feature is out of the MVP (D-023). Once the questions are settled, add
+// packages/content/diagnosis/*.md and replace this with the wizard. The scoring may run entirely
+// client-side, but the result must never carry a wholesale price (PRD-02 §2-3).
 import Layout from "../../layouts/Layout.astro";
 
 export const prerender = true;

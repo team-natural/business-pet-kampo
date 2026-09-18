@@ -1,6 +1,6 @@
 ---
-// SCR-09 アカウント有効化。申請の承認後、初回パスワードを設定する導線（PRD-03 F-01-05）。
-// OAuth で認証できただけでは取引先として承認しない — 承認は申請の審査で行われている。
+// SCR-09. Where an approved applicant sets their first password (PRD-03 F-01-05). Authenticating
+// with OAuth is not approval — that happened in the application review.
 import Layout from "../../layouts/Layout.astro";
 
 const { token } = Astro.params;
@@ -11,7 +11,7 @@ const { token } = Astro.params;
     <h1>アカウントの有効化</h1>
     <p>パスワードを設定すると、卸価格の確認とご発注をご利用いただけます。</p>
 
-    {/* TODO(Phase C): POST /api/v1/auth/activate へ結線する。 */}
+    {/* TODO(Phase C): wire to POST /api/v1/auth/activate. */}
     <form method="post" action="/api/v1/auth/activate">
       <input type="hidden" name="token" value={token} />
       <label>パスワード<input type="password" name="password" required minlength="12" autocomplete="new-password" /></label>

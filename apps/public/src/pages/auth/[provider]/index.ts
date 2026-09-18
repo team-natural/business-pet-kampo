@@ -1,6 +1,6 @@
-// SCR-08 OAuth の開始。画面を持たないページルート（DEV-06 §1-2）。
-// TODO(Phase C): Arctic で認可 URL を組み立て、state / code_verifier を httpOnly クッキーに置いて
-// リダイレクトする。プロバイダは LINE / Google / Facebook の 3 つに限定する。
+// SCR-08, the OAuth start. A page route with no page (DEV-06 §1-2).
+// TODO(Phase C): build the authorization URL with Arctic, put `state` and `code_verifier` in
+// httpOnly cookies, and redirect. Only LINE, Google and Facebook are accepted.
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { NotFoundError } from "@app/server-kit/http";

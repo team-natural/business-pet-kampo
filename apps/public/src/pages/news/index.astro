@@ -1,5 +1,5 @@
 ---
-// SCR-25 お知らせ一覧。SSR 固定 — visibility: client_only の出し分けはセッション検証が要る（D-021）。
+// SCR-25. Server-rendered, always: telling `client_only` entries apart needs the session (D-021).
 import Layout from "../../layouts/Layout.astro";
 import { listNews } from "../../lib/catalog";
 import { memberSession } from "../../lib/server/auth/page";

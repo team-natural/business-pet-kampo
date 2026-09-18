@@ -1,7 +1,7 @@
-// パスワード再設定の要求。
-// TODO(Phase C): member_password_reset_tokens に発行する（有効期限 60 分 — DEV-07 §5-3）。
-// **存在しないアドレスでも同じ応答・同じ所要時間で返す。** 差が出ると会員かどうかを問い合わせられる
-// （ログインの burnPasswordVerification と同じ理由）。
+// Requesting a password reset.
+// TODO(Phase C): issue into member_password_reset_tokens (60 minute expiry — DEV-07 §5-3).
+// An unknown address must answer with the same body and in the same time as a known one, or the
+// endpoint becomes a membership oracle — the same reason login burns a password verification.
 import { toErrorResponse } from "@app/server-kit/http";
 
 export async function POST(): Promise<Response> {

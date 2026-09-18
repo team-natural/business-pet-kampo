@@ -1,6 +1,6 @@
 ---
-// ADM-15 取引先詳細・編集。タブ構成は「基本情報 / 個別卸価格 / 所属担当者 / 危険操作」で、
-// 危険操作は独立タブに隔離する（DEV-06 §4-5）。
+// ADM-15. Tabs are basic details / prices / members / dangerous actions, with the dangerous ones
+// isolated in their own tab (DEV-06 §4-5).
 import Layout from "../../layouts/Layout.astro";
 import { requireAdminUser } from "../../lib/server/auth/access";
 import { allowedTransitions, getOrganizationByPublicId } from "../../lib/server/services/organizations";
@@ -25,7 +25,7 @@ const transitions = allowedTransitions(organization.status);
 
     <section class="mt-8">
       <h2 class="text-lg font-semibold">個別卸価格</h2>
-      {/* 参照表示のみ。価格の編集経路は持たない — 正本は packages/content/prices/*.md（D-019）。 */}
+      {/* Read-only. There is no edit path for prices — packages/content/prices/*.md is the source of truth (D-019). */}
       <p class="text-sm">
         適用中の個別価格は <code>packages/content/prices/*.md</code>（orgCode: {organization.orgCode}）が正本です。変更はコミットとデプロイで行います。
       </p>
@@ -37,8 +37,8 @@ const transitions = allowedTransitions(organization.status);
     </section>
 
     {
-      /* TODO(Phase C): 基本情報の保存と、停止 / 再開 / 取引終了を API へ結線する。
-        危険操作は確認ダイアログ必須（DEV-06 §4-4）。 */
+      /* TODO(Phase C): wire saving the basic details and suspend / resume / terminate to the API.
+        Dangerous actions require a confirmation dialog (DEV-06 §4-4). */
     }
     <section class="mt-8">
       <h2 class="text-lg font-semibold">危険操作</h2>

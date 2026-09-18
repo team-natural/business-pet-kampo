@@ -1,4 +1,5 @@
-// org_code と status は含まない。前者は採番後に変えないキー（D-019）、後者は遷移関数だけが書く。
+// Neither org_code nor status is here: the first never changes once assigned (D-019), and the
+// second is written only by a transition function.
 import { organizations } from "@app/schema";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";

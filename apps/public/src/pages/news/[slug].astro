@@ -1,5 +1,6 @@
 ---
-// SCR-26 お知らせ詳細。一覧から外すだけでは詳細 URL が生きたまま残るため、ここでも除外する（D-018）。
+// SCR-26. Filtering the listing alone leaves this URL live, so the same exclusion runs here
+// (D-018).
 import { render } from "astro:content";
 import Layout from "../../layouts/Layout.astro";
 import { getNewsEntry } from "../../lib/catalog";

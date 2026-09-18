@@ -1,4 +1,4 @@
-// 会員自身のアカウント情報。/api/v1/auth/me がセッションの確認なのに対し、こちらは編集も伴う。
+// The member's own account. /api/v1/auth/me answers "is this session valid"; this one also edits.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
@@ -20,8 +20,8 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH。updateMemberSchema で検証する。メールアドレスの変更は確認メールを挟む
-// （変更だけで受信先を差し替えられると乗っ取り経路になる）。
+// TODO(Phase C): PATCH, validated with updateMemberSchema. An email change goes through a
+// confirmation mail — letting one request redirect where notices land is an account-takeover path.
 export async function PATCH({ cookies }: APIContext): Promise<Response> {
   try {
     await requireSession(cookies, createDb(env.DB));

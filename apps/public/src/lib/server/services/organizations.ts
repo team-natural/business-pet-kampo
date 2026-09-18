@@ -25,6 +25,8 @@ export async function getOrganization(db: DbClient, organizationId: number) {
   return toPublicOrganization(row);
 }
 
-// TODO(Phase C): requestCompanyChange / requestWithdrawal。
-// - org_code は運営が採番したキーで、価格ファイルが参照している。**会員側から変更させない**（D-019）
-// - status の遷移は admin 側の遷移関数だけが行う。会員側の申し出は activity_log と通知に落とす
+// TODO(Phase C): requestCompanyChange / requestWithdrawal.
+// - org_code is assigned by the operator and referenced by the price files. Never writable from
+//   the member side (D-019)
+// - only the admin-side transition function moves `status`; a member's request lands in
+//   activity_log and a notification

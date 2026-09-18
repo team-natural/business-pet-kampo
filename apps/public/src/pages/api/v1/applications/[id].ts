@@ -1,6 +1,7 @@
-// 申請の取消（申請者本人）。ログインを伴わないため、取消トークンだけが本人性の根拠になる。
-// TODO(Phase C): トークンを検証して withdrawn へ遷移させる。期限切れ・使用済み・不正・存在しない
-// のすべてを同じ応答にする — 差が出ると申請の実在を確認できてしまう。
+// The applicant withdrawing their own application. No login is involved, so the cancel token is
+// the only evidence of who is asking.
+// TODO(Phase C): verify the token and transition to `withdrawn`. Expired, already used, forged
+// and unknown must all answer identically — a difference confirms an application exists.
 import { toErrorResponse } from "@app/server-kit/http";
 
 export async function DELETE(): Promise<Response> {

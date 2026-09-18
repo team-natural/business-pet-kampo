@@ -54,6 +54,6 @@ export async function getOrder(db: DbClient, organizationId: number, publicId: s
   return { order: toPublicOrder(row), items: items.map(toPublicOrderItem), shippingAddress: JSON.parse(row.shippingAddressSnapshot) as Record<string, string> };
 }
 
-// TODO(Phase C): 発注確定（checkout）。orders + order_items + payments の INSERT と cart_items の
-// DELETE を 1 つの batch() にまとめ、商品名・単価はその場で解決した値をスナップショット保存する
-// （DEV-05 §3）。メール送信は batch() の外、ctx.waitUntil() で行う。
+// TODO(Phase C): checkout. One batch() for the orders + order_items + payments INSERTs and the
+// cart_items DELETE, with the resolved product name and unit price snapshotted onto the line
+// (DEV-05 §3). Mail goes outside the batch(), through ctx.waitUntil().

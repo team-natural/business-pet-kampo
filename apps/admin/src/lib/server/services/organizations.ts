@@ -1,4 +1,4 @@
-// 取引先管理（ADM-14〜16）。状態遷移は DEV-09 §2-2 が正本。
+// Trading partners (ADM-14〜16). DEV-09 §2-2 is the source of truth for the state machine.
 import { memberships, members, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { NotFoundError } from "@app/server-kit/http";
@@ -6,7 +6,7 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 
 export type OrganizationStatus = "active" | "suspended" | "terminated";
 
-// terminated は終端。再取引は新規の申請からやり直す（DEV-09 §2-2）。
+// `terminated` is terminal: trading again starts from a new application (DEV-09 §2-2).
 const TRANSITIONS: Record<OrganizationStatus, OrganizationStatus[]> = {
   active: ["suspended", "terminated"],
   suspended: ["active", "terminated"],
@@ -69,7 +69,7 @@ export async function getOrganizationByPublicId(db: DbClient, publicId: string) 
   return toPublicOrganization(await findOrganizationRow(db, publicId));
 }
 
-// ADM-16 は参照専用。Member の作成・編集・削除は持たせない（Member は別系統のアカウント）。
+// ADM-16 is read-only. No create, edit or delete for members — they are a separate account system.
 export async function listOrganizationMembers(db: DbClient, organizationId: number) {
   const rows = await db
     .select({
@@ -89,9 +89,9 @@ export async function listOrganizationMembers(db: DbClient, organizationId: numb
 }
 
 // TODO(Phase C): transitionOrganization / updateOrganization。
-// - ADM-15 の個別卸価格は**参照表示のみ**で編集経路を持たない（D-019）。正本は
-//   packages/content/prices/*.md で、org_code で結びつく
-// - 遷移は上の TRANSITIONS を通す単一関数だけが status を書く
-// - terminated への遷移では所属 Membership を suspended にし、保管期限の起点を記録する（DEV-09 §2-2）
-// - **停止しても進行中のセッションは消さない**（仕様）。発注の拒否は毎リクエストの
-//   requireActiveOrganization（apps/public）が担う
+// - ADM-15 shows the per-organization prices read-only and has no edit path (D-019). The source
+//   of truth is packages/content/prices/*.md, joined by org_code
+// - one transition function writes `status`, validating against the TRANSITIONS map above
+// - moving to `terminated` suspends the memberships and records the retention clock (DEV-09 §2-2)
+// - suspending does not drop live sessions, by design. Refusing the order is the job of
+//   requireActiveOrganization in apps/public, on every request

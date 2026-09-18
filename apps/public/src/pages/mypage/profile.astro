@@ -1,5 +1,5 @@
 ---
-// SCR-13 アカウント情報。
+// SCR-13, the member's own account details.
 import Layout from "../../layouts/Layout.astro";
 import { requireMemberSession } from "../../lib/server/auth/page";
 
@@ -11,7 +11,7 @@ if (session instanceof Response) return session;
   <main>
     <h1>アカウント情報</h1>
 
-    {/* TODO(Phase C): GET /api/v1/me で現在値を表示し、PATCH /api/v1/me へ結線する。 */}
+    {/* TODO(Phase C): show the current values from GET /api/v1/me and wire the form to PATCH /api/v1/me. */}
     <form method="post" action="/api/v1/me">
       <label>お名前<input type="text" name="name" required /></label>
       <label>メールアドレス<input type="email" name="email" required /></label>

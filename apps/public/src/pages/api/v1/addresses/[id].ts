@@ -1,5 +1,5 @@
-// TODO(Phase C): PATCH / DELETE。どちらも getAddress で自 Organization のものだけを引いてから
-// 書き込む（存在確認と認可を 1 回のクエリで済ませる）。
+// TODO(Phase C): PATCH / DELETE. Both read through getAddress first, which scopes to the
+// session's organization — existence and authorization settled by the same query.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";

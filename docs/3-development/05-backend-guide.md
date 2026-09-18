@@ -264,6 +264,11 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 
 ## 10. 命名・コーディング規約の原則
 
+- **ソースコードのコメントは英語で書く（例外なし）。** 対象は `apps/**` と `packages/**` の
+  `.ts` / `.astro` / `.svelte` / `.css` / 設定ファイル。**利用者の目に触れる文字列は日本語のまま**である
+  — UI 文言、エラーメッセージ、`lib/*.ts` のラベル定数、`packages/content` の Markdown、`docs/` 配下。
+  日本語と英語が混ざったコメントはファイルの流し読みと差分レビューを著しく遅くするうえ、
+  周囲のコード（識別子・ライブラリ・エラー型）はすでに英語である
 - 全関数・変数に型を明示する（`any` 禁止。`tsconfig.json` は `astro/tsconfigs/strict` を継承）。列挙値は
   TypeScript の string literal union 型（`"active" | "suspended" | "terminated"` 等）で表現する
 - 早期 return でネストを浅く。1 関数 20 行以下を目安。ただし**認証の失敗パスで早期 return してはならない**

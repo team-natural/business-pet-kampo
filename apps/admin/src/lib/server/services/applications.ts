@@ -1,4 +1,5 @@
-// 新規取引申請の審査（ADM-12 / ADM-13）。状態遷移は DEV-09 §2 が正本。
+// Reviewing new trading applications (ADM-12 / ADM-13). DEV-09 §2 is the source of truth for the
+// state machine.
 import { applications, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { NotFoundError } from "@app/server-kit/http";
@@ -6,7 +7,8 @@ import { and, desc, eq, like, sql } from "drizzle-orm";
 
 export type ApplicationStatus = "received" | "reviewing" | "needs_confirmation" | "approved" | "rejected" | "withdrawn";
 
-// DEV-09 §2-1 の遷移表そのまま。approved / rejected / withdrawn は終端で、再申請は新しい行になる。
+// DEV-09 §2-1's table, as written. approved / rejected / withdrawn are terminal; applying again
+// creates a new row.
 const TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   received: ["reviewing", "withdrawn"],
   reviewing: ["needs_confirmation", "approved", "rejected", "withdrawn"],
@@ -22,7 +24,8 @@ export function allowedTransitions(status: ApplicationStatus): ApplicationStatus
 
 type ApplicationRow = typeof applications.$inferSelect;
 
-// reviewer_id と organization_id は内部の整数。公開キーが要る画面には別途解決して渡す。
+// reviewer_id and organization_id are internal integers. A screen that needs one of them gets the
+// referenced row's public key instead.
 export function toPublicApplication(row: ApplicationRow) {
   return {
     id: row.publicId,
@@ -88,15 +91,17 @@ export async function getApplicationByPublicId(db: DbClient, publicId: string) {
   return toPublicApplication(await findApplicationRow(db, publicId));
 }
 
-// org_code の重複は UNIQUE 制約が弾くが、採番画面の入力時点でも確認する（ADM-13）。
+// The unique index rejects a duplicate org_code anyway; this checks it while it is still being
+// typed on ADM-13.
 export async function isOrgCodeTaken(db: DbClient, orgCode: string): Promise<boolean> {
   const [row] = await db.select({ id: organizations.id }).from(organizations).where(eq(organizations.orgCode, orgCode)).limit(1);
   return row !== undefined;
 }
 
 // TODO(Phase C): transitionApplication / approveApplication / rejectApplication。
-// - 承認は applications の UPDATE + organizations / members / memberships の INSERT +
-//   activity_log の INSERT を**1 つの batch()** にまとめる。途中で失敗して「取引先はできたが所属
-//   Member がいない」状態を作らない（DEV-05 §3）
-// - org_code は承認時に採番する。以後変更しない（価格ファイルの参照キー — D-019）
-// - 通知メールは batch() の外、ctx.waitUntil() で送る
+// - approval is one batch(): the applications UPDATE plus the organizations / members /
+//   memberships / activity_log INSERTs. A partial failure must not leave an organization with no
+//   member in it (DEV-05 §3)
+// - org_code is assigned at approval and never changes afterwards — the price files reference it
+//   (D-019)
+// - notification mail goes outside the batch(), through ctx.waitUntil()

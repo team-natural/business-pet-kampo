@@ -1,5 +1,5 @@
-// TODO(Phase C): 取引停止（DEV-09 §2-2）。**進行中のセッションは失効させない** — 発注の拒否は
-// apps/public の requireActiveOrganization が毎リクエスト行う。
+// TODO(Phase C): suspend trading (DEV-09 §2-2). Live sessions are not revoked — refusing the
+// order is requireActiveOrganization's job in apps/public, on every request.
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

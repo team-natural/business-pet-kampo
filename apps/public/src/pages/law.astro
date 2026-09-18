@@ -1,12 +1,14 @@
 ---
-// SCR-32 特定商取引法に基づく表示。送料・税・支払方法は必ず lib/commerce.ts から描画する —
-// ページに直接書くとカートの計算と法定表示が食い違う（D-024）。
+// SCR-32, the notice required by the Act on Specified Commercial Transactions. Shipping, tax and
+// payment methods render from lib/commerce.ts — written into the page, they drift from what the
+// cart charges (D-024).
 import Layout from "../layouts/Layout.astro";
 import { FREE_SHIPPING_THRESHOLD, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, SHIPPING_FEE, TAX_RATE, formatYen } from "../lib/commerce";
 
 export const prerender = true;
 
-// TODO(TBD-01 / TBD-16): 運営会社名・所在地・連絡先・責任者名が確定したらここを埋める。
+// TODO(TBD-01 / TBD-16): fill in once the company name, address, contact and responsible person
+// are decided.
 const rows = [
   { label: "販売業者", value: "（TBD-16 運営会社名）" },
   { label: "運営責任者", value: "（TBD-16 責任者名）" },

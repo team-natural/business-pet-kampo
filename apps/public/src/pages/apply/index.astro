@@ -1,6 +1,6 @@
 ---
-// SCR-05 新規取引申請。入力項目が多いため 4 ステップに分割する（DEV-06 §4-4）。
-// 同意ステップでは現行の規約バージョンを hidden で送り、サーバー側で現行版と一致を検証する。
+// SCR-05. Enough fields that it is split into four steps (DEV-06 §4-4). The consent step posts
+// the current terms version in a hidden field, and the server checks it matches its own.
 import Layout from "../../layouts/Layout.astro";
 import { PAYMENT_METHODS } from "../../lib/commerce";
 import { CURRENT_TERMS_VERSION } from "../../lib/terms-version";
@@ -10,7 +10,7 @@ import { CURRENT_TERMS_VERSION } from "../../lib/terms-version";
   <main>
     <h1>新規取引のお申し込み</h1>
 
-    {/* TODO(Phase B/C): 4 ステップ（会社情報 / 担当者情報 / 取引希望条件 / 同意）に分割し、POST /api/v1/applications へ結線する。 */}
+    {/* TODO(Phase B/C): split into four steps (company, contact, trading preferences, consent) and wire to POST /api/v1/applications. */}
     <form method="post" action="/api/v1/applications">
       <fieldset>
         <legend>会社情報</legend>

@@ -1,7 +1,7 @@
 ---
-// SCR-36 申請の取消。ログインを伴わないので、URL のトークンだけが本人性の根拠になる。
-// TODO(Phase C): トークンを検証して DELETE /api/v1/applications/{public_id} を呼ぶ。
-// 検証はサーバー側で行い、期限切れ・使用済み・不正のいずれも同じ文言で返す。
+// SCR-36. No login is involved, so the token in the URL is the only evidence of who is asking.
+// TODO(Phase C): verify the token server-side and call DELETE /api/v1/applications/{public_id}.
+// Expired, already used and forged all answer with the same wording.
 import Layout from "../../../layouts/Layout.astro";
 
 const { token } = Astro.params;

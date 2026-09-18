@@ -254,7 +254,22 @@ Always create/modify files with the `Edit` / `Write` tools, never `Bash` (`sed`,
 heredocs). The PostToolUse hook (`.claude/hooks/format-and-check.sh`) only fires on `Edit`/`Write`
 — bypassing it silently skips Prettier, ESLint, and the typecheck that runs after them.
 
+## Committing
+
+**Never run `git commit` without asking first — every single time.** Finishing a task is not
+approval to commit it, and neither is approval of the previous commit. Say what would go in,
+offer the message, and wait for an explicit yes. Messages are one line.
+
+An unasked commit is the one mistake that re-running the tool cannot undo. `permissions.ask` in
+`.claude/settings.json` carries `Bash(git commit:*)` so the prompt also appears — but that is a
+second pair of eyes, not the rule. Ask in prose first.
+
 ## Comments
+
+**Comments are written in English, without exception.** Everything the user reads — UI copy, error
+messages, `lib/*.ts` label constants, Markdown in `packages/content` — stays Japanese; the code
+that surrounds it does not. Mixed-language comments make a file impossible to skim and diff
+reviews unreadable, and the surrounding code is already English.
 
 Write the code first with no comments, then add back only the ones that survive this test:
 

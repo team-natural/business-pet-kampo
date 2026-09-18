@@ -1,5 +1,5 @@
 ---
-// SCR-18 発注履歴。自 Organization 分のみ（DEV-02 §3-1）。
+// SCR-18. Only this organization's orders (DEV-02 §3-1).
 import Layout from "../../../layouts/Layout.astro";
 import { ORDER_STATUSES, PAYMENT_STATUSES, formatYen, statusMeta } from "../../../lib/commerce";
 import { requireMemberSession } from "../../../lib/server/auth/page";
@@ -7,7 +7,7 @@ import { requireMemberSession } from "../../../lib/server/auth/page";
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-// TODO(Phase C): listOrdersForOrganization(db, organization.id) を呼ぶ。
+// TODO(Phase C): call listOrders(db, organization.id).
 const orders: { publicId: string; orderNumber: string; placedAt: string; status: string; paymentStatus: string; total: number }[] = [];
 ---
 

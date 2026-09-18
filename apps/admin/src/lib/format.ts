@@ -1,4 +1,5 @@
-// 表示用の整形。Worker は UTC で動くので、タイムゾーンを明示しないと運営の手元と 9 時間ずれる。
+// Display formatting. Workers run in UTC, so an unqualified timestamp reads nine hours off for
+// the operator — the time zone is pinned rather than left to the runtime.
 const dateTimeFormatter = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tokyo" });
 const dateFormatter = new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeZone: "Asia/Tokyo" });
 

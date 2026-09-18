@@ -1,4 +1,5 @@
-// 監査ログの参照（ADM-24）。書き込みは各 Service が activity-log.ts 経由で行い、ここは読むだけ。
+// Reading the audit log (ADM-24). Writes happen in each service through activity-log.ts; this
+// file only reads.
 import { activityLog } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { and, desc, eq, lt } from "drizzle-orm";
@@ -21,7 +22,8 @@ export function toPublicActivityLog(row: ActivityLogRow) {
 const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 200;
 
-// カーソル方式。総件数を数えないので、画面にも「総件数」「最終ページ」を出さない（DEV-06 §4-2）。
+// Keyset pagination. Nothing counts the rows, so the screen shows no total and no last page
+// (DEV-06 §4-2).
 export async function listActivityLogs(db: DbClient, options: { beforeId?: number | null; perPage?: number; logName?: string } = {}) {
   const perPage = Math.min(Math.max(options.perPage ?? DEFAULT_PER_PAGE, 1), MAX_PER_PAGE);
 

@@ -1,5 +1,5 @@
 ---
-// ADM-24 管理操作履歴。追記のみで、削除も編集もしない（DEV-07 §10）。
+// ADM-24, the operation history. Append-only: nothing edits or deletes an entry (DEV-07 §10).
 import Layout from "../../layouts/Layout.astro";
 import { decodeCursor, encodeCursor } from "@app/server-kit/http";
 import { requireAdminUser } from "../../lib/server/auth/access";

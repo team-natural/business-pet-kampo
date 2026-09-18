@@ -1,4 +1,5 @@
-// ADM-01 の 4 枚のカード（PRD-04 §4-3-1）。件数だけを返し、明細は各一覧画面が持つ。
+// The four cards on ADM-01 (PRD-04 §4-3-1). Counts only — the rows behind them belong to each
+// listing screen.
 import { applications, orders } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { eq, inArray, sql } from "drizzle-orm";

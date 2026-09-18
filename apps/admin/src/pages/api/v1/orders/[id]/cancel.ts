@@ -1,5 +1,5 @@
-// TODO(Phase C): キャンセルと返金状況の更新。返金額は明細のスナップショットから算出し、
-// 再計算のために packages/content を読み直さない（DEV-07 §6-0）。
+// TODO(Phase C): cancellation and the refund state. The refund is computed from the line
+// snapshots; packages/content is never re-read to recalculate it (DEV-07 §6-0).
 import type { APIContext } from "astro";
 import { toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";

@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* 公開側のデザイントークン。ここが唯一の定義場所で、ページ側で同じ値を再定義しない
-   （DEV-06 §6）。管理画面は admin.css の別系統で、相互に参照しない。 */
+/* The public side's design tokens. This is the only place they are defined; a page never restates
+   one of these values (DEV-06 §6). The admin side has its own set in admin.css, and neither
+   reaches into the other. */
 @theme {
   --color-paper: #faf8f3;
   --color-paper-sunk: #f3efe6;
@@ -10,8 +11,9 @@
   --color-vermilion: #a64b3c;
   --color-rule: #ded8ca;
 
-  /* 見出しは明朝、本文はゴシック、数量・品番は等幅。日本語フォントは端末内蔵のものだけを
-     使う（Web フォントを足すと初期表示が重くなり、店頭のモバイル回線に響く）。 */
+  /* Mincho for headings, gothic for body text, monospace for quantities and product codes. Only
+     fonts already on the device: a web font would slow first paint on the shop-floor mobile
+     connection this is bought from. */
   --font-display: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "Noto Serif JP", serif;
   --font-sans: "Hiragino Sans", "Yu Gothic", YuGothic, "Noto Sans JP", system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -19,7 +21,7 @@
 
 @layer base {
   html {
-    /* ダークモードは持たない。宣言しておかないと UA がフォーム部品を勝手に反転させる。 */
+    /* There is no dark mode. Declaring it stops the UA from inverting form controls on its own. */
     color-scheme: light;
   }
 
@@ -28,13 +30,13 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-feature-settings: "palt";
-    /* ノッチ端末の横向きで、本文が切り欠きの下に潜らないようにする。 */
+    /* Keeps text out from under the notch when a phone is held in landscape. */
     padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   }
 
   a,
   button {
-    /* タップ時の 300ms 遅延を消し、端末既定の灰色ハイライトを朱の淡色に置き換える。 */
+    /* Drops the 300ms tap delay and replaces the device's grey flash with a faint vermilion. */
     touch-action: manipulation;
     -webkit-tap-highlight-color: color-mix(in srgb, var(--color-vermilion) 15%, transparent);
   }
@@ -61,7 +63,8 @@
 }
 
 @layer components {
-  /* 最小 44px は指の当たり判定。卸の発注は店頭のスマートフォンからが主要ケース（BIZ-01 §3-2）。 */
+  /* 44px minimum is the finger target. Orders are placed from a phone on the shop floor, which is
+     the primary case here (BIZ-01 §3-2). */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -87,8 +90,8 @@
     background-color: color-mix(in srgb, var(--color-ink) 86%, black);
   }
 
-  /* 罫色（--color-rule）ではなく淡墨。ボタンの枠線は輪郭そのものなので、飾り罫と違って
-     非テキストコントラスト 3:1 を満たす必要がある（WCAG 1.4.11）。 */
+  /* The soft ink, not --color-rule. A button's border is its outline, so unlike a decorative rule
+     it has to meet 3:1 non-text contrast (WCAG 1.4.11). */
   .btn-quiet {
     border-color: var(--color-ink-soft);
     color: var(--color-ink);
@@ -98,7 +101,8 @@
     border-color: var(--color-ink);
   }
 
-  /* 節の見出しに付く小さなラベル。朱はここと CTA のホバーだけに使い、面では使わない。 */
+  /* The small label above a section heading. Vermilion appears here and on CTA hover only, never
+     as a filled area. */
   .eyebrow {
     font-size: 0.75rem;
     letter-spacing: 0.2em;

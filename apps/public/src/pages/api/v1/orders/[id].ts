@@ -1,5 +1,5 @@
-// `[id]` は注文の public_id（ULID）。他社の注文は 403 ではなく 404 相当（NotFoundError）で返す —
-// 区別すると id の実在を確認できてしまう。
+// `[id]` is the order's public_id (a ULID). Another organization's order answers NotFoundError,
+// not 403 — the distinction would confirm that the id exists.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";

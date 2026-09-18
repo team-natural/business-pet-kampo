@@ -1,4 +1,5 @@
-// 受注管理（ADM-17 / ADM-18）。状態遷移は DEV-09 §2-5・§2-6 が正本。
+// Order handling (ADM-17 / ADM-18). DEV-09 §2-5 and §2-6 are the source of truth for the state
+// machines.
 import { orderItems, orders, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { NotFoundError } from "@app/server-kit/http";
@@ -38,7 +39,8 @@ export function toPublicOrder(row: OrderRow) {
   };
 }
 
-// 商品名・単価は注文時のスナップショット。Markdown を読み直すと過去の注文金額が変わる（DEV-07 §6-0）。
+// Name and unit price are the snapshot taken when the order was placed. Re-reading the Markdown
+// would change what a past order says it cost (DEV-07 §6-0).
 export function toPublicOrderItem(row: OrderItemRow) {
   return {
     productSlug: row.productSlug,
@@ -101,6 +103,8 @@ export async function getOrderByPublicId(db: DbClient, publicId: string) {
 }
 
 // TODO(Phase C): transitionOrder / confirmPayment / cancelOrder。
-// - status と payment_status はそれぞれ単一の遷移関数だけが書く（DEV-09）
-// - 入金確認は payments と orders.payment_status を同じ batch() で更新し、activity_log も同梱する
-// - キャンセルは返金状況まで含めて 1 トランザクション。金額は再計算せずスナップショットを使う
+// - one transition function each for `status` and `payment_status`; nothing else writes them (DEV-09)
+// - confirming a payment updates payments and orders.payment_status in the same batch(), with the
+//   activity_log entry included
+// - cancellation is one transaction, refund state included. Amounts come from the snapshot rather
+//   than being recalculated

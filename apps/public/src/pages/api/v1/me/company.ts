@@ -16,8 +16,9 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH。運営確認が必要な項目は即時反映せず変更申請として扱う（F-05-03）。
-// org_code はどの経路でも会員側から変更させない（価格ファイルの参照キー — D-019）。
+// TODO(Phase C): PATCH. Fields the operator must confirm become a change request rather than an
+// immediate edit (F-05-03). org_code is never writable from the member side by any path — the
+// price files reference it (D-019).
 export async function PATCH({ cookies }: APIContext): Promise<Response> {
   try {
     requireActiveOrganization(await requireSession(cookies, createDb(env.DB)));

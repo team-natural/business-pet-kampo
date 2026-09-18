@@ -1,5 +1,5 @@
 ---
-// SCR-30 お問い合わせ。送信先は POST /api/v1/inquiries（認証不要）。
+// SCR-30. Posts to /api/v1/inquiries, which takes no session.
 import Layout from "../../layouts/Layout.astro";
 import { INQUIRY_TYPES } from "../../lib/inquiry";
 ---
@@ -8,7 +8,7 @@ import { INQUIRY_TYPES } from "../../lib/inquiry";
   <main>
     <h1>お問い合わせ</h1>
 
-    {/* TODO(Phase C): 送信・バリデーション表示を結線する。status / assignee / memo は送らない（DEV-07 §7-2）。 */}
+    {/* TODO(Phase C): wire up submission and inline validation. Never send status / assignee / memo (DEV-07 §7-2). */}
     <form method="post" action="/api/v1/inquiries">
       <label>会社名<input type="text" name="companyName" maxlength="100" /></label>
       <label>お名前<input type="text" name="name" maxlength="100" required /></label>

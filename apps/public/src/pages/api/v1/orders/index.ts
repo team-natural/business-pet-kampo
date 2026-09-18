@@ -1,4 +1,5 @@
-// 発注履歴。自 Organization 分のみ — スコープはセッションから取り、クエリの WHERE に入る。
+// Order history, this organization's only — the scope comes from the session and goes into the
+// WHERE clause rather than being compared afterwards.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
