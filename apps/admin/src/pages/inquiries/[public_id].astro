@@ -1,43 +1,48 @@
 ---
 // ADM-23. The assignee and the memo are set here and nowhere else — neither is a form field on
 // the public side.
-import Layout from "../../layouts/Layout.astro";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { allowedTransitions, getInquiryByPublicId } from "../../lib/server/services/inquiries";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
+import DetailCard from "$lib/components/detail-card.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { allowedTransitions, getInquiryByPublicId } from "$lib/server/services/inquiries";
+import { label, statusMeta } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const inquiry = await getInquiryByPublicId(Astro.locals.db, Astro.params.public_id!);
 const transitions = allowedTransitions(inquiry.status);
 ---
 
-<Layout title={`${inquiry.name} — お問い合わせ`}>
-  <main class="mx-auto w-full max-w-4xl px-6 py-10">
-    <a href="/inquiries" class="text-sm">← お問い合わせ一覧</a>
-    <h1 class="mt-2 text-2xl font-semibold">{inquiry.name}</h1>
-    <p class="text-sm">{inquiry.status}</p>
+<ConsoleLayout title={`${inquiry.name} — お問い合わせ`} user={admin} breadcrumbs={[{ label: "お問い合わせ", href: "/inquiries" }, { label: inquiry.name }]}>
+  <PageHeader title={inquiry.name} description={`受信日時 ${formatDateTime(inquiry.createdAt)}`}>
+    <StatusBadge slot="meta" domain="inquiry" value={inquiry.status} />
+  </PageHeader>
 
-    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
-      <dt>会社名</dt><dd>{inquiry.companyName ?? "—"}</dd>
-      <dt>メールアドレス</dt><dd>{inquiry.email}</dd>
-      <dt>電話番号</dt><dd>{inquiry.phone ?? "—"}</dd>
-      <dt>種別</dt><dd>{inquiry.inquiryType ?? "—"}</dd>
-      <dt>受信日時</dt><dd>{inquiry.createdAt}</dd>
-    </dl>
+  <DetailCard title="差出人">
+    <div><dt>会社名</dt><dd>{inquiry.companyName ?? "—"}</dd></div>
+    <div><dt>お名前</dt><dd>{inquiry.name}</dd></div>
+    <div><dt>メールアドレス</dt><dd>{inquiry.email}</dd></div>
+    <div><dt>電話番号</dt><dd class="tabular-nums">{inquiry.phone ?? "—"}</dd></div>
+    <div><dt>種別</dt><dd>{label("inquiryType", inquiry.inquiryType)}</dd></div>
+  </DetailCard>
 
-    <section class="mt-6">
-      <h2 class="text-lg font-semibold">お問い合わせ内容</h2>
-      <p class="mt-2 text-sm whitespace-pre-wrap">{inquiry.content}</p>
-    </section>
+  <DetailCard title="お問い合わせ内容" list={false}>
+    <p class="text-sm whitespace-pre-wrap">{inquiry.content}</p>
+  </DetailCard>
 
-    {
-      /* TODO(Phase B/C): wire the start / resolve / reopen buttons and saving the memo
-        (POST /api/v1/inquiries/{id}/start and friends). */
-    }
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">対応</h2>
-      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし"}</p>
-      <p class="mt-2 text-sm">メモ: {inquiry.memo ?? "—"}</p>
-    </section>
-  </main>
-</Layout>
+  {
+    /* TODO(Phase B/C): wire the start / resolve / reopen buttons and saving the memo
+      (POST /api/v1/inquiries/{id}/start and friends). */
+  }
+  <DetailCard title="対応">
+    <div><dt>対応メモ</dt><dd class="whitespace-pre-wrap">{inquiry.memo ?? "—"}</dd></div>
+    <div><dt>最終更新</dt><dd class="tabular-nums">{formatDateTime(inquiry.updatedAt)}</dd></div>
+    <div>
+      <dt>遷移可能</dt>
+      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("inquiry", to).label).join(" / ") : "なし"}</dd>
+    </div>
+  </DetailCard>
+</ConsoleLayout>

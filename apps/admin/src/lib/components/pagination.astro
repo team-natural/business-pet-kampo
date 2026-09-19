@@ -1,0 +1,46 @@
+---
+// Offset pagination for the listings that count their rows. The keyset listings (inquiries,
+// audit log) have no total and no last page, so they link forward on their own (DEV-06 §4-2).
+import { Button } from "$lib/components/ui/button/index.js";
+
+interface Props {
+  page: number;
+  perPage: number;
+  total: number;
+  /** The current query, so a filtered view survives a page move. */
+  params: URLSearchParams;
+}
+
+const { page, perPage, total, params } = Astro.props;
+
+const lastPage = Math.max(1, Math.ceil(total / perPage));
+const first = total === 0 ? 0 : (page - 1) * perPage + 1;
+const last = Math.min(page * perPage, total);
+
+const hrefFor = (target: number) => {
+  const next = new URLSearchParams(params);
+  next.set("page", String(target));
+  return `?${next.toString()}`;
+};
+---
+
+<nav aria-label="ページ送り" class="flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-muted-foreground tabular-nums">{total === 0 ? "該当 0 件" : `全 ${total} 件中 ${first}–${last} 件`}</p>
+  {
+    lastPage > 1 && (
+      <div class="flex items-center gap-2">
+        {/* Button renders an <a> when given href, and an anchor cannot be :disabled — the dimming
+            and the swallowed click have to be spelled out. */}
+        <Button href={hrefFor(page - 1)} variant="outline" size="sm" disabled={page <= 1} class={page <= 1 ? "pointer-events-none opacity-50" : ""}>
+          前へ
+        </Button>
+        <span class="text-sm text-muted-foreground tabular-nums">
+          {page} / {lastPage}
+        </span>
+        <Button href={hrefFor(page + 1)} variant="outline" size="sm" disabled={page >= lastPage} class={page >= lastPage ? "pointer-events-none opacity-50" : ""}>
+          次へ
+        </Button>
+      </div>
+    )
+  }
+</nav>

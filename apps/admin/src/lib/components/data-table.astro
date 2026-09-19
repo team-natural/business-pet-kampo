@@ -1,0 +1,83 @@
+---
+// A list rendered as a Card with the table running edge to edge, plus the empty state that
+// replaces it. One component so every listing shares a column rhythm and an empty state that
+// offers an action.
+import { Button } from "$lib/components/ui/button/index.js";
+import * as Card from "$lib/components/ui/card/index.js";
+import * as Empty from "$lib/components/ui/empty/index.js";
+import * as Table from "$lib/components/ui/table/index.js";
+
+interface Props {
+  /** Names the table for screen readers; rendered visually only when `title` is absent. */
+  caption: string;
+  columns: string[];
+  rowCount: number;
+  title?: string;
+  description?: string;
+  actionHref?: string;
+  actionLabel?: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyActionHref?: string;
+  emptyActionLabel?: string;
+}
+
+const { caption, columns, rowCount, title, description, actionHref, actionLabel, emptyTitle, emptyDescription, emptyActionHref, emptyActionLabel } = Astro.props;
+---
+
+{
+  /* The table runs to the card's edges, so the card sheds its own padding and gap — otherwise the
+    banded header floats below a white strip that reads as an empty row. */
+}
+<Card.Root class="gap-0 py-0">
+  {
+    title && (
+      <Card.Header class="border-b py-(--card-spacing)">
+        <Card.Title>
+          <h2>{title}</h2>
+        </Card.Title>
+        {description && <Card.Description>{description}</Card.Description>}
+        {actionHref && actionLabel && (
+          <Card.Action>
+            <Button href={actionHref} variant="outline" size="sm">
+              {actionLabel}
+            </Button>
+          </Card.Action>
+        )}
+      </Card.Header>
+    )
+  }
+  <Card.Content class="px-0">
+    {
+      rowCount === 0 ? (
+        <Empty.Root>
+          <Empty.Header>
+            <Empty.Title>{emptyTitle}</Empty.Title>
+            <Empty.Description>{emptyDescription}</Empty.Description>
+          </Empty.Header>
+          {emptyActionHref && emptyActionLabel && (
+            <Empty.Content>
+              <Button href={emptyActionHref} variant="outline" size="sm">
+                {emptyActionLabel}
+              </Button>
+            </Empty.Content>
+          )}
+        </Empty.Root>
+      ) : (
+        <Table.Root class="table-in-card">
+          <Table.Caption class="sr-only">{caption}</Table.Caption>
+          <Table.Header>
+            <Table.Row>
+              {columns.map((column) => (
+                <Table.Head>{column}</Table.Head>
+              ))}
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            <slot />
+          </Table.Body>
+        </Table.Root>
+      )
+    }
+  </Card.Content>
+</Card.Root>

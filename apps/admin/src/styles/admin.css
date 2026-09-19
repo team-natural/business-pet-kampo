@@ -18,9 +18,20 @@
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
+  /* One ladder, four rungs: row < stripe < header < hover. Keep them monotonic and keep every gap
+     perceptible, or two of the four read as the same band. Panels share the header rung so a card
+     title strip and a column-label row are the same shade of "this labels what follows". */
+  --table-row-stripe: oklch(0.982 0 0);
+  --panel-header: oklch(0.945 0 0);
+  --table-row-hover: oklch(0.9 0 0);
+  /* Label text sits on the bands, not on white, so `--muted-foreground` lands under AA there. */
+  --panel-label: oklch(0.51 0 0);
   --accent: oklch(0.527 0.154 150.069);
   --accent-foreground: oklch(0.982 0.018 155.826);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Dark enough to be the badge's text colour too, not just its tint. Worst case is the 10% wash
+     over a hovered row, not over white — amber at its natural lightness fails AA there. */
+  --warning: oklch(0.46 0.11 70);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -34,8 +45,12 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.627 0.194 149.214);
   --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
-  --sidebar-accent: oklch(0.97 0 0);
+  /* Deep enough to register against `--sidebar` at 0.985; the shadcn default sat 0.015 off it. */
+  --sidebar-accent: oklch(0.95 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
+  /* Current page carries the brand, so a hovered item stays a neutral echo instead of a twin. */
+  --sidebar-active: oklch(0.925 0.04 150);
+  --sidebar-active-foreground: oklch(0.42 0.12 150);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
@@ -53,9 +68,14 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
+  --table-row-stripe: oklch(0.232 0 0);
+  --panel-header: oklch(0.285 0 0);
+  --panel-label: oklch(0.74 0 0);
+  --table-row-hover: oklch(0.345 0 0);
   --accent: oklch(0.448 0.119 151.328);
   --accent-foreground: oklch(0.982 0.018 155.826);
   --destructive: oklch(0.704 0.191 22.216);
+  --warning: oklch(0.78 0.14 75);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -70,12 +90,15 @@
   --sidebar-primary-foreground: oklch(0.982 0.018 155.826);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-active: oklch(0.3 0.05 150);
+  --sidebar-active-foreground: oklch(0.87 0.13 150);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  /* Inter has no kana or kanji, so the Japanese face has to follow it in the stack. */
+  --font-sans: "Inter Variable", "Noto Sans JP", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -93,6 +116,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -116,6 +140,98 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@layer components {
+  /* Term/value rows on every detail screen. A class rather than a component because the value
+     side is arbitrary markup — badges, links, preformatted text.
+     Banded term column for the same reason the list tables band their header: on a white Card,
+     label and value are otherwise one flat block. Padding sits on the cells, not the row, so the
+     band runs to the card's edges. */
+  .detail-list > div {
+    display: grid;
+    border-block-start: 1px solid var(--border);
+  }
+  .detail-list > div:first-child {
+    border-block-start: 0;
+  }
+  .detail-list > div > dt {
+    background-color: var(--muted);
+    color: var(--panel-label);
+    font-size: 0.8125rem;
+    padding: 0.625rem var(--card-spacing);
+  }
+  .detail-list > div > dd {
+    padding: 0.625rem var(--card-spacing);
+  }
+  @media (width >= 40rem) {
+    .detail-list > div {
+      grid-template-columns: 12rem 1fr;
+    }
+    .detail-list > div > dt {
+      border-inline-end: 1px solid var(--border);
+    }
+  }
+
+  /* shadcn separates the header from the body with a hairline and nothing else, so on a white
+     Card the label row and the data read as one flat block. Band the header instead.
+     Keyed off data-slot so `shadcn-svelte update` cannot quietly revert it. */
+  [data-slot="table-header"],
+  .panel-header {
+    background-color: var(--panel-header);
+  }
+  [data-slot="table-head"] {
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  /* A table that runs edge to edge inside a Card: its own cell padding is narrower than the
+     card's, so the first column sits left of the card title unless the outer cells match. */
+  .table-in-card :is(th, td):first-child {
+    padding-inline-start: var(--card-spacing);
+  }
+  .table-in-card :is(th, td):last-child {
+    padding-inline-end: var(--card-spacing);
+  }
+}
+
+/* In `utilities` rather than `components` because Table.Row carries `hover:bg-muted/50`, and a
+   later layer beats any specificity an earlier one can reach. Source order inside the layer is
+   what keeps hover above the stripe. */
+@layer utilities {
+  /* Same layer reason as the rows below: both carry `text-muted-foreground` as a utility, which a
+     components-layer rule cannot reach. */
+  [data-slot="table-head"],
+  .panel-header [data-slot="card-description"] {
+    color: var(--panel-label);
+  }
+
+  [data-slot="table-body"] [data-slot="table-row"]:nth-child(even) {
+    background-color: var(--table-row-stripe);
+  }
+  [data-slot="table-body"] [data-slot="table-row"]:hover {
+    background-color: var(--table-row-hover);
+  }
+
+  /* Element selector on top of the attribute so this also beats the `hover:bg-sidebar-accent` the
+     variants carry — otherwise hovering the current page erases the one signal it has. */
+  [data-slot="sidebar-menu"] a[data-active="true"],
+  [data-slot="sidebar-menu"] a[data-active="true"]:hover {
+    position: relative;
+    background-color: var(--sidebar-active);
+    color: var(--sidebar-active-foreground);
+  }
+  /* A rail as well as a fill: at the icon-only width the label is gone and the fill alone is a
+     square of colour with nothing to anchor it. */
+  [data-slot="sidebar-menu"] a[data-active="true"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0.3rem;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 9999px;
+    background-color: var(--sidebar-primary);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -125,5 +241,12 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Tailwind v4 preflight dropped v3's `button { cursor: pointer }`, so a Button rendered as
+     <button> stopped matching the identical one rendered as <a> beside it. Base layer, so the
+     `cursor-default` menu items and the sidebar rail's resize cursors still win. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }

@@ -25,8 +25,10 @@ export default tseslint.config(
   },
   // Each app has its own svelte.config.js; passing it to the parser is what makes
   // preprocessor-aware rules (svelte/valid-compile etc.) accurate.
+  // `*.svelte.ts` rune modules need the same treatment: the plugin hands them to
+  // svelte-eslint-parser too, and without `parser` below it cannot read the TypeScript.
   {
-    files: ["apps/admin/**/*.svelte"],
+    files: ["apps/admin/**/*.svelte", "apps/admin/**/*.svelte.{ts,js}"],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,
@@ -35,7 +37,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/public/**/*.svelte"],
+    files: ["apps/public/**/*.svelte", "apps/public/**/*.svelte.{ts,js}"],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser,

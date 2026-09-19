@@ -1,47 +1,51 @@
 ---
 // ADM-22. Keyset paginated, so there is no total and no last page to show (DEV-06 §4-2).
-import Layout from "../../layouts/Layout.astro";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
 import { decodeCursor, encodeCursor } from "@app/server-kit/http";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { listInquiries } from "../../lib/server/services/inquiries";
+import DataTable from "$lib/components/data-table.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import RowLink from "$lib/components/row-link.svelte";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import { Button } from "$lib/components/ui/button/index.js";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { listInquiries } from "$lib/server/services/inquiries";
+import { label } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const { items, nextId } = await listInquiries(Astro.locals.db, { beforeId: decodeCursor(Astro.url.searchParams.get("cursor")) });
 ---
 
-<Layout title="お問い合わせ — 管理画面">
-  <main class="mx-auto w-full max-w-6xl px-6 py-10">
-    <h1 class="text-2xl font-semibold">お問い合わせ</h1>
+<ConsoleLayout title="お問い合わせ" user={admin} breadcrumbs={[{ label: "お問い合わせ" }]}>
+  <PageHeader title="お問い合わせ" description="公開サイトのフォームから届いた問い合わせです。新しい順に並びます。" />
 
-    <table class="mt-6 w-full text-sm">
-      <thead>
-        <tr><th>受信日時</th><th>会社名</th><th>お名前</th><th>種別</th><th>ステータス</th></tr>
-      </thead>
-      <tbody>
-        {
-          items.map((inquiry) => (
-            <tr>
-              <td>{inquiry.createdAt}</td>
-              <td>{inquiry.companyName ?? "—"}</td>
-              <td>
-                <a href={`/inquiries/${inquiry.id}`}>{inquiry.name}</a>
-              </td>
-              <td>{inquiry.inquiryType ?? "—"}</td>
-              <td>{inquiry.status}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-    {items.length === 0 && <p class="mt-6">お問い合わせはありません。</p>}
-
+  <DataTable caption="お問い合わせの一覧" columns={["受信日時", "会社名", "お名前", "種別", "ステータス"]} rowCount={items.length} emptyTitle="お問い合わせはありません" emptyDescription="公開サイトのフォームから届くとここに表示されます。">
     {
-      nextId && (
-        <a class="mt-6 inline-block text-sm" href={`/inquiries?cursor=${encodeCursor(nextId)}`}>
-          次のページ
-        </a>
-      )
+      items.map((inquiry) => (
+        <Table.Row>
+          <Table.Cell class="whitespace-nowrap tabular-nums">
+            <RowLink href={`/inquiries/${inquiry.id}`}>{formatDateTime(inquiry.createdAt)}</RowLink>
+          </Table.Cell>
+          <Table.Cell class="text-muted-foreground">{inquiry.companyName ?? "—"}</Table.Cell>
+          <Table.Cell>{inquiry.name}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{label("inquiryType", inquiry.inquiryType)}</Table.Cell>
+          <Table.Cell>
+            <StatusBadge domain="inquiry" value={inquiry.status} />
+          </Table.Cell>
+        </Table.Row>
+      ))
     }
-  </main>
-</Layout>
+  </DataTable>
+
+  {
+    nextId && (
+      <nav aria-label="ページ送り" class="flex justify-end">
+        <Button href={`/inquiries?cursor=${encodeCursor(nextId)}`} variant="outline" size="sm">
+          次のページ
+        </Button>
+      </nav>
+    )
+  }
+</ConsoleLayout>

@@ -1,39 +1,39 @@
 ---
 // ADM-16, the members of one organization. Read-only: no create, edit, delete or password change
 // — members are a separate account system from AdminUser (PRD-04 §3-2).
-import Layout from "../../../layouts/Layout.astro";
-import { requireAdminUser } from "../../../lib/server/auth/access";
-import { findOrganizationRow, listOrganizationMembers } from "../../../lib/server/services/organizations";
+import ConsoleLayout from "../../../layouts/ConsoleLayout.astro";
+import DataTable from "$lib/components/data-table.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDate } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { findOrganizationRow, listOrganizationMembers } from "$lib/server/services/organizations";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const organization = await findOrganizationRow(Astro.locals.db, Astro.params.public_id!);
 const members = await listOrganizationMembers(Astro.locals.db, organization.id);
 ---
 
-<Layout title={`${organization.name} の所属担当者`}>
-  <main class="mx-auto w-full max-w-4xl px-6 py-10">
-    <a href={`/organizations/${organization.publicId}`} class="text-sm">← 取引先詳細</a>
-    <h1 class="mt-2 text-2xl font-semibold">{organization.name} の所属担当者</h1>
+<ConsoleLayout title={`${organization.name} の所属担当者`} user={admin} breadcrumbs={[{ label: "取引先", href: "/organizations" }, { label: organization.name, href: `/organizations/${organization.publicId}` }, { label: "所属担当者" }]}>
+  <PageHeader title="所属担当者" description={`${organization.name} に所属する Member です。この画面からは変更できません。`} />
 
-    <table class="mt-6 w-full text-sm">
-      <thead>
-        <tr><th>お名前</th><th>メールアドレス</th><th>アカウント</th><th>所属</th><th>参加日</th></tr>
-      </thead>
-      <tbody>
-        {
-          members.map((member) => (
-            <tr>
-              <td>{member.name}</td>
-              <td>{member.email}</td>
-              <td>{member.memberStatus}</td>
-              <td>{member.membershipStatus}</td>
-              <td>{member.joinedAt}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-    {members.length === 0 && <p class="mt-6">所属している担当者はいません。</p>}
-  </main>
-</Layout>
+  <DataTable caption="所属担当者の一覧" columns={["お名前", "メールアドレス", "アカウント", "所属", "参加日"]} rowCount={members.length} emptyTitle="所属している担当者はいません" emptyDescription="申請の承認時に作られた初期 Member が、ここに並びます。">
+    {
+      members.map((member) => (
+        <Table.Row>
+          <Table.Cell class="font-medium">{member.name}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{member.email}</Table.Cell>
+          <Table.Cell>
+            <StatusBadge domain="member" value={member.memberStatus} />
+          </Table.Cell>
+          <Table.Cell>
+            <StatusBadge domain="membership" value={member.membershipStatus} />
+          </Table.Cell>
+          <Table.Cell class="whitespace-nowrap text-muted-foreground tabular-nums">{formatDate(member.joinedAt)}</Table.Cell>
+        </Table.Row>
+      ))
+    }
+  </DataTable>
+</ConsoleLayout>

@@ -1,48 +1,51 @@
 ---
-// ADM-15. Tabs are basic details / prices / members / dangerous actions, with the dangerous ones
-// isolated in their own tab (DEV-06 §4-5).
-import Layout from "../../layouts/Layout.astro";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { allowedTransitions, getOrganizationByPublicId } from "../../lib/server/services/organizations";
+// ADM-15. Basic details / prices / members / dangerous actions, with the dangerous ones isolated
+// in their own panel (DEV-06 §4-5).
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
+import DetailCard from "$lib/components/detail-card.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import { Button } from "$lib/components/ui/button/index.js";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { allowedTransitions, getOrganizationByPublicId } from "$lib/server/services/organizations";
+import { statusMeta } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const organization = await getOrganizationByPublicId(Astro.locals.db, Astro.params.public_id!);
 const transitions = allowedTransitions(organization.status);
 ---
 
-<Layout title={`${organization.name} — 取引先詳細`}>
-  <main class="mx-auto w-full max-w-4xl px-6 py-10">
-    <a href="/organizations" class="text-sm">← 取引先一覧</a>
-    <h1 class="mt-2 text-2xl font-semibold">{organization.name}</h1>
+<ConsoleLayout title={`${organization.name} — 取引先詳細`} user={admin} breadcrumbs={[{ label: "取引先", href: "/organizations" }, { label: organization.name }]}>
+  <PageHeader title={organization.name} description={`取引先コード ${organization.orgCode}`}>
+    <StatusBadge slot="meta" domain="organization" value={organization.status} />
+    <Button slot="actions" href={`/organizations/${organization.id}/members`} variant="outline">所属担当者を見る</Button>
+  </PageHeader>
 
-    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
-      <dt>取引先コード</dt><dd>{organization.orgCode}</dd>
-      <dt>ステータス</dt><dd>{organization.status}</dd>
-      <dt>発注可否</dt><dd>{organization.orderEnabled ? "可" : "不可"}</dd>
-      <dt>請求先</dt><dd>{organization.billingPostalCode ?? "—"} {organization.billingAddress ?? ""}</dd>
-    </dl>
+  <DetailCard title="基本情報">
+    <div><dt>取引先コード</dt><dd class="tabular-nums">{organization.orgCode}</dd></div>
+    <div><dt>発注可否</dt><dd>{organization.orderEnabled ? "可" : "不可"}</dd></div>
+    <div><dt>請求先</dt><dd>{organization.billingPostalCode ? `〒${organization.billingPostalCode} ` : ""}{organization.billingAddress ?? "—"}</dd></div>
+    <div><dt>登録日時</dt><dd class="tabular-nums">{formatDateTime(organization.createdAt)}</dd></div>
+    <div><dt>更新日時</dt><dd class="tabular-nums">{formatDateTime(organization.updatedAt)}</dd></div>
+  </DetailCard>
 
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">個別卸価格</h2>
-      {/* Read-only. There is no edit path for prices — packages/content/prices/*.md is the source of truth (D-019). */}
-      <p class="text-sm">
-        適用中の個別価格は <code>packages/content/prices/*.md</code>（orgCode: {organization.orgCode}）が正本です。変更はコミットとデプロイで行います。
-      </p>
-    </section>
+  {/* Read-only. There is no edit path for prices — packages/content/prices/*.md is the source of truth (D-019). */}
+  <DetailCard title="個別卸価格" description="この画面からは変更できません。" list={false}>
+    <p class="text-sm">
+      適用中の個別価格は <code class="rounded bg-muted px-1 py-0.5 text-xs">packages/content/prices/*.md</code>（org_code: {organization.orgCode}）が正本です。変更はコミットとデプロイで行います。
+    </p>
+  </DetailCard>
 
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">所属担当者</h2>
-      <a href={`/organizations/${organization.id}/members`} class="text-sm">所属 Member 一覧を見る</a>
-    </section>
-
-    {
-      /* TODO(Phase C): wire saving the basic details and suspend / resume / terminate to the API.
-        Dangerous actions require a confirmation dialog (DEV-06 §4-4). */
-    }
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">危険操作</h2>
-      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
-    </section>
-  </main>
-</Layout>
+  {
+    /* TODO(Phase C): wire saving the basic details and suspend / resume / terminate to the API.
+      Dangerous actions require a confirmation dialog (DEV-06 §4-4). */
+  }
+  <DetailCard title="危険操作" description="取引の停止・再開・終了はここからのみ行います。">
+    <div>
+      <dt>遷移可能</dt>
+      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("organization", to).label).join(" / ") : "なし（終端）"}</dd>
+    </div>
+  </DetailCard>
+</ConsoleLayout>

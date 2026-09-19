@@ -1,12 +1,15 @@
 ---
+// Outside ConsoleLayout on purpose: this renders before an identity is resolved, so it must not
+// assume an operator to draw the sidebar with.
 import Layout from "../layouts/Layout.astro";
+import { Button } from "$lib/components/ui/button/index.js";
 ---
 
-<Layout title="Page not found — Admin console">
-  <main class="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center gap-4 px-4 text-center">
+<Layout title="ページが見つかりません">
+  <main class="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center gap-4 px-4 text-center">
     <p translate="no" class="font-mono text-sm font-medium tracking-widest text-muted-foreground">404</p>
-    <h1 class="text-3xl font-bold">Page not found</h1>
-    <p class="text-muted-foreground">The page you are looking for doesn't exist or has been moved.</p>
-    <a href="/" class="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition hover:opacity-90">Back to sign in</a>
+    <h1 class="text-2xl font-semibold">ページが見つかりません</h1>
+    <p class="text-sm text-muted-foreground">URL が変わったか、削除された可能性があります。</p>
+    <Button href="/">ダッシュボードへ</Button>
   </main>
 </Layout>

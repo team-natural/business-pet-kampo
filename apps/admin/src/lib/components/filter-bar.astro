@@ -1,0 +1,54 @@
+---
+// The filter row above a listing. A plain GET form, not an island: the filtered view lives in the
+// URL so a reload keeps it and a link carries it (DEV-06 §4-2).
+import { Button } from "$lib/components/ui/button/index.js";
+import { Input } from "$lib/components/ui/input/index.js";
+
+interface Props {
+  /** Free-text search. Omitted on listings that have nothing worth searching by. */
+  keyword?: { name: string; label: string; value: string; placeholder?: string };
+  selects?: { name: string; label: string; value: string; allLabel: string; options: { value: string; label: string }[] }[];
+}
+
+const { keyword, selects = [] } = Astro.props;
+// `page` is deliberately not carried through: narrowing the result set while staying on page 4
+// lands the operator on an empty screen.
+---
+
+<form method="get" class="flex flex-wrap items-end gap-3">
+  {
+    keyword && (
+      <div class="flex flex-col gap-1.5">
+        <label for={`filter-${keyword.name}`} class="text-xs font-medium text-muted-foreground">
+          {keyword.label}
+        </label>
+        <Input id={`filter-${keyword.name}`} type="search" name={keyword.name} value={keyword.value} placeholder={keyword.placeholder} class="w-56" />
+      </div>
+    )
+  }
+  {
+    selects.map((select) => (
+      <div class="flex flex-col gap-1.5">
+        <label for={`filter-${select.name}`} class="text-xs font-medium text-muted-foreground">
+          {select.label}
+        </label>
+        {/* Native select: the shadcn one is an island, and a filter has to work before hydration.
+            `appearance-none` and the chevron below are what make it match the pill-shaped Input. */}
+        <div class="relative">
+          <select id={`filter-${select.name}`} name={select.name} class="h-9 w-full appearance-none rounded-4xl border border-input bg-input/30 pr-9 pl-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50">
+            <option value="">{select.allLabel}</option>
+            {select.options.map((option) => (
+              <option value={option.value} selected={select.value === option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <svg class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+    ))
+  }
+  <Button type="submit" variant="outline">絞り込む</Button>
+</form>

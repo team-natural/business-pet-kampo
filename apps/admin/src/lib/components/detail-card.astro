@@ -1,0 +1,45 @@
+---
+// A titled panel on a detail screen. Pass `<div><dt>…</dt><dd>…</dd></div>` rows for the
+// definition-list layout, or `list={false}` when the body is prose or a table.
+import * as Card from "$lib/components/ui/card/index.js";
+
+interface Props {
+  title: string;
+  description?: string;
+  list?: boolean;
+}
+
+const { title, description, list = true } = Astro.props;
+---
+
+{
+  /* Same flush treatment as data-table.astro: the banded term column has to reach the card's
+    edges, so the card sheds its own padding and the cells carry it instead. */
+}
+<Card.Root class="gap-0 py-0">
+  <Card.Header class="panel-header border-b py-(--card-spacing)">
+    <Card.Title>
+      <h2>{title}</h2>
+    </Card.Title>
+    {description && <Card.Description>{description}</Card.Description>}
+    {/* Card.Header switches to a two-column grid on sight of a card-action, so render it only when filled. */}
+    {
+      Astro.slots.has("actions") && (
+        <Card.Action>
+          <slot name="actions" />
+        </Card.Action>
+      )
+    }
+  </Card.Header>
+  <Card.Content class={list ? "px-0" : "py-(--card-spacing)"}>
+    {
+      list ? (
+        <dl class="detail-list text-sm">
+          <slot />
+        </dl>
+      ) : (
+        <slot />
+      )
+    }
+  </Card.Content>
+</Card.Root>

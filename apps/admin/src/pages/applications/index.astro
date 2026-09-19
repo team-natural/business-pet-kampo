@@ -1,10 +1,19 @@
 ---
 // ADM-12. Filters live in the URL query so a filtered view survives a reload and can be shared.
-import Layout from "../../layouts/Layout.astro";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { type ApplicationStatus, listApplications } from "../../lib/server/services/applications";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
+import DataTable from "$lib/components/data-table.astro";
+import FilterBar from "$lib/components/filter-bar.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import Pagination from "$lib/components/pagination.astro";
+import RowLink from "$lib/components/row-link.svelte";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDate } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { type ApplicationStatus, listApplications } from "$lib/server/services/applications";
+import { STATUS_MAPS } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const STATUSES: ApplicationStatus[] = ["received", "reviewing", "needs_confirmation", "approved", "rejected", "withdrawn"];
 const params = Astro.url.searchParams;
@@ -15,50 +24,31 @@ const { items, page, perPage, total } = await listApplications(Astro.locals.db, 
   keyword: params.get("q") ?? undefined,
   page: Number(params.get("page") ?? 1),
 });
-const lastPage = Math.max(1, Math.ceil(total / perPage));
+
+const statusOptions = STATUSES.map((value) => ({ value, label: STATUS_MAPS.application[value]!.label }));
 ---
 
-<Layout title="新規取引申請 — 管理画面">
-  <main class="mx-auto w-full max-w-6xl px-6 py-10">
-    <h1 class="text-2xl font-semibold">新規取引申請（{total}）</h1>
+<ConsoleLayout title="新規取引申請" user={admin} breadcrumbs={[{ label: "新規取引申請" }]}>
+  <PageHeader title="新規取引申請" description="公開サイトから届いた取引申請です。新しい順に並びます。" />
 
-    <form method="get" class="mt-6 flex gap-2">
-      <input type="search" name="q" value={params.get("q") ?? ""} placeholder="会社名" class="rounded border px-3 py-2" />
-      <select name="status" class="rounded border px-3 py-2">
-        <option value="">すべてのステータス</option>
-        {
-          STATUSES.map((value) => (
-            <option value={value} selected={status === value}>
-              {value}
-            </option>
-          ))
-        }
-      </select>
-      <button type="submit" class="rounded border px-4 py-2">絞り込む</button>
-    </form>
+  <FilterBar keyword={{ name: "q", label: "会社名", value: params.get("q") ?? "", placeholder: "会社名で絞り込む" }} selects={[{ name: "status", label: "ステータス", value: status ?? "", allLabel: "すべて", options: statusOptions }]} />
 
-    {/* TODO(Phase B): replace with shadcn-svelte's Table and Badge through the admin-design skill. */}
-    <table class="mt-6 w-full text-sm">
-      <thead>
-        <tr><th>申請日</th><th>会社名</th><th>ご担当者</th><th>ステータス</th></tr>
-      </thead>
-      <tbody>
-        {
-          items.map((application) => (
-            <tr>
-              <td>{application.appliedAt}</td>
-              <td>
-                <a href={`/applications/${application.id}`}>{application.companyName}</a>
-              </td>
-              <td>{application.contactName}</td>
-              <td>{application.status}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-    {items.length === 0 && <p class="mt-6">該当する申請はありません。</p>}
+  <DataTable caption="新規取引申請の一覧" columns={["申請日", "会社名", "ご担当者", "ステータス"]} rowCount={items.length} emptyTitle="該当する申請はありません" emptyDescription="絞り込み条件を変えるか、新しい申請が届くのをお待ちください。">
+    {
+      items.map((application) => (
+        <Table.Row>
+          <Table.Cell class="whitespace-nowrap text-muted-foreground tabular-nums">{formatDate(application.appliedAt)}</Table.Cell>
+          <Table.Cell>
+            <RowLink href={`/applications/${application.id}`}>{application.companyName}</RowLink>
+          </Table.Cell>
+          <Table.Cell>{application.contactName}</Table.Cell>
+          <Table.Cell>
+            <StatusBadge domain="application" value={application.status} />
+          </Table.Cell>
+        </Table.Row>
+      ))
+    }
+  </DataTable>
 
-    <p class="mt-6 text-sm">{page} / {lastPage}</p>
-  </main>
-</Layout>
+  <Pagination page={page} perPage={perPage} total={total} params={params} />
+</ConsoleLayout>

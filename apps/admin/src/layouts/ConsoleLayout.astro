@@ -1,0 +1,30 @@
+---
+// The console shell every screen sits in. Wraps Layout.astro rather than replacing it, so <head>
+// stays defined in one place.
+//
+// The shell is one island holding the whole page: Sidebar.Provider puts the trigger, the nav and
+// the content area in a single Svelte context, and Astro renders <slot /> into it as static HTML.
+// Only the props below reach the client payload — never pass order or price data through them
+// (D-021); put it in the slot, where it stays server-rendered.
+import ConsoleShell from "$lib/components/console-shell.svelte";
+import { SIDEBAR_COOKIE_NAME } from "$lib/components/ui/sidebar/constants";
+import Layout from "./Layout.astro";
+
+interface Props {
+  title: string;
+  user: { name: string; email: string };
+  /** Last entry renders as the current page. Every screen below the dashboard needs one. */
+  breadcrumbs?: { label: string; href?: string }[];
+}
+
+const { title, user, breadcrumbs = [] } = Astro.props;
+
+// Read server-side so a collapsed sidebar does not render expanded and snap shut on hydration.
+const sidebarOpen = Astro.cookies.get(SIDEBAR_COOKIE_NAME)?.value !== "false";
+---
+
+<Layout title={title}>
+  <ConsoleShell client:load user={user} pathname={Astro.url.pathname} breadcrumbs={breadcrumbs} sidebarOpen={sidebarOpen}>
+    <slot />
+  </ConsoleShell>
+</Layout>

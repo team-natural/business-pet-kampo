@@ -1,56 +1,67 @@
 ---
 // ADM-18. Everything shown comes from order_items' snapshot columns — re-reading the Markdown
 // would change what a past order says it cost at the next price revision (DEV-07 §6-0).
-import Layout from "../../layouts/Layout.astro";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { allowedTransitions, getOrderByPublicId } from "../../lib/server/services/orders";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
+import DataTable from "$lib/components/data-table.astro";
+import DetailCard from "$lib/components/detail-card.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDateTime, formatYen } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { allowedTransitions, getOrderByPublicId } from "$lib/server/services/orders";
+import { label, statusMeta } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const { order, items, shippingAddress } = await getOrderByPublicId(Astro.locals.db, Astro.params.public_id!);
 const transitions = allowedTransitions(order.status);
 ---
 
-<Layout title={`${order.orderNumber} — 受注詳細`}>
-  <main class="mx-auto w-full max-w-4xl px-6 py-10">
-    <a href="/orders" class="text-sm">← 受注一覧</a>
-    <h1 class="mt-2 text-2xl font-semibold">{order.orderNumber}</h1>
-    <p class="text-sm">{order.status} / {order.paymentStatus}（{order.paymentMethod}）</p>
+<ConsoleLayout title={`${order.orderNumber} — 受注詳細`} user={admin} breadcrumbs={[{ label: "受注", href: "/orders" }, { label: order.orderNumber }]}>
+  <PageHeader title={order.orderNumber} description={`発注日時 ${formatDateTime(order.placedAt)}`}>
+    <div slot="meta" class="flex flex-wrap items-center gap-2">
+      <StatusBadge domain="order" value={order.status} />
+      <StatusBadge domain="payment" value={order.paymentStatus} />
+      <span class="text-sm text-muted-foreground">{label("paymentMethod", order.paymentMethod)}</span>
+    </div>
+  </PageHeader>
 
-    <table class="mt-6 w-full text-sm">
-      <thead>
-        <tr><th>商品</th><th>単価</th><th>数量</th><th>小計</th></tr>
-      </thead>
-      <tbody>
-        {
-          items.map((item) => (
-            <tr>
-              <td>
-                {item.name}
-                {item.code ? `（${item.code}）` : ""}
-              </td>
-              <td>{item.unitPrice.toLocaleString()} 円</td>
-              <td>{item.quantity}</td>
-              <td>{item.subtotal.toLocaleString()} 円</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
+  <DataTable title="注文明細" caption="この受注の注文明細" columns={["商品", "単価", "数量", "小計"]} rowCount={items.length} emptyTitle="明細がありません" emptyDescription="明細のない受注は不整合です。開発チームに連絡してください。">
+    {
+      items.map((item) => (
+        <Table.Row>
+          <Table.Cell>
+            {item.name}
+            {item.code && <span class="text-muted-foreground tabular-nums">（{item.code}）</span>}
+          </Table.Cell>
+          <Table.Cell class="whitespace-nowrap tabular-nums">{formatYen(item.unitPrice)}</Table.Cell>
+          <Table.Cell class="tabular-nums">{item.quantity}</Table.Cell>
+          <Table.Cell class="whitespace-nowrap tabular-nums">{formatYen(item.subtotal)}</Table.Cell>
+        </Table.Row>
+      ))
+    }
+  </DataTable>
 
-    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
-      <dt>小計</dt><dd>{order.subtotal.toLocaleString()} 円</dd>
-      <dt>送料</dt><dd>{order.shippingFee.toLocaleString()} 円</dd>
-      <dt>消費税</dt><dd>{order.tax.toLocaleString()} 円</dd>
-      <dt>合計</dt><dd>{order.total.toLocaleString()} 円</dd>
-      <dt>お届け先</dt><dd>{Object.values(shippingAddress).join(" ")}</dd>
-      <dt>備考</dt><dd>{order.notes ?? "—"}</dd>
-    </dl>
+  <div class="grid items-start gap-6 xl:grid-cols-2">
+    <DetailCard title="金額">
+      <div><dt>小計</dt><dd class="tabular-nums">{formatYen(order.subtotal)}</dd></div>
+      <div><dt>送料</dt><dd class="tabular-nums">{formatYen(order.shippingFee)}</dd></div>
+      <div><dt>消費税</dt><dd class="tabular-nums">{formatYen(order.tax)}</dd></div>
+      <div><dt>合計</dt><dd class="font-medium tabular-nums">{formatYen(order.total)}</dd></div>
+    </DetailCard>
 
-    {/* TODO(Phase C): wire status transitions, payment confirmation, shipment details and cancellation to the API. */}
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">操作</h2>
-      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
-    </section>
-  </main>
-</Layout>
+    <DetailCard title="お届け先・備考">
+      <div><dt>お届け先</dt><dd>{Object.values(shippingAddress).join(" ")}</dd></div>
+      <div><dt>備考</dt><dd class="whitespace-pre-wrap">{order.notes ?? "—"}</dd></div>
+    </DetailCard>
+  </div>
+
+  {/* TODO(Phase C): wire status transitions, payment confirmation, shipment details and cancellation to the API. */}
+  <DetailCard title="操作">
+    <div>
+      <dt>遷移可能</dt>
+      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("order", to).label).join(" / ") : "なし（終端）"}</dd>
+    </div>
+  </DetailCard>
+</ConsoleLayout>

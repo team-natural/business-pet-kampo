@@ -1,10 +1,15 @@
 ---
 // ADM-13. Also the screen where the partner code (org_code) is assigned on approval (D-019).
-import Layout from "../../layouts/Layout.astro";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { allowedTransitions, getApplicationByPublicId } from "../../lib/server/services/applications";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
+import DetailCard from "$lib/components/detail-card.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import StatusBadge from "$lib/components/status-badge.svelte";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { allowedTransitions, getApplicationByPublicId } from "$lib/server/services/applications";
+import { statusMeta } from "$lib/status";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const application = await getApplicationByPublicId(Astro.locals.db, Astro.params.public_id!);
 // Buttons are enabled only for moves the state machine allows; the API refuses the rest with 409
@@ -12,36 +17,38 @@ const application = await getApplicationByPublicId(Astro.locals.db, Astro.params
 const transitions = allowedTransitions(application.status);
 ---
 
-<Layout title={`${application.companyName} — 申請詳細`}>
-  <main class="mx-auto w-full max-w-4xl px-6 py-10">
-    <a href="/applications" class="text-sm">← 申請一覧</a>
-    <h1 class="mt-2 text-2xl font-semibold">{application.companyName}</h1>
-    <p class="text-sm">ステータス: {application.status}</p>
+<ConsoleLayout title={`${application.companyName} — 申請詳細`} user={admin} breadcrumbs={[{ label: "新規取引申請", href: "/applications" }, { label: application.companyName }]}>
+  <PageHeader title={application.companyName} description={`申請日時 ${formatDateTime(application.appliedAt)}`}>
+    <StatusBadge slot="meta" domain="application" value={application.status} />
+  </PageHeader>
 
-    <dl class="mt-6 grid grid-cols-[10rem_1fr] gap-2 text-sm">
-      <dt>法人番号</dt><dd>{application.corporateNumber ?? "—"}</dd>
-      <dt>事業者種別</dt><dd>{application.businessType ?? "—"}</dd>
-      <dt>業種</dt><dd>{application.industry ?? "—"}</dd>
-      <dt>所在地</dt><dd>{application.postalCode} {application.address}</dd>
-      <dt>代表者</dt><dd>{application.representativeName}</dd>
-      <dt>ご担当者</dt><dd>{application.contactName}（{application.contactDepartment ?? "—"}）</dd>
-      <dt>連絡先</dt><dd>{application.phone} / {application.email}</dd>
-      <dt>Web / SNS</dt><dd>{application.website ?? "—"} / {application.sns ?? "—"}</dd>
-      <dt>実店舗</dt><dd>{application.hasPhysicalStore ? "あり" : "なし"}</dd>
-      <dt>販売予定チャネル</dt><dd>{application.plannedSalesChannels ?? "—"}</dd>
-      <dt>希望商品</dt><dd>{application.desiredProducts ?? "—"}</dd>
-      <dt>希望支払方法</dt><dd>{application.desiredPaymentMethod ?? "—"}</dd>
-      <dt>ご相談内容</dt><dd>{application.notes ?? "—"}</dd>
-      <dt>同意した規約版</dt><dd>{application.agreedTermsVersion}</dd>
-    </dl>
+  <DetailCard title="申請内容">
+    <div><dt>法人番号</dt><dd class="tabular-nums">{application.corporateNumber ?? "—"}</dd></div>
+    <div><dt>事業者種別</dt><dd>{application.businessType ?? "—"}</dd></div>
+    <div><dt>業種</dt><dd>{application.industry ?? "—"}</dd></div>
+    <div><dt>所在地</dt><dd>〒{application.postalCode} {application.address}</dd></div>
+    <div><dt>代表者</dt><dd>{application.representativeName}</dd></div>
+    <div><dt>ご担当者</dt><dd>{application.contactName}（{application.contactDepartment ?? "—"}）</dd></div>
+    <div><dt>連絡先</dt><dd>{application.phone} / {application.email}</dd></div>
+    <div><dt>Web / SNS</dt><dd>{application.website ?? "—"} / {application.sns ?? "—"}</dd></div>
+    <div><dt>実店舗</dt><dd>{application.hasPhysicalStore ? "あり" : "なし"}</dd></div>
+    <div><dt>販売予定チャネル</dt><dd>{application.plannedSalesChannels ?? "—"}</dd></div>
+    <div><dt>希望商品</dt><dd>{application.desiredProducts ?? "—"}</dd></div>
+    <div><dt>希望支払方法</dt><dd>{application.desiredPaymentMethod ?? "—"}</dd></div>
+    <div><dt>ご相談内容</dt><dd class="whitespace-pre-wrap">{application.notes ?? "—"}</dd></div>
+    <div><dt>同意した規約版</dt><dd>{application.agreedTermsVersion}</dd></div>
+  </DetailCard>
 
-    {
-      /* TODO(Phase C): wire saving the review memo, sending back, approving and rejecting to the
-        API. The approval form assigns the org_code, which never changes afterwards. */
-    }
-    <section class="mt-8">
-      <h2 class="text-lg font-semibold">審査</h2>
-      <p class="text-sm">遷移可能: {transitions.length > 0 ? transitions.join(" / ") : "なし（終端）"}</p>
-    </section>
-  </main>
-</Layout>
+  {
+    /* TODO(Phase C): wire saving the review memo, sending back, approving and rejecting to the
+      API. The approval form assigns the org_code, which never changes afterwards. */
+  }
+  <DetailCard title="審査">
+    <div><dt>審査メモ</dt><dd class="whitespace-pre-wrap">{application.reviewMemo ?? "—"}</dd></div>
+    <div><dt>審査日時</dt><dd class="tabular-nums">{formatDateTime(application.reviewedAt)}</dd></div>
+    <div>
+      <dt>遷移可能</dt>
+      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("application", to).label).join(" / ") : "なし（終端）"}</dd>
+    </div>
+  </DetailCard>
+</ConsoleLayout>

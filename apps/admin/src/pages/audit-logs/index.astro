@@ -1,49 +1,60 @@
 ---
 // ADM-24, the operation history. Append-only: nothing edits or deletes an entry (DEV-07 §10).
-import Layout from "../../layouts/Layout.astro";
+import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
 import { decodeCursor, encodeCursor } from "@app/server-kit/http";
-import { requireAdminUser } from "../../lib/server/auth/access";
-import { listActivityLogs } from "../../lib/server/services/audit-logs";
+import DataTable from "$lib/components/data-table.astro";
+import FilterBar from "$lib/components/filter-bar.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import { Button } from "$lib/components/ui/button/index.js";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { listActivityLogs } from "$lib/server/services/audit-logs";
 
-await requireAdminUser(Astro);
+const admin = await requireAdminUser(Astro);
 
 const logName = Astro.url.searchParams.get("log_name");
 const { items, nextId } = await listActivityLogs(Astro.locals.db, {
   beforeId: decodeCursor(Astro.url.searchParams.get("cursor")),
   logName: logName ?? undefined,
 });
+
+// The subjects an entry can be filed under, in the order the operator meets them.
+const LOG_NAMES = [
+  { value: "application", label: "新規取引申請" },
+  { value: "organization", label: "取引先" },
+  { value: "order", label: "受注" },
+  { value: "payment", label: "入金" },
+  { value: "inquiry", label: "お問い合わせ" },
+];
 ---
 
-<Layout title="管理操作履歴 — 管理画面">
-  <main class="mx-auto w-full max-w-6xl px-6 py-10">
-    <h1 class="text-2xl font-semibold">管理操作履歴</h1>
+<ConsoleLayout title="管理操作履歴" user={admin} breadcrumbs={[{ label: "管理操作履歴" }]}>
+  <PageHeader title="管理操作履歴" description="管理画面で行われた操作の記録です。追記のみで、あとから編集も削除もできません。" />
 
-    <table class="mt-6 w-full text-sm">
-      <thead>
-        <tr><th>日時</th><th>種別</th><th>イベント</th><th>内容</th><th>操作者</th></tr>
-      </thead>
-      <tbody>
-        {
-          items.map((entry) => (
-            <tr>
-              <td>{entry.createdAt}</td>
-              <td>{entry.logName ?? "—"}</td>
-              <td>{entry.event ?? "—"}</td>
-              <td>{entry.description}</td>
-              <td>{entry.causerType ?? "system"}</td>
-            </tr>
-          ))
-        }
-      </tbody>
-    </table>
-    {items.length === 0 && <p class="mt-6">記録はありません。</p>}
+  <FilterBar selects={[{ name: "log_name", label: "種別", value: logName ?? "", allLabel: "すべて", options: LOG_NAMES }]} />
 
+  <DataTable caption="管理操作履歴の一覧" columns={["日時", "種別", "イベント", "内容", "操作者"]} rowCount={items.length} emptyTitle="記録はありません" emptyDescription="申請の審査や受注の処理を行うと、ここに履歴が残ります。">
     {
-      nextId && (
-        <a class="mt-6 inline-block text-sm" href={`/audit-logs?cursor=${encodeCursor(nextId)}${logName ? `&log_name=${logName}` : ""}`}>
-          次のページ
-        </a>
-      )
+      items.map((entry) => (
+        <Table.Row>
+          <Table.Cell class="whitespace-nowrap text-muted-foreground tabular-nums">{formatDateTime(entry.createdAt)}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{entry.logName ?? "—"}</Table.Cell>
+          <Table.Cell class="font-mono text-xs">{entry.event ?? "—"}</Table.Cell>
+          <Table.Cell>{entry.description}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{entry.causerType ?? "システム"}</Table.Cell>
+        </Table.Row>
+      ))
     }
-  </main>
-</Layout>
+  </DataTable>
+
+  {
+    nextId && (
+      <nav aria-label="ページ送り" class="flex justify-end">
+        <Button href={`/audit-logs?cursor=${encodeCursor(nextId)}${logName ? `&log_name=${logName}` : ""}`} variant="outline" size="sm">
+          次のページ
+        </Button>
+      </nav>
+    )
+  }
+</ConsoleLayout>

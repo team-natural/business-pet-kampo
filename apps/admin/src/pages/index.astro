@@ -1,100 +1,65 @@
 ---
 // ADM-01. `/` is the dashboard, not a login screen — authentication is Cloudflare Access (D-022).
-import Layout from "../layouts/Layout.astro";
-import * as Card from "../lib/components/ui/card";
-import * as Table from "../lib/components/ui/table";
-import * as Empty from "../lib/components/ui/empty";
-import { Badge } from "../lib/components/ui/badge";
-import { formatDateTime } from "../lib/format";
-import { requireAdminUser } from "../lib/server/auth/access";
-import { listActivityLogs } from "../lib/server/services/audit-logs";
-import { getDashboardCounts } from "../lib/server/services/dashboard";
+import ConsoleLayout from "../layouts/ConsoleLayout.astro";
+import DataTable from "$lib/components/data-table.astro";
+import PageHeader from "$lib/components/page-header.astro";
+import * as Card from "$lib/components/ui/card/index.js";
+import * as Table from "$lib/components/ui/table/index.js";
+import { formatDateTime } from "$lib/format";
+import { requireAdminUser } from "$lib/server/auth/access";
+import { listActivityLogs } from "$lib/server/services/audit-logs";
+import { getDashboardCounts } from "$lib/server/services/dashboard";
 
 const admin = await requireAdminUser(Astro);
 const [counts, recent] = await Promise.all([getDashboardCounts(Astro.locals.db), listActivityLogs(Astro.locals.db, { perPage: 5 })]);
 
 // The four tiles are PRD-04 §4-3-1. Counts only; the rows behind them live in each listing.
 const tiles = [
-  { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received", cta: "申請を確認する" },
-  { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming", cta: "注文を確認する" },
-  { label: "入金待ち", value: counts.awaitingPayment, href: "/orders", cta: "入金を確認する" },
-  { label: "出荷待ち", value: counts.awaitingShipment, href: "/orders?status=preparing", cta: "出荷を進める" },
+  { label: "未審査の申請", value: counts.pendingApplications, href: "/applications?status=received" },
+  { label: "要確認の注文", value: counts.confirmingOrders, href: "/orders?status=confirming" },
+  { label: "入金待ち", value: counts.awaitingPayment, href: "/orders" },
+  { label: "出荷待ち", value: counts.awaitingShipment, href: "/orders?status=preparing" },
 ];
 ---
 
-<Layout title="ダッシュボード">
-  <div class="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 py-8 sm:px-8">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <h1 class="text-xl font-semibold">ダッシュボード</h1>
-      <Badge variant="outline">{admin.name}（{admin.email}）</Badge>
-    </div>
+<ConsoleLayout title="ダッシュボード" user={admin} breadcrumbs={[{ label: "ダッシュボード" }]}>
+  <PageHeader title="ダッシュボード" description="審査・受注・お問い合わせの未処理をまとめて確認できます。" />
 
+  <section class="flex flex-col gap-3" aria-labelledby="kpi-heading">
+    <h2 id="kpi-heading" class="sr-only">未処理の件数</h2>
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {
         tiles.map((tile) => (
-          <Card.Root>
+          <Card.Root class="relative" size="sm">
             <Card.Header>
-              <Card.Title class="text-sm font-medium text-muted-foreground">{tile.label}</Card.Title>
-              <Card.Description class="text-3xl font-semibold text-foreground tabular-nums">{tile.value}</Card.Description>
+              <Card.Description>{tile.label}</Card.Description>
+              <Card.Title class="text-3xl tabular-nums">
+                {tile.value}
+                <span class="ms-1 text-sm font-normal text-muted-foreground">件</span>
+              </Card.Title>
             </Card.Header>
             <Card.Footer>
               {/* The link stays at zero. A count tile is somewhere to go, not a result. */}
-              <a href={tile.href} class="text-sm text-primary underline-offset-4 hover:underline">
-                {tile.cta}
+              <a href={tile.href} class="rounded-sm text-sm font-medium text-primary underline-offset-4 after:absolute after:inset-0 hover:underline">
+                一覧を開く
               </a>
             </Card.Footer>
           </Card.Root>
         ))
       }
     </div>
+  </section>
 
-    <Card.Root>
-      <Card.Header>
-        <Card.Title>直近の操作履歴</Card.Title>
-        <Card.Description>管理画面で行われた操作の記録です。</Card.Description>
-        <Card.Action>
-          <a href="/audit-logs" class="text-sm text-primary underline-offset-4 hover:underline">すべて見る</a>
-        </Card.Action>
-      </Card.Header>
-      <Card.Content>
-        {
-          recent.items.length === 0 ? (
-            <Empty.Root>
-              <Empty.Header>
-                <Empty.Title>まだ記録がありません</Empty.Title>
-                <Empty.Description>申請の審査や受注の処理を行うと、ここに履歴が残ります。</Empty.Description>
-              </Empty.Header>
-              <Empty.Content>
-                <a href="/applications" class="text-sm text-primary underline-offset-4 hover:underline">
-                  新規取引申請を確認する
-                </a>
-              </Empty.Content>
-            </Empty.Root>
-          ) : (
-            <Table.Root>
-              <Table.Caption class="sr-only">直近 5 件の操作履歴</Table.Caption>
-              <Table.Header>
-                <Table.Row>
-                  <Table.Head>日時</Table.Head>
-                  <Table.Head>操作</Table.Head>
-                  <Table.Head>対象</Table.Head>
-                  <Table.Head>操作者</Table.Head>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {recent.items.map((entry) => (
-                  <Table.Row>
-                    <Table.Cell class="whitespace-nowrap tabular-nums">{formatDateTime(entry.createdAt)}</Table.Cell>
-                    <Table.Cell>{entry.description}</Table.Cell>
-                    <Table.Cell>{entry.subjectType ?? "—"}</Table.Cell>
-                    <Table.Cell>{entry.causerType ?? "システム"}</Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
-          )
-        }
-      </Card.Content>
-    </Card.Root>
-  </div>
-</Layout>
+  <DataTable title="直近の操作履歴" description="管理画面で行われた操作の記録です。" actionHref="/audit-logs" actionLabel="すべて見る" caption="直近 5 件の操作履歴" columns={["日時", "操作", "対象", "操作者"]} rowCount={recent.items.length} emptyTitle="まだ記録がありません" emptyDescription="申請の審査や受注の処理を行うと、ここに履歴が残ります。" emptyActionHref="/applications" emptyActionLabel="新規取引申請を確認する">
+    {
+      recent.items.map((entry) => (
+        <Table.Row>
+          <Table.Cell class="whitespace-nowrap text-muted-foreground tabular-nums">{formatDateTime(entry.createdAt)}</Table.Cell>
+          <Table.Cell>{entry.description}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{entry.subjectType ?? "—"}</Table.Cell>
+          <Table.Cell class="text-muted-foreground">{entry.causerType ?? "システム"}</Table.Cell>
+        </Table.Row>
+      ))
+    }
+  </DataTable>
+</ConsoleLayout>

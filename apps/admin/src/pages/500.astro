@@ -1,12 +1,14 @@
 ---
+// Same reason as 404.astro: no identity is available here, so no console chrome.
 import Layout from "../layouts/Layout.astro";
+import { Button } from "$lib/components/ui/button/index.js";
 ---
 
-<Layout title="Something went wrong — Admin console">
-  <main class="mx-auto flex min-h-dvh max-w-2xl flex-col items-center justify-center gap-4 px-4 text-center">
+<Layout title="エラーが発生しました">
+  <main class="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center gap-4 px-4 text-center">
     <p translate="no" class="font-mono text-sm font-medium tracking-widest text-muted-foreground">500</p>
-    <h1 class="text-3xl font-bold">Something went wrong</h1>
-    <p class="text-muted-foreground">An unexpected error occurred. Please try again later.</p>
-    <a href="/" class="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground transition hover:opacity-90">Back to sign in</a>
+    <h1 class="text-2xl font-semibold">エラーが発生しました</h1>
+    <p class="text-sm text-muted-foreground">時間をおいて、もう一度お試しください。</p>
+    <Button href="/">ダッシュボードへ</Button>
   </main>
 </Layout>
