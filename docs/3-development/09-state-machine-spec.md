@@ -37,6 +37,7 @@ PRD-01 §7 と整合させる。
 | Member | 3 | 有効化・停止・無効化 |
 | Order | 6 | 発注確定・運営操作・出荷・キャンセル |
 | Payment | 7 | 決済 Webhook、運営の入金確認操作 |
+| Inquiry | 3 | 運営の対応開始・解決・再オープン |
 
 ### 1-1. 状態列を持つが本書の詳細対象としないもの
 
@@ -45,9 +46,6 @@ PRD-01 §7 と整合させる。
 | エンティティ | 列 | 値 | 根拠 |
 | --- | --- | --- | --- |
 | AdminUser | `status` | active / inactive | 有効/無効の切替のみ（DEV-07 §4-1）。**Access のポリシーから外す運用と二重管理になる**ため、無効化は両方で行う（GOV-01 D-022）|
-| Inquiry | `status` | new / in_progress / resolved | 運営の対応状況を表すだけで、業務上の副作用を持たない（PRD-03 F-09-06、DEV-07 §7-2）|
-
-> Inquiry の `resolved → in_progress`（再オープン）を許すかは未確定（GOV-02 TBD-30）。許さない実装にすると、同一問い合わせの再対応が新規レコード起票になる。
 
 **商品・お知らせ・診断ルールは D1 に状態列を持たない**（GOV-01 D-017・D-018）。公開/非公開は frontmatter の `draft`、取扱終了は `discontinued` で表現し、**「公開」はデプロイと同義**、下書きはブランチ上のコミットで表現する（PRD-01 §7 の注記、DEV-06 §1-1）。したがって状態遷移関数（§3）の対象にもならず、遷移の監査ログも残らない — 履歴は Git が持つ。
 
@@ -317,6 +315,54 @@ DEV-07 §6-11（`payments.status`）と一致させる。
 | → refunded / partially_refunded | 取引先へ返金通知 |
 
 > Webhook 起点の遷移（`processing → paid` / `failed`）は **同じイベントが再送される前提**で書く。冪等性は `payment_event_logs.provider_event_id` の UNIQUE 制約で担保し（DEV-07 §6-12）、既に処理済みのイベントは遷移関数を呼ばずに 200 を返す。遷移マトリクスで `paid → paid` が ✗ なので、冪等化を忘れると再送のたびに `InvalidTransitionError` が出て決済サービス側のリトライが延々と失敗する。
+
+---
+
+### 2-7. Inquiry
+
+本エンティティは **§3 の状態遷移関数の参照実装**でもある（`apps/admin/src/lib/server/services/inquiries.ts` の `transitionInquiry`）。他のエンティティの遷移関数はこれに倣って書く（DEV-05 §1、`scaffold` スキル）。
+
+#### 2-7-1. 状態一覧
+
+DEV-07 §7-2（`inquiries.status`）と一致させる。
+
+| 状態 | 説明 |
+| --- | --- |
+| `new` | 受信済み・未対応（初期状態。担当者未割当）|
+| `in_progress` | 対応中（`assignee_id` に担当者を記録）|
+| `resolved` | 対応完了 |
+
+#### 2-7-2. 遷移マトリクス
+
+| 遷移元 → 遷移先 | new | in_progress | resolved |
+| --- | :---: | :---: | :---: |
+| new | — | ✓ | ✗ |
+| in_progress | ✓ | — | ✓ |
+| resolved | ✗ | ✓ | — |
+
+> **終端状態を持たない。** `resolved → in_progress`（再オープン）を許すのは、同一の問い合わせに対する再対応を新規レコード起票にしないためである（GOV-01 D-030、GOV-02 TBD-30 クローズ）。`in_progress → new`（担当解除）は、担当者が対応を引き取ったまま離任した問い合わせを未対応の受信箱へ戻すための経路である。
+
+#### 2-7-3. 遷移トリガー
+
+| 遷移 | トリガー | 実行者 | エンドポイント |
+| --- | --- | --- | --- |
+| （フォーム送信）→ new | 公開サイトのお問い合わせ送信 | 一般閲覧者 | `POST /api/v1/inquiries`（public）|
+| new → in_progress | 対応開始 | AdminUser | `POST /api/v1/inquiries/{public_id}/start`（admin）|
+| in_progress → resolved | 対応完了 | AdminUser | `POST /api/v1/inquiries/{public_id}/resolve`（admin）|
+| resolved → in_progress | 再オープン | AdminUser | `POST /api/v1/inquiries/{public_id}/reopen`（admin）|
+| in_progress → new | 担当解除 | AdminUser | `POST /api/v1/inquiries/{public_id}/unassign`（admin）|
+
+> **1 遷移 1 ルート**（DEV-04 §5-8）。`/reopen` に「再オープン」と「担当解除」を兼ねさせない — 遷移元によって着地する状態が変わるルートは、呼び出し側が結果を予測できない。
+
+#### 2-7-4. 遷移時の副作用
+
+| 遷移 | 副作用 |
+| --- | --- |
+| → in_progress | `assignee_id` に操作した AdminUser を記録（**担当者は `start` / `reopen` が記録する** — DEV-04 §5-8）、監査ログ記録 |
+| → new | `assignee_id` を NULL に戻す（担当解除）、監査ログ記録 |
+| → resolved | `assignee_id` は維持（誰が解決したかを残す）、監査ログ記録 |
+
+> 業務上の副作用（メール送信・他テーブルの更新）は持たない。ただし **`activity_log` への記録は本体の UPDATE と同じ `batch()` にまとめる**（DEV-05 §3・§9-1）。状態だけ動いてログが残らない事態を作らないためで、この点は他のエンティティと同じ扱いである。
 
 ---
 

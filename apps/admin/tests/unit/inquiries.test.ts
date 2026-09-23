@@ -75,7 +75,7 @@ describe("transitions", () => {
     await expect(transitionInquiry(db, row.publicId, "in_progress", admin)).resolves.toMatchObject({ status: "in_progress" });
   });
 
-  it("assigns the handler on start and releases it on reopen", async () => {
+  it("assigns the handler on start and releases it on unassign", async () => {
     const row = await arrive();
 
     await transitionInquiry(db, row.publicId, "in_progress", admin);
@@ -85,6 +85,18 @@ describe("transitions", () => {
     await transitionInquiry(db, row.publicId, "new", admin);
     const [released] = await db.select().from(inquiries).where(eq(inquiries.id, row.id));
     expect(released!.assigneeId).toBeNull();
+  });
+
+  // The route for this landed on `new` at one point, which made the move below unreachable: from
+  // `resolved` it answered 409 and nothing else pointed at `in_progress` (D-030).
+  it("reopens a resolved inquiry back into in_progress", async () => {
+    const row = await arrive();
+    await transitionInquiry(db, row.publicId, "in_progress", admin);
+    await transitionInquiry(db, row.publicId, "resolved", admin);
+
+    expect(allowedTransitions("resolved")).toEqual(["in_progress"]);
+    await expect(transitionInquiry(db, row.publicId, "new", admin)).rejects.toBeInstanceOf(InvalidStateTransitionError);
+    await expect(transitionInquiry(db, row.publicId, "in_progress", admin)).resolves.toMatchObject({ status: "in_progress" });
   });
 
   it("keeps the handler when resolving", async () => {

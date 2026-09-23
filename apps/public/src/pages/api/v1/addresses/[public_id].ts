@@ -10,7 +10,7 @@ import { getAddress } from "$lib/server/services/addresses";
 async function guard({ cookies, params }: APIContext) {
   const db = createDb(env.DB);
   const organization = requireActiveOrganization(await requireSession(cookies, db));
-  await getAddress(db, organization.id, params.id!);
+  await getAddress(db, organization.id, params.public_id!);
 }
 
 export async function PATCH(context: APIContext): Promise<Response> {

@@ -11,11 +11,17 @@ if (process.argv.includes("dev")) {
 
 export default defineConfig({
   output: "server",
+  // Authentication is Cloudflare Access; this app holds no session of its own (D-022). Left unset,
+  // the adapter wires a Cloudflare KV session driver and provisions a `SESSION` namespace on
+  // deploy — and apps/admin is specified as having no KV binding at all.
+  session: false,
   adapter: cloudflare({
     // Shared with apps/public, as in production.
     persistState: { path: "../../.wrangler-state" },
     // Distinct per app, or both apps fight over 9229. Explicit ports don't auto-fall back.
     inspectorPort: Number(process.env.APP_INSPECTOR_PORT_ADMIN ?? 9230),
+    // The adapter defaults to `cloudflare-binding`, which provisions an Images binding on deploy.
+    imageService: "compile",
   }),
   integrations: [svelte()],
   vite: {

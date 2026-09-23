@@ -8,7 +8,7 @@ export async function GET(context: APIContext): Promise<Response> {
   try {
     await requireAdminUser(context);
 
-    const organization = await findOrganizationRow(context.locals.db, context.params.id!);
+    const organization = await findOrganizationRow(context.locals.db, context.params.public_id!);
     return jsonItem(await listOrganizationMembers(context.locals.db, organization.id));
   } catch (error) {
     return toErrorResponse(error);

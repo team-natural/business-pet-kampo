@@ -12,6 +12,10 @@ export interface ActivityLogEntry {
   causerType?: string;
   // Omit for system-driven changes with no human actor — never invent a "system" AdminUser row.
   causerId?: number;
+  // Required for anything touching an order, a trading partner or a cart (DEV-05 §9-1). Null only
+  // where the subject belongs to no organization at all — handling an inquiry, reviewing an
+  // application that has not been approved yet.
+  organizationId?: number;
   properties?: Record<string, unknown>;
 }
 
@@ -26,6 +30,7 @@ export function activityLogInsert(db: DbClient, entry: ActivityLogEntry) {
     event: entry.event ?? null,
     causerType: entry.causerType ?? "AdminUser",
     causerId: entry.causerId ?? null,
+    organizationId: entry.organizationId ?? null,
     properties: entry.properties ? JSON.stringify(entry.properties) : null,
     batchId: null,
   });

@@ -19,12 +19,12 @@
   let fieldErrors = $state<Record<string, string[] | undefined>>({});
   let formError = $state("");
 
-  // The API answers in Japanese; mapping by status keeps this screen in one language. None of
-  // these distinguish "no such account" from "wrong password".
+  // Mapped by status rather than shown from the response body: the wording stays this screen's
+  // own. None of these distinguish "no such account" from "wrong password".
   function messageFor(status: number) {
-    if (status === 401) return "Incorrect email or password.";
-    if (status === 429) return "Too many attempts. Please wait and try again.";
-    return "Login failed. Please try again later.";
+    if (status === 401) return "メールアドレスまたはパスワードが正しくありません。";
+    if (status === 429) return "試行回数が上限を超えました。しばらく待ってからやり直してください。";
+    return "ログインできませんでした。時間をおいて、もう一度お試しください。";
   }
 
   async function handleSubmit(event: SubmitEvent) {
@@ -55,7 +55,7 @@
         formError = messageFor(response.status);
       }
     } catch {
-      formError = "Could not reach the server. Check your connection.";
+      formError = "サーバーに接続できませんでした。通信環境をご確認ください。";
     } finally {
       // Unreached on success (navigating away) — re-enabling first would allow a double submit.
       submitting = false;
@@ -69,7 +69,7 @@
   {/if}
 
   <div class="flex flex-col gap-1">
-    <label for="email-{id}">Email</label>
+    <label for="email-{id}">メールアドレス</label>
     <input id="email-{id}" class="rounded border px-3 py-2" type="email" autocomplete="username" bind:value={email} required aria-invalid={fieldErrors.email ? "true" : undefined} />
     {#if fieldErrors.email}
       <p role="alert" class="text-sm text-red-700">{fieldErrors.email.join(" ")}</p>
@@ -77,7 +77,7 @@
   </div>
 
   <div class="flex flex-col gap-1">
-    <label for="password-{id}">Password</label>
+    <label for="password-{id}">パスワード</label>
     <input id="password-{id}" class="rounded border px-3 py-2" type="password" autocomplete="current-password" bind:value={password} required aria-invalid={fieldErrors.password ? "true" : undefined} />
     {#if fieldErrors.password}
       <p role="alert" class="text-sm text-red-700">{fieldErrors.password.join(" ")}</p>
@@ -85,6 +85,6 @@
   </div>
 
   <button type="submit" class="rounded bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!hydrated || submitting}>
-    {submitting ? "Logging in…" : "Login"}
+    {submitting ? "ログインしています…" : "ログイン"}
   </button>
 </form>

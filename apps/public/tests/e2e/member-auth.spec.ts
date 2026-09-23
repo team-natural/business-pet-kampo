@@ -4,10 +4,10 @@ import { E2E_MEMBER } from "./global-setup";
 // login-form.svelte keeps the button disabled until onMount, so "enabled" is the hydration
 // signal — and the only check that catches a page missing its client:* directive.
 async function login(page: Page, email: string, password: string) {
-  const submit = page.getByRole("button", { name: "Login" });
+  const submit = page.getByRole("button", { name: "ログイン" });
   await expect(submit).toBeEnabled();
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("メールアドレス").fill(email);
+  await page.getByLabel("パスワード").fill(password);
   await submit.click();
 }
 
@@ -70,7 +70,7 @@ test.describe("member login", () => {
     await login(page, E2E_MEMBER.email, E2E_MEMBER.password);
     await page.waitForURL("**/mypage");
 
-    await page.getByRole("button", { name: "Log out" }).click();
+    await page.getByRole("button", { name: "ログアウト" }).click();
     await page.waitForURL(/\/$/);
 
     await page.goto("/mypage");

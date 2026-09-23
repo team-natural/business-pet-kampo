@@ -271,7 +271,7 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | admin | GET | `/api/v1/inquiries/{public_id}` | 詳細 | Access |
 | admin | PATCH | `/api/v1/inquiries/{public_id}` | 管理メモの更新（**`status` は受け取らない**） | Access |
 | admin | DELETE | `/api/v1/inquiries/{public_id}` | 迷惑メール等の削除（監査ログに内容を残す） | Access |
-| admin | POST | `/api/v1/inquiries/{public_id}/start` · `/resolve` · `/reopen` | 対応状況の遷移（1 遷移 1 ルート。担当者は `start` が記録する） | Access |
+| admin | POST | `/api/v1/inquiries/{public_id}/start` · `/resolve` · `/reopen` · `/unassign` | 対応状況の遷移（1 遷移 1 ルート — DEV-09 §2-7。担当者は `start` / `reopen` が記録し、`unassign` が外す） | Access |
 
 > **お知らせに API は存在しない**（GOV-01 D-018）。実体は `packages/content/news/*.md` で、一覧・詳細ページがサーバー側で読む。`visibility: client_only` と `draft` の除外は**一覧・詳細・サイトマップの 3 か所すべて**で行う（DEV-07 §7-1）。
 >

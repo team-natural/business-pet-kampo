@@ -2,8 +2,9 @@
 // state machine.
 import { applications, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
+import { likeContains } from "@app/schema/query";
 import { NotFoundError } from "@app/server-kit/http";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 export type ApplicationStatus = "received" | "reviewing" | "needs_confirmation" | "approved" | "rejected" | "withdrawn";
 
@@ -62,7 +63,7 @@ export async function listApplications(db: DbClient, options: { status?: Applica
   const perPage = Math.min(Math.max(options.perPage ?? DEFAULT_PER_PAGE, 1), MAX_PER_PAGE);
   const page = Math.max(options.page ?? 1, 1);
 
-  const where = and(options.status ? eq(applications.status, options.status) : undefined, options.keyword ? like(applications.companyName, `%${options.keyword}%`) : undefined);
+  const where = and(options.status ? eq(applications.status, options.status) : undefined, options.keyword ? likeContains(applications.companyName, options.keyword) : undefined);
 
   const [rows, [counted]] = await Promise.all([
     db

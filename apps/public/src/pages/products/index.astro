@@ -2,7 +2,7 @@
 // SCR-02. Server-rendered, always: prerendering would bake every organization's wholesale price
 // into static HTML (D-021).
 import Layout from "../../layouts/Layout.astro";
-import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, listProducts, resolveWholesalePrice } from "../../lib/catalog";
+import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, listProducts, resolveWholesalePrices } from "../../lib/catalog";
 import { memberSession } from "../../lib/server/auth/page";
 import { viewerFor } from "../../lib/server/auth/session";
 
@@ -20,7 +20,7 @@ const filter = {
 // server and never handed to a client island.
 const viewer = viewerFor(await memberSession(Astro));
 const products = await listProducts(filter);
-const prices = await Promise.all(products.map((product) => resolveWholesalePrice(product, viewer)));
+const prices = await resolveWholesalePrices(products, viewer);
 ---
 
 <Layout title="商品一覧">

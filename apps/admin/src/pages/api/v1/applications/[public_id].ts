@@ -1,4 +1,3 @@
-// `[id]` is the application's public_id (a ULID).
 import type { APIContext } from "astro";
 import { jsonItem, toErrorResponse } from "@app/server-kit/http";
 import { requireAdminUser } from "$lib/server/auth/access";
@@ -7,7 +6,7 @@ import { getApplicationByPublicId } from "$lib/server/services/applications";
 export async function GET(context: APIContext): Promise<Response> {
   try {
     await requireAdminUser(context);
-    return jsonItem(await getApplicationByPublicId(context.locals.db, context.params.id!));
+    return jsonItem(await getApplicationByPublicId(context.locals.db, context.params.public_id!));
   } catch (error) {
     return toErrorResponse(error);
   }

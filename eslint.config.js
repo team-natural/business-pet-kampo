@@ -22,6 +22,11 @@ export default tseslint.config(
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
+    rules: {
+      // Two import statements from one module read as two different dependencies in review, and
+      // the second one is what survives a careless merge.
+      "no-duplicate-imports": "error",
+    },
   },
   // Each app has its own svelte.config.js; passing it to the parser is what makes
   // preprocessor-aware rules (svelte/valid-compile etc.) accurate.
@@ -127,6 +132,14 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+  {
+    // `shadcn-svelte add`/`update` writes these files and would reintroduce any fix on the next
+    // component update. Style and structure here are upstream's, not ours.
+    files: ["apps/*/src/lib/components/ui/**"],
+    rules: {
+      "no-duplicate-imports": "off",
     },
   },
   {

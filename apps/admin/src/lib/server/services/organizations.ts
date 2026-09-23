@@ -1,8 +1,9 @@
 // Trading partners (ADM-14〜16). DEV-09 §2-2 is the source of truth for the state machine.
 import { memberships, members, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
+import { likeContains } from "@app/schema/query";
 import { NotFoundError } from "@app/server-kit/http";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 export type OrganizationStatus = "active" | "suspended" | "terminated";
 
@@ -40,7 +41,7 @@ export async function listOrganizations(db: DbClient, options: { status?: Organi
   const perPage = Math.min(Math.max(options.perPage ?? DEFAULT_PER_PAGE, 1), MAX_PER_PAGE);
   const page = Math.max(options.page ?? 1, 1);
 
-  const where = and(options.status ? eq(organizations.status, options.status) : undefined, options.keyword ? like(organizations.name, `%${options.keyword}%`) : undefined);
+  const where = and(options.status ? eq(organizations.status, options.status) : undefined, options.keyword ? likeContains(organizations.name, options.keyword) : undefined);
 
   const [rows, [counted]] = await Promise.all([
     db

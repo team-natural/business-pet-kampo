@@ -112,15 +112,28 @@ export async function getNewsEntry(slug: string, viewer: Viewer | null): Promise
   return entry && isVisibleTo(entry, viewer) ? entry : undefined;
 }
 
+// The viewer's own price file, flattened to slug -> price. Read once per request and passed
+// around: resolving per product walks the whole prices collection once per row, which is what
+// turns a 60-product listing into 60 scans (DEV-05 §8).
+async function overridesFor(viewer: Viewer): Promise<Map<string, number>> {
+  const lists = await getCollection("prices", ({ data }) => data.orgCode === viewer.orgCode);
+  return new Map(lists.flatMap(({ data }) => data.prices).map((entry) => [entry.product, entry.price]));
+}
+
 // Standard wholesale price, overridden by the viewer's own price file when one exists (D-019).
 // Anonymous visitors get null — a price must never be produced for someone who cannot see one.
 export async function resolveWholesalePrice(product: ProductEntry, viewer: Viewer | null): Promise<number | null> {
   if (!viewer) return null;
+  return (await overridesFor(viewer)).get(product.id) ?? product.data.wholesalePrice;
+}
 
-  const lists = await getCollection("prices", ({ data }) => data.orgCode === viewer.orgCode);
-  const override = lists.flatMap(({ data }) => data.prices).find((entry) => entry.product === product.id);
+// The listing form. Returns prices positionally, so a caller cannot pair a price with the wrong
+// product by looking one up under a slug it mistyped.
+export async function resolveWholesalePrices(products: ProductEntry[], viewer: Viewer | null): Promise<(number | null)[]> {
+  if (!viewer) return products.map(() => null);
 
-  return override?.price ?? product.data.wholesalePrice;
+  const overrides = await overridesFor(viewer);
+  return products.map((product) => overrides.get(product.id) ?? product.data.wholesalePrice);
 }
 
 // Every org_code the price files reference. The service layer checks these against

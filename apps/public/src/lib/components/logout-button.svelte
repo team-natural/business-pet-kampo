@@ -19,10 +19,10 @@
         return;
       }
 
-      error = "Could not log out. Please try again.";
+      error = "ログアウトできませんでした。もう一度お試しください。";
       submitting = false;
     } catch {
-      error = "Could not reach the server. Check your connection.";
+      error = "サーバーに接続できませんでした。通信環境をご確認ください。";
       submitting = false;
     }
   }
@@ -33,6 +33,6 @@
     <p role="alert" class="text-sm text-red-700">{error}</p>
   {/if}
   <button type="button" class="rounded border px-3 py-1 disabled:opacity-50" disabled={submitting} onclick={handleLogout}>
-    {submitting ? "Logging out…" : "Log out"}
+    {submitting ? "ログアウトしています…" : "ログアウト"}
   </button>
 </div>

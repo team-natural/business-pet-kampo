@@ -406,7 +406,13 @@ erDiagram
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
-**Index**: UNIQUE(`member_id`, `organization_id`), `organization_id`
+**Index**: UNIQUE(`member_id`), `organization_id`
+
+> **UNIQUE は `member_id` 単独**である（GOV-01 D-031）。1 人の Member が所属できる Organization は高々 1 社で、`(member_id, organization_id)` の複合 UNIQUE はこれに含まれるため持たない。
+>
+> この制約が、`apps/public` のセッションが `organization` を 1 つだけ持つ構造（`getSessionOrganization` の `LIMIT 1`）を裏付けている。**制約を外すなら同時にセッションの形と組織切替 UI を設計し直す必要がある** — 外しただけだと、複数所属の Member がどちらの会社として発注しているのか誰にも決められない状態になる。
+>
+> 同一人物が 2 社の仕入れ担当を兼ねる場合は、会社ごとに別アカウント（別メールアドレス）を作る。`members.email` の UNIQUE がこれを自然に強制する。
 
 ### 5-6. shipping_addresses
 
@@ -564,9 +570,11 @@ erDiagram
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
-**Index**: UNIQUE(`public_id`), `status`, `assignee_id`
+**Index**: UNIQUE(`public_id`), `status`, `assignee_id`, `created_at`
 
-> `status` は**サーバーが決め打ちする**（新規作成時は必ず `new`）。フォームから受け取ってはならない — 訪問者が最初から `resolved` にできる受信箱は受信箱ではない。`assignee_id` / `memo` も公開側の入力対象外で、ADM-23 からのみ更新する（DEV-04 §5-8）。
+> `created_at` に索引を張るのは、一覧（ADM-22）が受信日時の降順固定で、キーセットページネーションがこの列を走査するためである（DEV-04 §3-2）。
+>
+> `status` は**サーバーが決め打ちする**（新規作成時は必ず `new`）。遷移は `transitionInquiry` 経由のみで、DEV-09 §2-7 が正本（GOV-01 D-030）。フォームから受け取ってはならない — 訪問者が最初から `resolved` にできる受信箱は受信箱ではない。`assignee_id` / `memo` も公開側の入力対象外で、ADM-23 からのみ更新する（DEV-04 §5-8）。
 >
 > 種別マスタを D1 に持たないのは、選択肢が「カテゴリで絞る構造化データ」であり運営が増やす対象でもないため（GOV-01 D-024）。ラベルを保存すると文言を直した瞬間に過去データと食い違う。
 

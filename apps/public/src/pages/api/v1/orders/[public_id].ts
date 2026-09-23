@@ -1,5 +1,5 @@
-// `[id]` is the order's public_id (a ULID). Another organization's order answers NotFoundError,
-// not 403 — the distinction would confirm that the id exists.
+// Another organization's order answers NotFoundError, not 403 — the distinction would confirm
+// that the id exists.
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
@@ -13,7 +13,7 @@ export async function GET({ cookies, params }: APIContext): Promise<Response> {
     const session = await requireSession(cookies, db);
     const organization = requireActiveOrganization(session);
 
-    return jsonItem(await getOrder(db, organization.id, params.id!));
+    return jsonItem(await getOrder(db, organization.id, params.public_id!));
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -153,6 +153,9 @@ export const socialAccounts = sqliteTable(
   (table) => [uniqueIndex("uq_social_accounts_provider_provider_user_id").on(table.provider, table.providerUserId), index("idx_social_accounts_member_id").on(table.memberId)],
 );
 
+// One organization per member (D-031). Widening this back to a composite unique also means giving
+// the session a selected organization and a way to switch it — without that, a member in two
+// companies orders as whichever row the query happened to return.
 export const memberships = sqliteTable(
   "memberships",
   {
@@ -170,7 +173,7 @@ export const memberships = sqliteTable(
     createdAt: createdAt(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [uniqueIndex("uq_memberships_member_id_organization_id").on(table.memberId, table.organizationId), index("idx_memberships_organization_id").on(table.organizationId)],
+  (table) => [uniqueIndex("uq_memberships_member_id").on(table.memberId), index("idx_memberships_organization_id").on(table.organizationId)],
 );
 
 export const shippingAddresses = sqliteTable(

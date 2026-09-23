@@ -419,6 +419,32 @@ related-docs:
 | 運用上の注意 | ポリシー誤設定による締め出しが唯一の運用リスク。主ポリシーと独立した経路（別 IdP かサービストークン）のブレークグラスを常設し、復旧はダッシュボード側で行う。**コードで迂回路を作らない** |
 | 再評価条件 | Cloudflare が静的アセット配信時にも `ctx.access` を渡すようになった時点で、JWT フォールバックと `CF_ACCESS_*` 変数を削除できる |
 
+### D-030：Inquiry を正式な状態遷移エンティティとし、再オープンを許可する（TBD-30 の解決）
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-23 |
+| カテゴリ | プロダクト / 設計 |
+| 決定内容 | (a) `inquiries.status` を状態遷移関数（`transitionInquiry`）経由でのみ更新する正式な遷移対象とし、DEV-09 §1-1（詳細対象外）から §2-7（遷移マトリクス）へ移す。(b) `resolved → in_progress`（再オープン）を**許可する**。(c) `in_progress → new`（担当解除）も正式な遷移として認める。(d) 1 遷移 1 ルートの原則（D-028）に従い、再オープンは `/reopen`、担当解除は `/unassign` と**別ルートに分ける** |
+| 背景 | DEV-09 §1-1 が「遷移関数を経由しない」と書いている一方、実装（`apps/admin/src/lib/server/services/inquiries.ts`）は遷移マトリクス付きの `transitionInquiry` になっており、しかもそれが **DEV-05 §1 で全リソースの参照実装に指定**されていた。`scaffold` スキルがこのファイルを手本に申請・取引先・受注の遷移を書くため、矛盾を残すとリソースを追加するたびに再燃する。実装側の設計が妥当と判断し、docs を実装に合わせた。再オープンを許さない場合、同一問い合わせの再対応が新規レコード起票になり、経緯が 2 行に分断される |
+| 影響範囲 | DEV-04 §5-8, DEV-07 §7-2, DEV-09 §1・§1-1・§2-7, PRD-03 F-09-06, `apps/admin/src/pages/api/v1/inquiries/[id]/{reopen,unassign}.ts` |
+| 決定者 | Tech Lead / PdM |
+| 関連 TBD | TBD-30（本決定で解決） |
+| 実装上の注意 | 決定時、`/reopen` は `transitionInquiry(..., "new", ...)` を呼んでおり、**ルート名と挙動が食い違っていた** — `resolved` から呼ぶと `resolved → new` は非許可なので 409 になり、遷移マトリクスが許している再オープンに到達できる経路が 1 つも無かった。本決定に合わせて `/reopen` を `in_progress` 着地に修正し、担当解除を `/unassign` として切り出した。`assignee_id` は `start` / `reopen` が記録し、`unassign` が NULL に戻す |
+
+### D-031：1 人の Member が所属できる Organization は高々 1 社とする
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-23 |
+| カテゴリ | プロダクト / 設計 |
+| 決定内容 | `memberships` の UNIQUE を `(member_id, organization_id)` の複合から **`member_id` 単独**に変更し、1 Member = 1 Organization をスキーマで強制する。組織切替 UI は設けない。同一人物が複数社の担当を兼ねる場合は会社ごとに別アカウント（別メールアドレス）を作る |
+| 背景 | D-004 の「1 社に複数ユーザーを所属させる」は Organization → Member の多重度（1 対多）の話であり、その逆（Member → Organization）は未定のままだった。スキーマは複合 UNIQUE で複数所属を許す一方、`getSessionOrganization` は `ORDER BY` 無しの `LIMIT 1` で、**複数所属の Member にはどの会社として振る舞うかが不定**という状態だった。`session.organization` は卸価格・カート・配送先・発注履歴の認可すべての起点であり、機能実装後にここを変えると認可モデルごとやり直しになるため、実装着手前に片方へ倒した |
+| 影響範囲 | PRD-01 §3, DEV-07 §5-5, `packages/schema/src/schema.ts`, `packages/schema/migrations/`, `apps/public/src/lib/server/auth/session.ts` |
+| 決定者 | Tech Lead / PdM |
+| 関連 TBD | TBD-10（「1 社に複数ユーザー」は引き続き対応済み。本決定はその逆方向のみを閉じる）|
+| 再評価条件 | 1 人が複数の取引先を担当する運用実態が出てきた時点。**制約を外すだけでは足りない** — セッションに「選択中の Organization」を持たせ、切替 UI とカートの扱い（切替時に破棄するか会社ごとに保持するか）を同時に決める必要がある |
+
 ---
 
 ## 3. 記録すべき意思決定の種別
