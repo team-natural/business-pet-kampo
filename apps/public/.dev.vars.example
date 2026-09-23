@@ -1,4 +1,11 @@
-# Local secrets for `astro dev`. Copy to `.dev.vars` (gitignored) and fill in.
-# Non-secret config goes in wrangler.jsonc `vars`; in staging/production these keys become
-# Workers Secrets (`wrangler secret put`).
-# Nothing is required by the code that ships today — add keys as the features land.
+# Copy to .dev.vars (gitignored) and fill in. Secrets only — non-secret values live in
+# wrangler.jsonc's vars (DEV-10 §1-3, DEV-08 §8).
+#
+# In production these are set with `wrangler secret put <KEY>`, never in wrangler.jsonc.
+
+# Resend (DEV-10 §3). Without it every send fails closed and logs; the request still succeeds.
+RESEND_API_KEY=re_xxxxxxxxxx
+
+# HMAC key for single-use tokens (password reset, activation, application withdrawal).
+# Used from S3 onward — generate with: openssl rand -base64 32
+SESSION_SIGNING_KEY=

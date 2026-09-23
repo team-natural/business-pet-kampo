@@ -15,7 +15,19 @@ function withSecurityHeaders(response: Response): Response {
   return response;
 }
 
+// Access is configured to bypass these, so the request arrives with no identity to resolve and
+// the check below would answer 403 — the monitor would see that, not the health of the app
+// (DEV-08 §9). Matched as an exact path, never a prefix: `startsWith` would also exempt
+// `/api/v1/health-is-a-lie/orders`.
+const PUBLIC_PATHS = new Set(["/api/v1/health", "/api/v1/health/db"]);
+
 export const onRequest = defineMiddleware(async (context, next) => {
+  if (PUBLIC_PATHS.has(context.url.pathname)) {
+    context.locals.accessEmail = null;
+    context.locals.db = createDb(env.DB);
+    return withSecurityHeaders(await next());
+  }
+
   try {
     context.locals.accessEmail = await resolveAccessEmail(context, env);
   } catch (error) {

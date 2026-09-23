@@ -139,7 +139,8 @@ apps/public   main domain: catalog, applications, news, member login, cart and o
 apps/admin    subdomain: screening, organizations, orders, inquiries, audit log
               (shadcn-svelte lives here only; no content management — D-017)
 packages/schema      Drizzle tables, ULID, D1 client
-packages/server-kit  password hashing, lockout, session rules, HTTP envelope
+packages/server-kit  password hashing, lockout, session rules, HTTP envelope,
+                     outbound-integration retry and structured logging
                      (only apps/public uses the auth half now — D-022)
 packages/content     developer-maintained Markdown: products, manufacturers, brands,
                      prices, news, diagnosis

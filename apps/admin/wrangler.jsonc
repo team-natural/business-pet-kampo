@@ -28,8 +28,15 @@
   // ctx.access through (D-029). Both must be set in every deployed environment.
   "vars": {
     "APP_ENV": "development",
+    "APP_NAME": "ペット漢方 卸売",
+    "APP_URL": "http://localhost:5173",
     "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
     "CF_ACCESS_AUD": "replace-with-access-aud-tag",
+    // Used from S4 onward (application review notifications). APP_URL points at the public site
+    // because that is where the links in those mails land, not at this subdomain.
+    "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+    "MAIL_FROM_NAME": "ペット漢方 卸売",
+    "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
   },
 
   // Shared with apps/public: create once, then copy the ids into both. They must match —
@@ -49,8 +56,13 @@
     "staging": {
       "vars": {
         "APP_ENV": "staging",
+        "APP_NAME": "ペット漢方 卸売",
+        "APP_URL": "https://staging.replace-with-domain.example",
         "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
         "CF_ACCESS_AUD": "replace-with-access-aud-tag-staging",
+        "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+        "MAIL_FROM_NAME": "ペット漢方 卸売",
+        "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
       },
       "d1_databases": [
         {
@@ -64,8 +76,13 @@
     "production": {
       "vars": {
         "APP_ENV": "production",
+        "APP_NAME": "ペット漢方 卸売",
+        "APP_URL": "https://replace-with-domain.example",
         "CF_ACCESS_TEAM_DOMAIN": "replace-with-team.cloudflareaccess.com",
         "CF_ACCESS_AUD": "replace-with-access-aud-tag-production",
+        "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+        "MAIL_FROM_NAME": "ペット漢方 卸売",
+        "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
       },
       "d1_databases": [
         {
