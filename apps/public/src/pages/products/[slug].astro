@@ -2,7 +2,8 @@
 // SCR-03. Server-rendered, always (D-021). No getStaticPaths — the slug is looked up per request.
 import { render } from "astro:content";
 import Layout from "../../layouts/Layout.astro";
-import { categoryLabel, concernLabel, getBrand, getManufacturer, getProduct, resolveWholesalePrice } from "../../lib/catalog";
+import { ANIMALS, categoryLabel, concernLabel, getBrand, getManufacturer, getProduct, resolveWholesalePrice } from "../../lib/catalog";
+import { formatYen } from "../../lib/commerce";
 import { memberSession } from "../../lib/server/auth/page";
 import { viewerFor } from "../../lib/server/auth/session";
 
@@ -15,90 +16,130 @@ const price = await resolveWholesalePrice(product, viewer);
 
 const [brand, manufacturer, body] = await Promise.all([getBrand(product.data.brand), getManufacturer(product.data.manufacturer), render(product)]);
 const { Content } = body;
+
+const animalLabel = (id: string) => ANIMALS.find((option) => option.id === id)?.label ?? id;
+
+// Built as data so the markup below stays one loop instead of six near-identical conditionals.
+const specs = [
+  { label: "商品コード", value: product.data.code, mono: true },
+  { label: "ブランド", value: brand?.data.name ?? product.data.brand },
+  { label: "メーカー", value: manufacturer?.data.name ?? product.data.manufacturer },
+  { label: "カテゴリー", value: categoryLabel(product.data.category) },
+  { label: "対象動物", value: product.data.animals.map(animalLabel).join("・") },
+  { label: "気になる点", value: product.data.concerns.length > 0 ? product.data.concerns.map(concernLabel).join("・") : null },
+  { label: "内容量", value: product.data.volume },
+].filter((spec) => spec.value);
 ---
 
-<Layout title={`${product.data.name} — 商品詳細`}>
-  <main>
-    <h1>{product.data.name}</h1>
-    <p>{product.data.summary}</p>
+<Layout title={`${product.data.name} — 商品詳細`} description={product.data.summary}>
+  <div class="mx-auto w-full max-w-6xl px-5 pt-8 sm:px-8">
+    <a href="/products" class="text-sm text-ink-soft underline underline-offset-4 hover:text-vermilion">← 商品一覧へ</a>
+  </div>
 
-    <dl>
-      {
-        product.data.code && (
-          <>
-            <>
-              <dt>商品コード</dt>
-              <dd>{product.data.code}</dd>
-            </>
-          </>
-        )
-      }
-      <dt>ブランド</dt><dd>{brand?.data.name ?? product.data.brand}</dd>
-      <dt>メーカー</dt><dd>{manufacturer?.data.name ?? product.data.manufacturer}</dd>
-      <dt>カテゴリー</dt><dd>{categoryLabel(product.data.category)}</dd>
-      {
-        product.data.concerns.length > 0 && (
-          <>
-            <>
-              <dt>気になる点</dt>
-              <dd>{product.data.concerns.map(concernLabel).join("・")}</dd>
-            </>
-          </>
-        )
-      }
-      {
-        product.data.volume && (
-          <>
-            <>
-              <dt>内容量</dt>
-              <dd>{product.data.volume}</dd>
-            </>
-          </>
-        )
-      }
-      {
-        product.data.ingredients && (
-          <>
-            <>
-              <dt>原材料</dt>
-              <dd>{product.data.ingredients}</dd>
-            </>
-          </>
-        )
-      }
-      {
-        product.data.usage && (
-          <>
-            <>
-              <dt>使用方法</dt>
-              <dd>{product.data.usage}</dd>
-            </>
-          </>
-        )
-      }
-    </dl>
+  <article>
+    <section class="mx-auto w-full max-w-6xl px-5 pt-8 pb-12 sm:px-8">
+      <div class="grid gap-12 lg:grid-cols-[1.3fr_1fr] lg:gap-16">
+        <div>
+          <p class="eyebrow">{categoryLabel(product.data.category)}</p>
+          <h1 class="mt-4 font-display text-3xl leading-relaxed text-balance sm:text-4xl">{product.data.name}</h1>
+          <p class="mt-6 max-w-prose leading-loose text-pretty text-ink-soft">{product.data.summary}</p>
 
-    <Content />
+          <dl class="mt-10 border-t border-rule">
+            {
+              specs.map((spec) => (
+                <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+                  <dt class="text-sm text-ink-soft">{spec.label}</dt>
+                  <dd class={spec.mono ? "font-mono text-sm tabular-nums" : "text-sm"}>{spec.value}</dd>
+                </div>
+              ))
+            }
+          </dl>
+        </div>
+
+        {
+          /* The price panel sticks on desktop: the buyer scrolls the ingredients and usage below,
+            and the figure they are deciding on should not scroll away from them. */
+        }
+        <div class="lg:sticky lg:top-8 lg:self-start">
+          {
+            price === null ? (
+              <div class="border border-rule bg-paper-sunk px-6 py-8">
+                <p class="font-display text-lg">卸価格を確認する</p>
+                <p class="mt-3 text-sm leading-relaxed text-pretty text-ink-soft">卸価格は承認済みの取引先アカウントでご確認いただけます。</p>
+                <div class="mt-8 flex flex-col gap-3">
+                  <a href="/apply" class="btn btn-primary">
+                    取引を申し込む
+                  </a>
+                  <a href={`/login?next=/products/${product.id}`} class="btn btn-quiet">
+                    ログイン
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div class="border border-rule bg-paper-sunk px-6 py-8">
+                <p class="eyebrow">御社の卸価格</p>
+                <p class="mt-3 font-mono text-3xl tabular-nums">
+                  {formatYen(price)}
+                  <span class="ml-1 text-sm text-ink-soft">（税抜）</span>
+                </p>
+                <p class="mt-2 font-mono text-xs text-ink-soft tabular-nums">発注単位 {product.data.orderUnit}</p>
+
+                {/* TODO(S8): wire to POST /api/v1/cart/items. Never pass a wholesale price into an island's props (D-021). */}
+                <form method="post" action="/api/v1/cart/items" class="mt-8 flex flex-col gap-3">
+                  <input type="hidden" name="productSlug" value={product.id} />
+                  <div class="flex flex-col gap-1.5">
+                    <label for="quantity" class="text-xs text-ink-soft">
+                      数量（{product.data.orderUnit} の倍数）
+                    </label>
+                    <input id="quantity" type="number" name="quantity" min={product.data.orderUnit} step={product.data.orderUnit} value={product.data.orderUnit} class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-right font-mono tabular-nums" />
+                  </div>
+                  <button type="submit" class="btn btn-primary">
+                    カートに追加
+                  </button>
+                </form>
+              </div>
+            )
+          }
+        </div>
+      </div>
+    </section>
 
     {
-      price === null ? (
-        <section>
-          <p>卸価格は承認済みの取引先アカウントでご確認いただけます。</p>
-          <a href="/apply">新規取引を申し込む</a> / <a href={`/login?next=/products/${product.id}`}>ログイン</a>
-        </section>
-      ) : (
-        <section>
-          <p>
-            卸価格 {price.toLocaleString()} 円（税抜） / 発注単位 {product.data.orderUnit}
-          </p>
-          {/* TODO(Phase C): wire to POST /api/v1/cart/items. Never pass a wholesale price into an island's props (D-021). */}
-          <form method="post" action="/api/v1/cart/items">
-            <input type="hidden" name="productSlug" value={product.id} />
-            <input type="number" name="quantity" min={product.data.orderUnit} step={product.data.orderUnit} value={product.data.orderUnit} />
-            <button type="submit">カートに追加</button>
-          </form>
+      (product.data.ingredients || product.data.usage) && (
+        <section aria-labelledby="details" class="border-y border-rule bg-paper-sunk">
+          <div class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+            <p class="eyebrow">原材料と使い方</p>
+            <h2 id="details" class="mt-3 font-display text-2xl text-balance">
+              飼い主に説明できる情報
+            </h2>
+
+            <div class="mt-8 grid gap-10 sm:grid-cols-2">
+              {product.data.ingredients && (
+                <div>
+                  <h3 class="font-display text-lg">原材料</h3>
+                  <p class="mt-3 max-w-prose leading-loose text-pretty text-ink-soft">{product.data.ingredients}</p>
+                </div>
+              )}
+              {product.data.usage && (
+                <div>
+                  <h3 class="font-display text-lg">使用方法</h3>
+                  <p class="mt-3 max-w-prose leading-loose text-pretty text-ink-soft">{product.data.usage}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </section>
       )
     }
-  </main>
+
+    {
+      /* The Markdown body. `prose-public` is defined in global.css so every long-form page — news
+        detail included — renders body copy the same way. */
+    }
+    <section class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
+      <div class="prose-public">
+        <Content />
+      </div>
+    </section>
+  </article>
 </Layout>

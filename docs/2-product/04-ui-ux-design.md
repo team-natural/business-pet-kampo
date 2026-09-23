@@ -65,7 +65,7 @@ flowchart TD
     H --> I[ログイン可能・卸価格閲覧可能に]
 ```
 
-> オンボーディングの主体は、承認された取引先（Organization）に所属する Member である。AdminUser（運営管理者）のアカウントは招待/シード（`pnpm --filter admin seed -- --table=admin_users --email=… --password=… --name=…`）で作成され、本フローとは別系統（PRD-01 §1-2、DEV-02）。
+> オンボーディングの主体は、承認された取引先（Organization）に所属する Member である。**AdminUser には登録フローが無い** — Cloudflare Access を通過した最初のリクエストで `admin_users` に自動プロビジョニングされる（GOV-01 D-022、DEV-07 §4-1）。シードコマンドは存在しない。
 
 ### 2-2. 日常利用（発注）
 
@@ -84,7 +84,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[管理画面ログイン] --> B[ダッシュボード]
+    A[Cloudflare Access 認証] --> B[ダッシュボード]
     B --> C[新規取引申請一覧]
     C --> D[申請詳細・審査 → 承認/否認]
     B --> E[受注一覧]
@@ -403,12 +403,17 @@ stateDiagram-v2
 
 ## 8. ブランド・トーン
 
+公開画面のトークンの**正本は `apps/public/src/styles/global.css` の `@theme` ブロック**である（GOV-01 D-033、TBD-19 解決済み）。本表はその要約であり、値を変える場合は CSS を直してから本表を追従させる。
+
 | 項目 | 方針 |
 | --- | --- |
-| プライマリーカラー | 未確定 `[Open]`。自然・健康を想起させる緑〜アース系を軸に検討 |
-| アクセントカラー | 未確定 `[Open]` |
-| フォント | Inter（英字）+ Noto Sans JP（日本語）|
-| アイコン | Lucide（線画。`components.json` の `iconLibrary` で固定、DEV-01 §1）|
+| プライマリーカラー | 墨緑 `#2f4034`（`--color-ink`）。文字色と CTA の地色を兼ねる |
+| アクセントカラー | 朱 `#a64b3c`（`--color-vermilion`）。**面で塗らない** — 罫・見出し上のラベル・リンクのホバー・フォーカスリングにのみ使う |
+| 背景 | 和紙 `#faf8f3`（`--color-paper`）と一段沈めた `#f3efe6`（`--color-paper-sunk`）の 2 色でセクションを交互に切る |
+| 罫 | `#ded8ca`（`--color-rule`）。一覧・定義リストの区切りはこの罫で表現し、カードの影は使わない |
+| フォント | **端末内蔵フォントのみ。Web フォントを読み込まない** — 見出しは明朝（Hiragino Mincho / Yu Mincho）、本文はゴシック（Hiragino Sans / Yu Gothic）、数量・商品コードは等幅。店頭のモバイル回線での初期表示を優先する（BIZ-01 §3-2、DEV-06 §11）|
+| アイコン | Lucide（線画。`components.json` の `iconLibrary` で固定、DEV-01 §1）。**管理画面のみ** — 公開画面はアイコンフォント/ライブラリを持たない |
+| ダークモード | 持たない。`color-scheme: light` を明示し、UA による自動反転を止める |
 | 言葉遣い | 断定的な効能表現を避け、「健康維持をサポートする」「選択肢を案内する」といった表現に統一（INTAKE §7 表現規制。出典: 依頼者仕様書 §18）|
 
 ---

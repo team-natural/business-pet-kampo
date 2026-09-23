@@ -108,4 +108,65 @@
     letter-spacing: 0.2em;
     color: var(--color-ink-soft);
   }
+
+  /* Long-form Markdown from Content Collections (product bodies, news bodies). Declared here
+     rather than with a typography plugin: the element set is small and known, and the measure and
+     leading have to match the hand-written sections around it. */
+  .prose-public {
+    max-width: 65ch;
+    line-height: 2;
+  }
+
+  .prose-public > * + * {
+    margin-top: 1.5em;
+  }
+
+  .prose-public h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    margin-top: 2.5em;
+  }
+
+  .prose-public h3 {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    margin-top: 2em;
+  }
+
+  .prose-public ul,
+  .prose-public ol {
+    padding-inline-start: 1.5em;
+  }
+
+  .prose-public ul {
+    list-style: disc;
+  }
+
+  .prose-public ol {
+    list-style: decimal;
+  }
+
+  .prose-public li + li {
+    margin-top: 0.5em;
+  }
+
+  .prose-public a {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  .prose-public a:hover {
+    color: var(--color-vermilion);
+  }
+
+  .prose-public strong {
+    font-weight: 600;
+  }
+
+  /* Never a bare colour change: the rule carries the quotation on its own. */
+  .prose-public blockquote {
+    border-inline-start: 2px solid var(--color-rule);
+    padding-inline-start: 1.25em;
+    color: var(--color-ink-soft);
+  }
 }

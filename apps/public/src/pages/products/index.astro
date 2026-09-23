@@ -2,7 +2,8 @@
 // SCR-02. Server-rendered, always: prerendering would bake every organization's wholesale price
 // into static HTML (D-021).
 import Layout from "../../layouts/Layout.astro";
-import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, listProducts, resolveWholesalePrices } from "../../lib/catalog";
+import { ANIMALS, CONCERNS, PRODUCT_CATEGORIES, type Animal, categoryLabel, listProducts, resolveWholesalePrices } from "../../lib/catalog";
+import { formatYen } from "../../lib/commerce";
 import { memberSession } from "../../lib/server/auth/page";
 import { viewerFor } from "../../lib/server/auth/session";
 
@@ -21,59 +22,134 @@ const filter = {
 const viewer = viewerFor(await memberSession(Astro));
 const products = await listProducts(filter);
 const prices = await resolveWholesalePrices(products, viewer);
+
+const isFiltered = Object.values(filter).some(Boolean);
+const animalLabel = (id: string) => ANIMALS.find((option) => option.id === id)?.label ?? id;
 ---
 
-<Layout title="商品一覧">
-  <main>
-    <h1>商品一覧</h1>
+<Layout title="商品一覧" description="犬猫向けの漢方サプリメントを、症状・対象動物・カテゴリーから絞り込んでご覧いただけます。">
+  <section class="mx-auto w-full max-w-6xl px-5 pt-16 pb-10 sm:px-8">
+    <p class="eyebrow">取扱商品</p>
+    <h1 class="mt-3 font-display text-3xl text-balance sm:text-4xl">商品一覧</h1>
+    <p class="mt-5 max-w-prose leading-loose text-pretty text-ink-soft">原材料と使用方法まで開示しています。気になる点・対象動物・カテゴリーから絞り込んでご覧ください。</p>
+  </section>
 
-    <form method="get">
-      <input type="search" name="q" value={filter.keyword ?? ""} placeholder="商品名・商品コード" />
-      <select name="animal">
-        <option value="">すべての動物</option>
-        {
-          ANIMALS.map((option) => (
-            <option value={option.id} selected={filter.animal === option.id}>
-              {option.label}
-            </option>
-          ))
-        }
-      </select>
-      <select name="category">
-        <option value="">すべてのカテゴリー</option>
-        {
-          PRODUCT_CATEGORIES.map((option) => (
-            <option value={option.id} selected={filter.category === option.id}>
-              {option.label}
-            </option>
-          ))
-        }
-      </select>
-      <select name="concern">
-        <option value="">すべての悩み</option>
-        {
-          CONCERNS.map((option) => (
-            <option value={option.id} selected={filter.concern === option.id}>
-              {option.label}
-            </option>
-          ))
-        }
-      </select>
-      <button type="submit">絞り込む</button>
-    </form>
+  <section aria-labelledby="filter" class="border-y border-rule bg-paper-sunk">
+    <div class="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">
+      <h2 id="filter" class="sr-only">商品の絞り込み</h2>
 
-    <ul>
+      {/* GET so the result is a shareable URL, and so the filter survives a reload (DEV-06 §3). */}
+      <form method="get" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_repeat(3,1fr)_auto] lg:items-end">
+        <div class="flex flex-col gap-1.5">
+          <label for="q" class="text-xs text-ink-soft">キーワード</label>
+          <input id="q" type="search" name="q" value={filter.keyword ?? ""} placeholder="商品名・商品コード" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm placeholder:text-ink-soft/70" />
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="animal" class="text-xs text-ink-soft">対象動物</label>
+          <select id="animal" name="animal" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+            <option value="">すべて</option>
+            {
+              ANIMALS.map((option) => (
+                <option value={option.id} selected={filter.animal === option.id}>
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="category" class="text-xs text-ink-soft">カテゴリー</label>
+          <select id="category" name="category" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+            <option value="">すべて</option>
+            {
+              PRODUCT_CATEGORIES.map((option) => (
+                <option value={option.id} selected={filter.category === option.id}>
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+          <label for="concern" class="text-xs text-ink-soft">気になる点</label>
+          <select id="concern" name="concern" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+            <option value="">すべて</option>
+            {
+              CONCERNS.map((option) => (
+                <option value={option.id} selected={filter.concern === option.id}>
+                  {option.label}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">絞り込む</button>
+      </form>
+    </div>
+  </section>
+
+  <section aria-labelledby="results" class="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+      <h2 id="results" class="font-mono text-sm text-ink-soft tabular-nums">{products.length} 件</h2>
       {
-        products.map((product, index) => (
-          <li>
-            <a href={`/products/${product.id}`}>{product.data.name}</a>
-            <p>{product.data.summary}</p>
-            {prices[index] === null ? <p>卸価格は承認済みの取引先アカウントでご確認いただけます。</p> : <p>卸価格 {prices[index]?.toLocaleString()} 円（税抜）</p>}
-          </li>
-        ))
+        isFiltered && (
+          <a href="/products" class="text-sm underline underline-offset-4 hover:text-vermilion">
+            条件をクリア
+          </a>
+        )
       }
-    </ul>
+    </div>
 
-    {products.length === 0 && <p>条件に一致する商品がありません。</p>}
-  </main>
+    {
+      /* Said once above the list rather than repeated on every row — the same sentence on each line
+        reads as noise and buries the product names it sits next to. */
+    }
+    {viewer === null && products.length > 0 && <p class="mt-4 border border-rule px-4 py-3 text-sm text-ink-soft">卸価格と発注単位は、承認済みの取引先アカウントでログインすると表示されます。</p>}
+
+    {
+      products.length > 0 ? (
+        <ul class="mt-8 border-t border-rule">
+          {products.map((product, index) => (
+            <li class="border-b border-rule">
+              <a href={`/products/${product.id}`} class="grid gap-x-6 gap-y-2 py-6 transition-colors hover:text-vermilion sm:grid-cols-[1fr_auto] sm:items-baseline">
+                <span>
+                  <span class="font-display text-lg">{product.data.name}</span>
+                  <span class="mt-1 block max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">{product.data.summary}</span>
+                </span>
+                <span class="text-left sm:text-right">
+                  {prices[index] !== null && (
+                    <span class="block font-mono text-sm tabular-nums">
+                      {formatYen(prices[index]!)}
+                      <span class="text-xs text-ink-soft">（税抜）</span>
+                    </span>
+                  )}
+                  <span class="mt-1 block font-mono text-xs text-ink-soft">
+                    {categoryLabel(product.data.category)} / {product.data.animals.map(animalLabel).join("・")}
+                  </span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        /* An empty state with no way forward leaves the reader stuck, so it offers the two exits. */
+        <div class="mt-8 border border-rule px-6 py-12 text-center">
+          <p class="font-display text-lg">条件に一致する商品がありません</p>
+          <p class="mt-3 text-sm text-ink-soft">絞り込みを外すか、気になる点から探し直してください。</p>
+          <div class="mt-8 flex flex-wrap justify-center gap-3">
+            <a href="/products" class="btn btn-quiet">
+              条件をクリア
+            </a>
+            <a href="/contact" class="btn btn-quiet">
+              取扱商品について問い合わせる
+            </a>
+          </div>
+        </div>
+      )
+    }
+  </section>
 </Layout>

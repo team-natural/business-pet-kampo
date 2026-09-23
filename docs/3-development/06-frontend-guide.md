@@ -436,6 +436,13 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 | 画像 alt | 必ず設定（商品画像は商品名を含める）|
 | フォーム | `<label>` 紐付け、エラー説明 |
 | カラーコントラスト | WCAG AA 以上 |
+| ランドマーク | `<main>` は **`Layout.astro` が 1 つだけ持つ**。ページは `<main>` の中身（`<section>` 等）だけを書く |
+
+**`<main>` をページ側に書かない。** `apps/public/src/layouts/Layout.astro` はスキップリンクの着地点
+として `<main id="main">` を持っており、ページがもう 1 枚置くと `<main>` が入れ子になる。HTML 仕様上
+不正で、スクリーンリーダーには「本文」が 2 つあるように見え、`id="main"` を併記すると ID 重複になる。
+骨組みの段階で書かれた `<main>` が多数残っているため、**各画面を実装するステージで併せて外す**
+（00_DEV_GUIDE §3-3a）。管理画面側は `ConsoleLayout.astro` が同じ役割を担う。
 
 実装時の詳細な監査・修正フローは `.claude/skills/fixing-accessibility` スキルに委ねる
 （`public-design` / `admin-design` チェーンの中で必ず通過する）。
