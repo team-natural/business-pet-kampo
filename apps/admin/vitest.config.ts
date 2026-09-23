@@ -24,8 +24,14 @@ export default defineConfig(async () => ({
     }),
   ],
   // Mirrors tsconfig's paths: source files import through $lib, and vitest resolves modules
-  // itself rather than through astro's config.
-  resolve: { alias: { $lib: path.join(import.meta.dirname, "src/lib") } },
+  // itself rather than through astro's config. `astro:middleware` is a build-time virtual module
+  // with no runtime package, so middleware tests get the stub instead (tests/stubs/).
+  resolve: {
+    alias: {
+      $lib: path.join(import.meta.dirname, "src/lib"),
+      "astro:middleware": path.join(import.meta.dirname, "tests/stubs/astro-middleware.ts"),
+    },
+  },
   test: {
     include: ["tests/unit/**/*.test.ts"],
     setupFiles: ["./tests/setup.ts"],

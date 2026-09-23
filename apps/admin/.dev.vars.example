@@ -1,11 +1,10 @@
-# Local secrets for `astro dev`. Copy to `.dev.vars` (gitignored) and fill in.
-# Non-secret config goes in wrangler.jsonc `vars`; in staging/production these keys become
-# Workers Secrets (`wrangler secret put`).
+# Copy to .dev.vars (gitignored) and fill in. Secrets only — non-secret values live in
+# wrangler.jsonc's vars (DEV-10 §1-3, DEV-08 §8).
+#
+# In production these are set with `wrangler secret put <KEY>`, never in wrangler.jsonc.
+#
+# There is no Access bypass variable here on purpose: the local pseudo identity comes from
+# wrangler.jsonc's access.dev block, which a deployed Worker never receives (D-029).
 
-# Nothing is required locally. The signed-in identity comes from wrangler.jsonc's `access.dev`
-# block, not from an environment variable — change the email there to see your own name in the
-# audit log (D-029).
-
-# Only needed if you point local dev at a real Access application instead of the dev identity.
-# CF_ACCESS_TEAM_DOMAIN=example.cloudflareaccess.com
-# CF_ACCESS_AUD=
+# Resend (DEV-10 §3). Used from S4 onward for application review notifications.
+RESEND_API_KEY=re_xxxxxxxxxx

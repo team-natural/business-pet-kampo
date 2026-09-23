@@ -13,10 +13,19 @@
   },
 
   // vars is non-inheritable, so it's repeated in each env block below.
+  // APP_NAME and MAIL_FROM_ADDRESS are working titles until TBD-01 (service name) and TBD-16
+  // (domain) are settled. RESEND_API_KEY is a secret and lives in .dev.vars / wrangler secret,
+  // never here (DEV-10 §1-3).
   "vars": {
+    "APP_ENV": "development",
+    "APP_NAME": "ペット漢方 卸売",
+    "APP_URL": "http://localhost:5173",
     "SESSION_TTL_DAYS": "30",
     "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
     "AUTH_LOCKOUT_MINUTES": "15",
+    "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+    "MAIL_FROM_NAME": "ペット漢方 卸売",
+    "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
   },
 
   // Shared with apps/admin: create once, then copy the ids into both. They must match —
@@ -40,9 +49,15 @@
   "env": {
     "staging": {
       "vars": {
+        "APP_ENV": "staging",
+        "APP_NAME": "ペット漢方 卸売",
+        "APP_URL": "https://staging.replace-with-domain.example",
         "SESSION_TTL_DAYS": "30",
         "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
         "AUTH_LOCKOUT_MINUTES": "15",
+        "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+        "MAIL_FROM_NAME": "ペット漢方 卸売",
+        "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
       },
       "d1_databases": [
         {
@@ -55,9 +70,15 @@
     },
     "production": {
       "vars": {
+        "APP_ENV": "production",
+        "APP_NAME": "ペット漢方 卸売",
+        "APP_URL": "https://replace-with-domain.example",
         "SESSION_TTL_DAYS": "30",
         "AUTH_LOCKOUT_MAX_ATTEMPTS": "5",
         "AUTH_LOCKOUT_MINUTES": "15",
+        "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
+        "MAIL_FROM_NAME": "ペット漢方 卸売",
+        "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
       },
       "d1_databases": [
         {

@@ -70,6 +70,8 @@ apps/public/src/
 │   └── server/                      # 公開側の Service / D1。admin 側と認証コードを共有しない
 │       ├── services/                #   例: auth.ts, members.ts, cart.ts, orders.ts, inquiries.ts
 │       ├── auth/                    #   Member のセッション検証（session.ts）
+│       ├── mail/                    #   Resend クライアント + 送信の単一入口（send.ts）と
+│       │                             #   templates/（DEV-10 §3）。apps/admin にも同じ構成を置く
 │       └── validation/
 ├── content.config.ts                # Content Collections の定義（packages/content を glob() で読む）
 └── middleware.ts                    # セキュリティヘッダー + 会員ルートの Cache-Control（§1-2）
@@ -82,7 +84,9 @@ packages/schema/
 
 packages/server-kit/src/
 ├── auth/                            # パスワードハッシュ、ロックアウト、セッション規則（§1-3）
-└── http/                            # レスポンス整形・エラークラス・カーソルページネーション（DEV-04 §3・§4・§8）
+├── http/                            # レスポンス整形・エラークラス・カーソルページネーション（DEV-04 §3・§4・§8）
+└── integration/                     # 外部連携の共通則: リトライ（指数バックオフ）・構造化ログ
+                                     #   （DEV-10 §1-2・§8-1）。メール・決済・OAuth が同じ関数を使う
 
 packages/content/                    # 開発者が更新する Markdown（診断ルール。DEV-06 §1-1）
 ├── src/schema.ts                    # Zod スキーマ（両アプリが import）
