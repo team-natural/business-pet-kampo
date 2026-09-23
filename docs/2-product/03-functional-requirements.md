@@ -297,7 +297,8 @@ AdminUser（`apps/admin`）と Member（`apps/public`）は完全に別系統の
 
 ### 4-1. MVP 含有判断ルール
 
-- MVP `○` = 実装対象（優先度 High / Medium は着手順を表す）
+- MVP `○` = 実装対象（優先度 High / Medium は**重要度**であり、着手順ではない）
+- **着手順の正本は 00_DEV_GUIDE §3-3a の実装ステージ S1〜S16**（業務ライフサイクルの依存順 — GOV-01 D-032）。優先度順に着手すると、先行機能が生成するデータ（Organization / Member 等）が存在せず着手できない
 - High 優先度で MVP `△` は MVP 検証後に追加実装
 - Medium / Low はベータ後の改善サイクルで判断
 
