@@ -10,6 +10,11 @@ export default defineConfig({
   // A stray test.only would otherwise let CI pass on a subset.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // Serial. Every worker would share one dev server, one local D1 and the single member that
+  // globalSetup seeds — so a logout test deletes the session a login test is still using, and the
+  // failure lands on whichever ran second. Parallelism here buys seconds and costs a flake that
+  // CI's retries would paper over.
+  workers: 1,
   use: { baseURL, trace: "on-first-retry" },
   webServer: {
     command: "pnpm dev",
@@ -18,5 +23,8 @@ export default defineConfig({
     env: { ASTRO_DEV_BACKGROUND: "0" },
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    // Switching branches changes the lockfile or astro.config, and Vite then re-optimizes
+    // dependencies on the next boot — which exceeds the 60s default (00_DEV_GUIDE §6).
+    timeout: 180_000,
   },
 });

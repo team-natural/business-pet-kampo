@@ -215,7 +215,10 @@ E2E seeds its own **member** account in `globalSetup`, so no env vars are needed
 gets its identity from `wrangler.jsonc`'s `access.dev` block, since Playwright cannot pass Access —
 the ledger row is provisioned on the first request. `pnpm test:e2e`
 runs with `--concurrency=1`: both suites drive a real dev server against the one local D1, and
-running them in parallel corrupts it.
+running them in parallel corrupts it. **Each suite is also `workers: 1` inside Playwright**, for the
+same reason one level down — every test shares that one D1 and the single seeded member, so a
+parallel logout deletes the session a login is still using. The symptom is a login test that passes
+alone and fails in the suite; raising either number brings it back.
 
 Product and news fixtures are the **real** `packages/content` files, not a test-only collection —
 schema violations are supposed to fail the build, and a separate fixture set would route around that

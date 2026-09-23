@@ -10,6 +10,8 @@ export default defineConfig({
   // A stray test.only would otherwise let CI pass on a subset.
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // Serial, for the same reason as apps/public: one dev server over one local D1 (see that file).
+  workers: 1,
   use: { baseURL, trace: "on-first-retry" },
   webServer: {
     // Migrate before the server boots, not in globalSetup: Playwright starts webServer first, and
@@ -20,5 +22,8 @@ export default defineConfig({
     env: { ASTRO_DEV_BACKGROUND: "0" },
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    // Vite re-optimizes dependencies after a branch switch, which exceeds the 60s default
+    // (00_DEV_GUIDE §6). The 2.5s startup delay in astro.config.mjs also counts against this.
+    timeout: 180_000,
   },
 });

@@ -1,19 +1,29 @@
 ---
 // SCR-36. No login is involved, so the token in the URL is the only evidence of who is asking.
-// TODO(Phase C): verify the token server-side and call DELETE /api/v1/applications/{public_id}.
-// Expired, already used and forged all answer with the same wording.
+import { env } from "cloudflare:workers";
+import { verifyToken } from "@app/server-kit/auth";
+import { ulid } from "@app/schema/ulid";
 import Layout from "../../../layouts/Layout.astro";
+import WithdrawApplication from "../../../lib/components/withdraw-application.svelte";
 
-const { token } = Astro.params;
+// See apps/public/src/pages/api/v1/applications/index.ts: Workers Secrets are absent from the
+// generated Cloudflare.Env.
+const secrets = env as typeof env & { SESSION_SIGNING_KEY?: string };
+
+const token = Astro.params.token!;
+
+// The token names the application, so the id it resolves to is what the island deletes. An
+// unusable token falls back to a throwaway ULID rather than an error page: the endpoint answers
+// 204 either way, and a page that rendered differently here would confirm which links are live
+// — the one thing this flow must not disclose (DEV-04 §5-3).
+const applicationId = (await verifyToken(secrets.SESSION_SIGNING_KEY, "application-withdrawal", token)) ?? ulid();
 ---
 
 <Layout title="お申し込みの取消">
-  <main>
-    <h1>お申し込みの取消</h1>
-    <form method="post" action="/api/v1/applications/cancel">
-      <input type="hidden" name="token" value={token} />
-      <p>お申し込みを取り消します。よろしければ下のボタンを押してください。</p>
-      <button type="submit">申し込みを取り消す</button>
-    </form>
-  </main>
+  <section class="mx-auto w-full max-w-2xl px-5 py-24 sm:px-8">
+    <p class="eyebrow">お申し込み</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">お申し込みの取消</h1>
+
+    <WithdrawApplication client:load applicationId={applicationId} token={token} />
+  </section>
 </Layout>

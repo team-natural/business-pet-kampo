@@ -2,18 +2,13 @@
 // the code around it is not (DEV-05 §10).
 import { inquiryTypeLabel } from "$lib/inquiry";
 import type { MailMessage, MailTemplateContext } from "../send";
+import { escapeHtml } from "./escape";
 
 export interface InquiryReceivedInput {
   name: string;
   email: string;
   inquiryType: string | null;
   content: string;
-}
-
-// Escaped because the visitor typed all of it. The same string goes out as text too, where it
-// needs no escaping — which is why the two bodies are built separately rather than stripped.
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 export function renderInquiryReceived(input: InquiryReceivedInput, context: MailTemplateContext): MailMessage {

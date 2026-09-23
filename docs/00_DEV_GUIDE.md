@@ -313,7 +313,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S2 | `feat/public-design-baseline` | 公開側のデザイン方向確立（SCR-01・02・03） | PRD-04 §2、`public-design` の establishing run | — | 3 画面が完成品の見た目。未ログインに卸価格が出ない E2E が通ったまま |
 | S3 | `feat/application-submit` | 新規取引申請の送信・取消（SCR-05・06・36） | PRD-03 FG-02、DEV-04 §5-3・§6-1 | S1, S2 | 申請が D1 に入り両者にメールが届く／規約バージョン不一致が 409 |
 | S4 | `feat/application-review` | 審査・承認・否認・`org_code` 採番（ADM-12・13） | DEV-09 §2-1、DEV-05 §3 | S3 | 承認で Organization と Member が同時にできる／部分失敗が起きないテスト |
-| S5 | `feat/member-auth` | 有効化・パスワードリセット・プロフィール（SCR-09〜11・13） | PRD-03 FG-01、DEV-02 §7 | S4 | 承認済み取引先がログインできる／未知アドレスと既知アドレスの応答が一致 |
+| S5 | `feat/member-auth` | 有効化・パスワードリセット・プロフィール（SCR-09〜11・13）。単発トークンは S3 で作った `@app/server-kit/auth` の `signToken` / `verifyToken` を使う | PRD-03 FG-01、DEV-02 §7 | S4 | 承認済み取引先がログインできる／未知アドレスと既知アドレスの応答が一致 |
 | S6 | `feat/organization-admin` | 取引先の一覧・詳細・停止/再開/終了・価格参照（ADM-14〜16） | DEV-09 §2-2、PRD-03 FG-07 | S4 | 停止中の取引先が発注 API で 403。ログインは通る |
 | S7 | `feat/mypage-addresses` | マイページ基盤・配送先・会社情報変更申請（SCR-12・14〜17） | PRD-03 FG-05 | S5 | 他社の配送先が 404（403 ではない） |
 | S8 | `feat/cart` | カート追加/変更/削除・単価解決・金額計算（SCR-21） | PRD-03 FG-04、BIZ-03 §3-1 | S5、**TBD-07** | 金額が `commerce.ts` と一致／存在しない slug が 400／発注単位違反を拒否 |
@@ -321,7 +321,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S10 | `feat/order-admin` | 受注管理・遷移 4 ルート・入金確認・キャンセル（ADM-17・18） | DEV-09 §2-5・§2-6、DEV-04 §5-7 | S9 | DEV-09 §2-5-2 の全セルをテスト／不正遷移が 409 |
 | S11 | `feat/payment-stripe` | カード決済・Webhook・冪等性 | DEV-10 §2、DEV-09 §2-6 | S9、TBD-18 | 同一 Webhook を 2 回投げても `payments` が二重更新されない |
 | S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
-| S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理 | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる |
+| S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。**Member 起点の監査ログの共有ヘルパーをここで作る**（`activityLogInsert` は現在 `apps/admin` 専用で、境界ルール上 `apps/public` から import できない — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
 | S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・マイページ内お知らせ | GOV-01 D-021、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
 | S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除 | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
 | S16 | `chore/release-readiness` | 法務文面・負荷・セキュリティ・staging 確認 | DEV-08 §7 | 全ステージ | DEV-08 §7-3 の検証完了チェックリストが全項目通過 |
@@ -450,3 +450,5 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | ブラウザで変更が反映されない | `! npx astro dev status` で daemon の状態を確認、または `! npx astro dev logs` |
 | migration でエラーが出た | エラーログをそのまま貼る |
 | Lint / 型チェックエラーが直らない | 「pnpm typecheck のエラーを修正して」と依頼 |
+| **ブランチ切り替え直後に `pnpm test:e2e` が `Timed out waiting ...ms from config.webServer` で落ちる** | `! rm -rf apps/*/node_modules/.vite` してから再実行する。依存や `astro.config.mjs` が変わったブランチへ移ると Vite が依存を再最適化し、初回起動が長くなる（webServer の制限は 180 秒に引き上げ済み）。まれに「再最適化」を繰り返すループに入るため、キャッシュを消すのが確実 |
+| E2E がテスト単体では通るのにフルスイートで落ちる | **両アプリの `playwright.config.ts` は `workers: 1`**。1 つの dev サーバーと 1 つのローカル D1、`globalSetup` が撒く 1 件の Member を全テストが共有するため、並列化するとログアウトのテストがログインのテストのセッション行を消す。この値を上げない |

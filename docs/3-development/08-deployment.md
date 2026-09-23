@@ -260,6 +260,9 @@ Cloudflare のバインディング（D1 / KV）は `wrangler.jsonc` で設定�
 APP_NAME=
 APP_URL=
 APP_ENV=production
+# apps/public のみ。運営宛アラートメールに載せる管理画面へのディープリンクに使う。
+# APP_URL とは別の Worker・別ホストのため、使い回さない（DEV-01 §1、DEV-10 §3-3）
+ADMIN_URL=
 
 # --- apps/admin: Cloudflare Access（GOV-01 D-022・D-029、DEV-02 §1-1）---
 # JWT フォールバックに必須。未設定なら例外を投げる（検証を素通りさせない）。

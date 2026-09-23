@@ -2,6 +2,7 @@
 // The public side's shell. Header, footer and <head> live here only; a page carries the contents
 // of its <main> and nothing else — this layout already provides the element, so a page that adds
 // its own nests one <main> inside another (DEV-06 §1).
+import { env } from "cloudflare:workers";
 import "../styles/global.css";
 
 interface Props {
@@ -11,9 +12,9 @@ interface Props {
 
 const { title, description = "動物病院・ペットショップ・トリミングサロン向けに、ペット用漢方サプリメントを卸売しています。" } = Astro.props;
 
-// A working title until TBD-01. Duplicated with the APP_NAME var the mail templates read
-// (DEV-08 §8); fold this into that var once S1 is on dev, so the name changes in one place.
-const SITE_NAME = "ペット漢方 卸売";
+// One source for the name, shared with the mail templates (DEV-08 §8). Still a working title
+// until TBD-01, but settling it is now one var rather than a grep.
+const SITE_NAME = env.APP_NAME;
 const pageTitle = Astro.url.pathname === "/" ? `${SITE_NAME}` : `${title}｜${SITE_NAME}`;
 
 const nav = [

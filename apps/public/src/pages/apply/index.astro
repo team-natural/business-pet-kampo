@@ -1,60 +1,41 @@
 ---
-// SCR-05. Enough fields that it is split into four steps (DEV-06 §4-4). The consent step posts
-// the current terms version in a hidden field, and the server checks it matches its own.
+// SCR-05. The form posts JSON to /api/v1/applications, so it is an island (DEV-04 §5-3); the
+// consent step sends the current terms version and the server checks it matches its own.
 import Layout from "../../layouts/Layout.astro";
-import { PAYMENT_METHODS } from "../../lib/commerce";
+import ApplyForm from "../../lib/components/apply-form.svelte";
+import { FREE_SHIPPING_THRESHOLD, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, formatYen } from "../../lib/commerce";
 import { CURRENT_TERMS_VERSION } from "../../lib/terms-version";
+
+// Rendered from the same constants as the legal notice (SCR-32), so the two cannot disagree
+// (D-024).
+const terms = [
+  { label: "最低発注金額", value: `税抜 ${formatYen(MINIMUM_ORDER_SUBTOTAL)}` },
+  { label: "送料", value: `税抜 ${formatYen(FREE_SHIPPING_THRESHOLD)}以上で無料` },
+  { label: "お支払い", value: PAYMENT_METHODS.map((method) => method.label).join(" / ") },
+];
 ---
 
-<Layout title="新規取引のお申し込み">
-  <main>
-    <h1>新規取引のお申し込み</h1>
+<Layout title="新規取引のお申し込み" description="動物病院・ペットショップ・トリミングサロン向けの新規お取引をお申し込みいただけます。">
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">新規のお取引</p>
+    <h1 class="mt-3 font-display text-3xl text-balance sm:text-4xl">お申し込み</h1>
+    <p class="mt-5 leading-loose text-pretty text-ink-soft">ご入力いただいた内容をもとに審査し、数営業日以内に結果をご連絡します。承認後にアカウントを有効化すると、御社の卸価格が表示されます。</p>
 
-    {/* TODO(Phase B/C): split into four steps (company, contact, trading preferences, consent) and wire to POST /api/v1/applications. */}
-    <form method="post" action="/api/v1/applications">
-      <fieldset>
-        <legend>会社情報</legend>
-        <label>会社名<input type="text" name="companyName" required /></label>
-        <label>法人番号<input type="text" name="corporateNumber" /></label>
-        <label>事業者種別<input type="text" name="businessType" /></label>
-        <label>業種<input type="text" name="industry" /></label>
-        <label>郵便番号<input type="text" name="postalCode" required /></label>
-        <label>住所<input type="text" name="address" required /></label>
-        <label>代表者名<input type="text" name="representativeName" required /></label>
-        <label>Web サイト<input type="url" name="website" /></label>
-        <label>SNS<input type="text" name="sns" /></label>
-        <label><input type="checkbox" name="hasPhysicalStore" value="1" />実店舗がある</label>
-      </fieldset>
+    <dl class="mt-10 border-t border-rule">
+      {
+        terms.map((term) => (
+          <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+            <dt class="text-sm text-ink-soft">{term.label}</dt>
+            <dd class="font-mono text-sm tabular-nums">{term.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
 
-      <fieldset>
-        <legend>ご担当者情報</legend>
-        <label>ご担当者名<input type="text" name="contactName" required /></label>
-        <label>部署<input type="text" name="contactDepartment" /></label>
-        <label>電話番号<input type="tel" name="phone" required /></label>
-        <label>メールアドレス<input type="email" name="email" required /></label>
-      </fieldset>
-
-      <fieldset>
-        <legend>取引希望条件</legend>
-        <label>販売予定チャネル<input type="text" name="plannedSalesChannels" /></label>
-        <label>ご希望の商品<input type="text" name="desiredProducts" /></label>
-        <label>
-          ご希望の支払方法
-          <select name="desiredPaymentMethod">
-            <option value="">選択してください</option>
-            {PAYMENT_METHODS.map((method) => <option value={method.id}>{method.label}</option>)}
-          </select>
-        </label>
-        <label>ご相談内容<textarea name="notes"></textarea></label>
-      </fieldset>
-
-      <fieldset>
-        <legend>同意</legend>
-        <input type="hidden" name="agreedTermsVersion" value={CURRENT_TERMS_VERSION} />
-        <label><input type="checkbox" name="agreedToTerms" value="1" required /><a href="/terms">利用規約</a>・<a href="/privacy">プライバシーポリシー</a>に同意します</label>
-      </fieldset>
-
-      <button type="submit">申し込む</button>
-    </form>
-  </main>
+    {
+      /* client:load, not client:visible — the form is the page's only purpose, and it stays
+        disabled until hydration, so deferring it would show a dead button above the fold. */
+    }
+    <ApplyForm client:load termsVersion={CURRENT_TERMS_VERSION} paymentMethods={PAYMENT_METHODS.map((method) => ({ id: method.id, label: method.label }))} />
+  </section>
 </Layout>

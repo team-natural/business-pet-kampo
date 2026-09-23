@@ -34,6 +34,14 @@ export class NotFoundError extends AppError {
   }
 }
 
+// The operation contradicts the resource's current state, but no state machine was involved —
+// a stale terms version, an order from a suspended organization (DEV-04 §4).
+export class ConflictError extends AppError {
+  constructor(message = "現在の状態ではこの操作を実行できません。") {
+    super(message, 409, "CONFLICT");
+  }
+}
+
 export class InvalidStateTransitionError extends AppError {
   constructor(entity: string, from: string, to: string) {
     super(`${entity} の状態を ${from} から ${to} へ遷移できません。`, 409, "INVALID_STATE_TRANSITION");
