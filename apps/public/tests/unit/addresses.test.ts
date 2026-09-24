@@ -8,7 +8,7 @@ import { NotFoundError, ValidationError } from "@app/server-kit/http";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createAddress, deleteAddress, listAddresses, updateAddress } from "../../src/lib/server/services/addresses";
-import { requestCompanyChange } from "../../src/lib/server/services/organizations";
+import { requestCompanyChange, requestWithdrawal } from "../../src/lib/server/services/organizations";
 
 const db = createDb(env.DB);
 
@@ -193,5 +193,47 @@ describe("requestCompanyChange", () => {
 
     await expect(requestCompanyChange(db, organization.id, member, { name: organization.name })).rejects.toBeInstanceOf(ValidationError);
     expect(await db.select().from(activityLog)).toHaveLength(0);
+  });
+});
+
+describe("requestWithdrawal", () => {
+  // The other half of the stage's exit condition: a member-initiated transition is recorded, and
+  // recorded as the member's (DEV-07 §4-2 — the default causer is AdminUser).
+  it("records the request against the member, not an admin", async () => {
+    const organization = await seedOrganization();
+    const member = await seedMember();
+
+    const request = await requestWithdrawal(db, organization.id, member, { reason: "店舗を閉じるため" });
+
+    expect(request.organizationName).toBe("A 株式会社");
+    expect(request.reason).toBe("店舗を閉じるため");
+
+    const [entry] = await db.select().from(activityLog);
+    expect(entry!.causerType).toBe("Member");
+    expect(entry!.causerId).toBe(member.id);
+    expect(entry!.organizationId).toBe(organization.id);
+    expect(entry!.event).toBe("withdrawal_requested");
+  });
+
+  // Termination is the operator's, and it is refused outright while orders are outstanding
+  // (F-12-02). A member's request must never move the status on its own.
+  it("leaves the organization active", async () => {
+    const organization = await seedOrganization();
+    const member = await seedMember();
+
+    await requestWithdrawal(db, organization.id, member, {});
+
+    const [row] = await db.select().from(organizations).where(eq(organizations.id, organization.id));
+    expect(row!.status).toBe("active");
+    expect(row!.terminatedAt).toBeNull();
+    expect(row!.orderEnabled).toBe(1);
+  });
+
+  it("accepts a request with no reason", async () => {
+    const organization = await seedOrganization();
+    const member = await seedMember();
+
+    expect((await requestWithdrawal(db, organization.id, member, {})).reason).toBeNull();
+    expect(await db.select().from(activityLog)).toHaveLength(1);
   });
 });

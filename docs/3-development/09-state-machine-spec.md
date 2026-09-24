@@ -136,7 +136,30 @@ DEV-07 §5-2（`organizations.status`）と一致させる。
 | （Application 承認）→ active | 新規取引申請の承認（§2-1）| AdminUser |
 | active → suspended | 取引停止操作（未入金・規約違反等）| AdminUser |
 | suspended → active | 取引再開操作 | AdminUser |
-| active / suspended → terminated | 取引終了処理（取引先からの申請 + 運営確認。PRD-03 FG-12）| AdminUser |
+| active / suspended → terminated | 取引終了処理（取引先からの申請 + 運営確認。PRD-03 FG-12）。**未完了のご発注・未入金が 1 件でもあれば 409 で拒否**（F-12-02。下記）| AdminUser |
+
+> **`terminated` への遷移は「未完了注文・未入金なし」が事前条件**（S13 で実装）。`terminated` は終端状態で
+> あり戻れないため、残した注文は二度と出荷も回収もできなくなる。判定は `listOutstandingOrders()`
+> （`apps/admin/src/lib/server/services/orders.ts`）で、次のいずれかに当たる注文を「未完了」とする:
+>
+> - `status` が `received` / `confirming` / `preparing` / `shipped` のいずれか（進行中）
+> - `status` が `completed` だが `payment_status` が `paid` / `refunded` / `partially_refunded` のどれでもない（納品済み未入金）
+>
+> `cancelled` の注文は `payment_status` に関わらず対象外とする（キャンセル済みの未払いは債務ではなく、
+> 返金は Payment 側で追う — §2-6）。拒否時のメッセージには**該当する注文番号を列挙する** — 「未完了の
+> 発注があります」だけでは運営が何を追えばよいか分からない。**`suspended` への遷移はこの条件を課さない**:
+> 停止は終端ではなく、未入金を追っている間に運営が実際に使うレバーである。
+>
+> **S13 時点で実装していないこと**（いずれも実装ブロッカーではない）:
+>
+> - **申し出に対する会員宛の確認メール**。送っているのは運営宛の通知のみで、会員には画面上の
+>   確認（`role="status"`）だけを返している。DEV-09 §2-2-4 の副作用表にも DEV-10 §3 にも
+>   「申し出を受けた」メールの規定が無いため増やさなかった。破壊的な申し出の控えが手元に
+>   残らない形なので、文面を決めるなら S16 までに
+> - **申し出の重複排除**。同じ会員が 5 回押せば `activity_log` に 5 件、運営宛メールも 5 通届く。
+>   状態を持たない設計（申し出は状態遷移ではなく記録）の裏返しで、`organizations` に
+>   「申し出受領中」フラグを持たせない限り防げない。運営の受信箱が荒れるようなら、
+>   直近 24 時間の同一 `withdrawal_requested` を抑制する形が最小の対処になる
 
 #### 2-2-4. 遷移時の副作用
 

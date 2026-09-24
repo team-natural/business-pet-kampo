@@ -59,6 +59,15 @@ const linked = await listLinkedProviders(db, member.id);
       }
     </div>
 
+    <div class="mt-16 border-t border-rule pt-8">
+      <h2 class="font-display text-lg">退会・取引終了</h2>
+      <p class="mt-3 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">
+        {/* Reachable but not prominent: it ends the whole company's trading, not one account. */}
+        お取引の終了をご希望の場合は、こちらからお申し出ください。運営で内容を確認のうえ手続きを行います。
+      </p>
+      <a href="/mypage/withdrawal" class="btn btn-quiet mt-6">退会・取引終了について</a>
+    </div>
+
     <p class="mt-10 text-sm">
       <a href="/mypage" class="underline underline-offset-4 hover:text-vermilion">マイページへ戻る</a>
     </p>

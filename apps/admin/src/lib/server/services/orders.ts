@@ -3,7 +3,7 @@
 import { orderItems, orders, organizations } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { NotFoundError } from "@app/server-kit/http";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 
 export type OrderStatus = "received" | "confirming" | "preparing" | "shipped" | "completed" | "cancelled";
 
@@ -51,6 +51,47 @@ export function toPublicOrderItem(row: OrderItemRow) {
     quantity: row.quantity,
     subtotal: row.subtotal,
   };
+}
+
+// What stops a trading partner being closed (F-12-02). Two separate reasons, because they are two
+// separate obligations: goods still owed to them, and money still owed to us.
+export type OutstandingReason = "in_flight" | "unpaid";
+
+export interface OutstandingOrder {
+  orderNumber: string;
+  publicId: string;
+  status: OrderStatus;
+  paymentStatus: string;
+  total: number;
+  reason: OutstandingReason;
+}
+
+// An order still moving. `completed` and `cancelled` are the terminal states (DEV-09 §2-5-2).
+const IN_FLIGHT: OrderStatus[] = ["received", "confirming", "preparing", "shipped"];
+// Money that has moved one way or the other. Anything else is still owed.
+const SETTLED_PAYMENTS = ["paid", "refunded", "partially_refunded"];
+
+// Termination is refused while any of these exist. A cancelled order never blocks whatever its
+// payment says — an unpaid cancellation is nothing owed, and a refund is tracked on the Payment
+// (DEV-09 §2-6).
+export async function listOutstandingOrders(db: DbClient, organizationId: number): Promise<OutstandingOrder[]> {
+  const rows = await db
+    .select()
+    .from(orders)
+    .where(and(eq(orders.organizationId, organizationId), ne(orders.status, "cancelled")))
+    .orderBy(desc(orders.id));
+
+  return rows
+    .filter((row) => IN_FLIGHT.includes(row.status) || !SETTLED_PAYMENTS.includes(row.paymentStatus))
+    .map((row) => ({
+      orderNumber: row.orderNumber,
+      publicId: row.publicId,
+      status: row.status,
+      paymentStatus: row.paymentStatus,
+      total: row.total,
+      // Reported separately so the operator knows whether to chase a shipment or an invoice.
+      reason: IN_FLIGHT.includes(row.status) ? ("in_flight" as const) : ("unpaid" as const),
+    }));
 }
 
 const DEFAULT_PER_PAGE = 20;

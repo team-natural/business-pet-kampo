@@ -5,7 +5,7 @@ import { activityLogInsert } from "@app/schema/activity-log";
 import type { DbClient } from "@app/schema/client";
 import { NotFoundError, ValidationError } from "@app/server-kit/http";
 import { eq } from "drizzle-orm";
-import type { CompanyChangeRequestInput } from "../validation/me";
+import type { CompanyChangeRequestInput, WithdrawalInput } from "../validation/me";
 
 type OrganizationRow = typeof organizations.$inferSelect;
 
@@ -27,8 +27,39 @@ export async function getOrganization(db: DbClient, organizationId: number) {
   return toPublicOrganization(row);
 }
 
-// TODO(S13): requestWithdrawal. Only the admin-side transition function moves `status`; a
-// member's request lands in activity_log and a notification, exactly as the change request below.
+export interface WithdrawalRequest {
+  organizationPublicId: string;
+  organizationName: string;
+  orgCode: string;
+  memberName: string;
+  memberEmail: string;
+  reason: string | null;
+}
+
+// Asking to close the account (F-12-01, SCR-20). **Nothing here moves `status`.** Termination is
+// terminal — there is no way back to active (DEV-09 §2-2-2) — and it is refused outright while
+// orders or payments are outstanding (F-12-02), a check only the operator's side can make. So a
+// member's request becomes an audit entry and a notification, exactly like the change request
+// above; the transition itself is `transitionOrganization` in apps/admin.
+export async function requestWithdrawal(db: DbClient, organizationId: number, member: { id: number; name: string; email: string }, input: WithdrawalInput): Promise<WithdrawalRequest> {
+  const [row] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  if (!row) throw new NotFoundError("取引先が見つかりません。");
+
+  await activityLogInsert(db, {
+    logName: "organization",
+    description: `${row.name} から退会・取引終了の申し出がありました。`,
+    subjectType: "Organization",
+    subjectId: row.id,
+    event: "withdrawal_requested",
+    // Member-initiated, so it must say so: the default is AdminUser (DEV-07 §4-2).
+    causerType: "Member",
+    causerId: member.id,
+    organizationId: row.id,
+    properties: { reason: input.reason ?? null },
+  });
+
+  return { organizationPublicId: row.publicId, organizationName: row.name, orgCode: row.orgCode, memberName: member.name, memberEmail: member.email, reason: input.reason ?? null };
+}
 
 // The fields a member may ask to have changed. `orgCode` is absent by construction: the operator
 // assigns it and the price files key off it, so it is writable from no member-side path (D-019).

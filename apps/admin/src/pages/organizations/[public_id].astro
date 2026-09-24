@@ -12,6 +12,7 @@ import { formatDateTime } from "$lib/format";
 import { listAppliedPrices } from "$lib/prices";
 import { requireAdminUser } from "$lib/server/auth/access";
 import { allowedTransitions, findOrganizationRow, listShippingAddresses, toPublicOrganization } from "$lib/server/services/organizations";
+import { listOutstandingOrders } from "$lib/server/services/orders";
 
 const admin = await requireAdminUser(Astro);
 
@@ -20,7 +21,12 @@ const row = await findOrganizationRow(Astro.locals.db, Astro.params.public_id!);
 const organization = toPublicOrganization(row);
 const transitions = allowedTransitions(organization.status);
 
-const [addresses, prices] = await Promise.all([listShippingAddresses(Astro.locals.db, row.id), listAppliedPrices(organization.orgCode)]);
+// What blocks termination (F-12-02). Shown before the operator presses the button, not only in
+// the 409 that follows — the refusal names the order numbers, but the panel is where they are
+// chased from.
+const [addresses, prices, outstanding] = await Promise.all([listShippingAddresses(Astro.locals.db, row.id), listAppliedPrices(organization.orgCode), listOutstandingOrders(Astro.locals.db, row.id)]);
+
+const OUTSTANDING_REASONS: Record<string, string> = { in_flight: "発注が進行中", unpaid: "未入金" };
 
 const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
 ---
@@ -47,6 +53,43 @@ const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
       )
     }
   </DetailCard>
+
+  {
+    outstanding.length > 0 && organization.status !== "terminated" && (
+      <DetailCard title="取引終了を保留している発注" description="未完了のご発注または未入金が残っている間、取引終了は実行できません（PRD-03 F-12-02）。完了またはキャンセルしてから終了してください。" list={false}>
+        <Table.Root>
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>注文番号</Table.Head>
+              <Table.Head>保留の理由</Table.Head>
+              <Table.Head>受注</Table.Head>
+              <Table.Head>入金</Table.Head>
+              <Table.Head class="text-right">金額</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {outstanding.map((order) => (
+              <Table.Row>
+                <Table.Cell class="font-medium tabular-nums">
+                  <a href={`/orders/${order.publicId}`} class="underline underline-offset-4">
+                    {order.orderNumber}
+                  </a>
+                </Table.Cell>
+                <Table.Cell>{OUTSTANDING_REASONS[order.reason] ?? order.reason}</Table.Cell>
+                <Table.Cell>
+                  <StatusBadge domain="order" value={order.status} />
+                </Table.Cell>
+                <Table.Cell>
+                  <StatusBadge domain="payment" value={order.paymentStatus} />
+                </Table.Cell>
+                <Table.Cell class="text-right tabular-nums">{yen(order.total)}</Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+      </DetailCard>
+    )
+  }
 
   <DetailCard title="編集と取引の状態" description="会社情報・管理メモの編集と、取引の停止・再開・終了はここから行います。" list={false}>
     <OrganizationActions client:load publicId={organization.id} transitions={transitions} name={organization.name} billingPostalCode={organization.billingPostalCode} billingAddress={organization.billingAddress} memo={row.memo} orderEnabled={organization.orderEnabled} />

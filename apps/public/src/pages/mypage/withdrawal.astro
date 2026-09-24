@@ -1,23 +1,40 @@
 ---
-// SCR-20, asking to close the account. Destructive, so it sits on its own page (DEV-06 §4-4).
+// SCR-20, asking to close the account. Destructive, so it sits on its own page (DEV-06 §4-4) and
+// the island asks twice — `terminated` is terminal, and reopening means a fresh application
+// (DEV-09 §2-2-2).
 import Layout from "../../layouts/Layout.astro";
-import { requireMemberSession } from "../../lib/server/auth/page";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../lib/server/auth/page";
+import WithdrawalForm from "../../lib/components/withdrawal-form.svelte";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
+
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
 ---
 
 <Layout title="退会・取引終了のお申し出 — マイページ">
-  <main>
-    <h1>退会・取引終了のお申し出</h1>
-    <p>お申し出の後、運営で内容を確認のうえ手続きを行います。進行中のご発注がある場合は完了後の手続きとなります。</p>
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">マイページ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">退会・取引終了のお申し出</h1>
 
-    {/* TODO(Phase C): wire to POST /api/v1/me/withdrawal behind a confirmation dialog. */}
-    <form method="post" action="/api/v1/me/withdrawal">
-      <label>お申し出の理由<textarea name="reason"></textarea></label>
-      <button type="submit">退会を申し出る</button>
-    </form>
+    <div class="mt-8 max-w-prose leading-loose text-pretty text-ink-soft">
+      <p>お申し出の後、運営で内容を確認のうえ手続きを行います。手続きが完了するまでは、これまでどおりご利用いただけます。</p>
+      <ul class="mt-6 flex list-disc flex-col gap-2 pl-5">
+        {
+          /* Said before the button, not after the refusal: the operator's side rejects termination
+            outright while these exist, and finding that out afterwards is a wasted round trip. */
+        }
+        <li>進行中のご発注、または未入金のご発注が残っている場合は、それらの完了後の手続きとなります。</li>
+        <li>お取引が終了すると、御社のすべてのご担当者がログインできなくなります。</li>
+        <li>再びお取引をご希望の場合は、あらためて新規のお申し込みが必要です。</li>
+      </ul>
+    </div>
 
-    <a href="/mypage">マイページへ戻る</a>
-  </main>
+    <WithdrawalForm client:load organizationName={organization.name} />
+
+    <p class="mt-16 text-sm">
+      <a href="/mypage" class="underline underline-offset-4 hover:text-vermilion">マイページへ戻る</a>
+    </p>
+  </section>
 </Layout>

@@ -31,7 +31,12 @@ export const E2E_ORGANIZATIONS = {
   toSuspend: { publicId: "01E2EORGTOSUSPEND000000000", orgCode: "ORG-E2ESUSP", status: "active" },
   toResume: { publicId: "01E2EORGTORESUME0000000000", orgCode: "ORG-E2ERESU", status: "suspended" },
   toTerminate: { publicId: "01E2EORGTOTERMINATE0000000", orgCode: "ORG-E2ETERM", status: "active" },
+  // Carries one order that is still in flight, so terminating it must be refused (F-12-02).
+  blockedByOrder: { publicId: "01E2EORGBLOCKED0000000000", orgCode: "ORG-E2EBLOK", status: "active" },
 } as const;
+
+// The order that does the blocking. Its number is asserted in the 409 message.
+export const E2E_BLOCKING_ORDER = "20260924-901";
 
 // One statement per call. wrangler aborts the whole command at the first error, so a multi
 // statement teardown that trips a foreign key leaves the rest unrun — and the next run then fails
@@ -78,6 +83,11 @@ export default function globalSetup() {
 
   run(
     [
+      // Orders hang off both the organization and the member, and order_items off the order, so
+      // the three go before the memberships and members deletes below.
+      `DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE organization_id IN (SELECT id FROM organizations WHERE ${mine}))`,
+      `DELETE FROM payments WHERE organization_id IN (SELECT id FROM organizations WHERE ${mine})`,
+      `DELETE FROM orders WHERE organization_id IN (SELECT id FROM organizations WHERE ${mine})`,
       `DELETE FROM activity_log WHERE organization_id IN (SELECT id FROM organizations WHERE ${mine})`,
       `DELETE FROM activity_log WHERE subject_type = 'Application' AND subject_id IN (SELECT id FROM applications WHERE ${seeded})`,
       `DELETE FROM memberships WHERE organization_id IN (SELECT id FROM organizations WHERE ${mine})`,
@@ -108,5 +118,23 @@ export default function globalSetup() {
         WHERE m.public_id = '01E2EMEMBERTERMINATE000000' AND o.public_id = '${E2E_ORGANIZATIONS.toTerminate.publicId}';`,
     ],
     "could not seed the terminating organization's member",
+  );
+
+  // The order that blocks termination (F-12-02): still in flight, so the partner cannot be closed
+  // while it exists. It needs a member of its own to hang off.
+  run(
+    [
+      `INSERT INTO members (public_id, name, email, status, updated_at)
+        VALUES ('01E2EMEMBERBLOCKED00000000', 'E2E 担当者', 'e2e-applicant-blocked@example.test', 'active', datetime('now'));`,
+      `INSERT INTO memberships (member_id, organization_id, role, status, joined_at, updated_at)
+        SELECT m.id, o.id, 'client_user', 'active', datetime('now'), datetime('now')
+        FROM members m, organizations o
+        WHERE m.public_id = '01E2EMEMBERBLOCKED00000000' AND o.public_id = '${E2E_ORGANIZATIONS.blockedByOrder.publicId}';`,
+      `INSERT INTO orders (public_id, organization_id, member_id, order_number, status, payment_status, subtotal, tax, shipping_fee, total, shipping_address_snapshot, payment_method, placed_at, updated_at)
+        SELECT '01E2EORDERBLOCKING00000000', o.id, m.id, '${E2E_BLOCKING_ORDER}', 'received', 'awaiting_transfer', 24000, 2500, 1000, 27500, '{}', 'bank_transfer', datetime('now'), datetime('now')
+        FROM members m, organizations o
+        WHERE m.public_id = '01E2EMEMBERBLOCKED00000000' AND o.public_id = '${E2E_ORGANIZATIONS.blockedByOrder.publicId}';`,
+    ],
+    "could not seed the blocking order",
   );
 }

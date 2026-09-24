@@ -2,9 +2,10 @@
 import { memberships, members, organizations, shippingAddresses } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { likeContains } from "@app/schema/query";
-import { InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
+import { ConflictError, InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { AdminUser } from "./admin-users";
+import { listOutstandingOrders } from "./orders";
 import { activityLogInsert } from "@app/schema/activity-log";
 import type { UpdateOrganizationInput } from "../validation/organizations";
 
@@ -150,6 +151,18 @@ export async function transitionOrganization(db: DbClient, publicId: string, to:
   const row = await findOrganizationRow(db, publicId);
   if (!allowedTransitions(row.status).includes(to)) {
     throw new InvalidStateTransitionError("Organization", row.status, to);
+  }
+
+  // Termination is refused while goods are still owed to the partner or money is still owed to us
+  // (F-12-02). It is a terminal state — there is no way back out (DEV-09 §2-2-2) — so an order
+  // stranded by it can never be delivered or collected, and the numbers are named here because
+  // "there are outstanding orders" leaves the operator nothing to chase.
+  if (to === "terminated") {
+    const outstanding = await listOutstandingOrders(db, row.id);
+    if (outstanding.length > 0) {
+      const numbers = outstanding.map((order) => order.orderNumber).join("、");
+      throw new ConflictError(`未完了のご発注または未入金が残っているため取引を終了できません（${numbers}）。先に発注と入金の処理を完了またはキャンセルしてください。`);
+    }
   }
 
   const now = new Date().toISOString();
