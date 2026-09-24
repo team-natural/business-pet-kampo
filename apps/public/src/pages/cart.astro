@@ -1,69 +1,129 @@
 ---
 // SCR-21. Wholesale prices are resolved and rendered on the server — passed into an island's
-// props they would appear in the client HTML (D-021, DEV-06 §7).
+// props they would appear in the client HTML (D-021, DEV-06 §7). The island below gets the row id,
+// the quantity and the order unit, and nothing with a yen sign on it.
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../layouts/Layout.astro";
-import { MINIMUM_ORDER_SUBTOTAL, formatYen, orderTotals } from "../lib/commerce";
-import { requireMemberSession } from "../lib/server/auth/page";
+import { cartProductsFor } from "../lib/catalog";
+import { MINIMUM_ORDER_SUBTOTAL, formatYen } from "../lib/commerce";
+import CartLineControls from "../lib/components/cart-line-controls.svelte";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../lib/server/auth/page";
+import { getCart } from "../lib/server/services/cart";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-// TODO(Phase C): resolve the lines with getCart(db, organization.id, member.id). Unit prices come
-// from resolveWholesalePrice per read (organization price, else list price — DEV-07 §6-0).
-const items: { id: number; name: string; unitPrice: number; quantity: number; subtotal: number }[] = [];
-const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
-const totals = orderTotals(subtotal);
-const meetsMinimum = subtotal >= MINIMUM_ORDER_SUBTOTAL;
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
+const { lines, unavailable, totals, meetsMinimum } = await getCart(createDb(env.DB), { organizationId: organization.id, memberId: session.memberId }, cartProductsFor({ orgCode: organization.orgCode }));
+
+const percent = (rate: number) => `${Math.round(rate * 100)}%`;
 ---
 
 <Layout title="カート">
-  <main>
-    <h1>カート</h1>
-
-    <ul>
-      {
-        items.map((item) => (
-          <li>
-            <span>{item.name}</span>
-            <span>
-              {formatYen(item.unitPrice)} × {item.quantity}
-            </span>
-            <span>{formatYen(item.subtotal)}</span>
-          </li>
-        ))
-      }
-    </ul>
+  <section class="mx-auto w-full max-w-4xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">ご発注</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">カート</h1>
 
     {
-      items.length === 0 ? (
-        <p>
-          カートは空です。<a href="/products">商品一覧へ</a>
-        </p>
-      ) : (
-        <section>
-          <dl>
-            <>
-              <dt>小計（税抜）</dt>
-              <dd>{formatYen(totals.subtotal)}</dd>
-            </>
-            <>
-              <dt>送料</dt>
-              <dd>{formatYen(totals.shippingFee)}</dd>
-            </>
-            <>
-              <dt>消費税</dt>
-              <dd>{formatYen(totals.tax)}</dd>
-            </>
-            <>
-              <dt>合計</dt>
-              <dd>{formatYen(totals.total)}</dd>
-            </>
-          </dl>
-          {/* Display, not a decision. POST /api/v1/checkout is where the rule is enforced (DEV-06 §7). */}
-          {!meetsMinimum && <p>最低発注金額は税抜 {formatYen(MINIMUM_ORDER_SUBTOTAL)} です。</p>}
-          <a href="/checkout">ご発注手続きへ</a>
-        </section>
+      unavailable.length > 0 && (
+        <div class="mt-8 border border-vermilion px-4 py-3">
+          {/* Listed rather than dropped: a line that vanishes silently reads as the cart losing it. */}
+          <p class="text-sm leading-relaxed text-pretty text-vermilion">現在お取り扱いのない商品がカートに残っています。削除してからお進みください。</p>
+          <ul class="mt-3 flex flex-col gap-4">
+            {unavailable.map((item) => (
+              <li class="font-mono text-sm tabular-nums">
+                {item.productSlug}
+                <CartLineControls client:load id={item.id} quantity={1} orderUnit={1} productName={item.productSlug} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )
     }
-  </main>
+
+    {
+      lines.length === 0 ? (
+        <p class="mt-10 leading-relaxed text-pretty text-ink-soft">
+          カートは空です。
+          <a href="/products" class="underline underline-offset-4 hover:text-vermilion">
+            商品一覧へ
+          </a>
+        </p>
+      ) : (
+        <>
+          <ul class="mt-10 flex flex-col gap-6">
+            {lines.map((line) => (
+              <li class="border border-rule p-5" data-testid="cart-line">
+                <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                  <div>
+                    <a href={`/products/${line.slug}`} class="font-display underline-offset-4 hover:underline">
+                      {line.name}
+                    </a>
+                    {line.code && <p class="mt-1 font-mono text-xs text-ink-soft tabular-nums">{line.code}</p>}
+                  </div>
+                  <p class="font-mono text-sm tabular-nums">
+                    {formatYen(line.unitPrice)} × {line.quantity}
+                    <span class="ml-3 text-base">{formatYen(line.subtotal)}</span>
+                  </p>
+                </div>
+
+                <CartLineControls client:load id={line.id} quantity={line.quantity} orderUnit={line.orderUnit} productName={line.name} />
+              </li>
+            ))}
+          </ul>
+
+          <section aria-labelledby="totals" class="mt-12 border-t border-rule pt-8">
+            <h2 id="totals" class="font-display text-lg">
+              お支払い金額
+            </h2>
+            <dl class="mt-6 flex flex-col gap-3">
+              <div class="flex items-baseline justify-between gap-6">
+                <dt class="text-sm text-ink-soft">小計（税抜）</dt>
+                <dd class="font-mono tabular-nums">{formatYen(totals.subtotal)}</dd>
+              </div>
+              <div class="flex items-baseline justify-between gap-6">
+                <dt class="text-sm text-ink-soft">送料</dt>
+                <dd class="font-mono tabular-nums">{formatYen(totals.shippingFee)}</dd>
+              </div>
+              {totals.taxes.map((entry) => (
+                <div class="flex items-baseline justify-between gap-6">
+                  <dt class="text-sm text-ink-soft">消費税（{percent(entry.rate)}）</dt>
+                  <dd class="font-mono tabular-nums">{formatYen(entry.tax)}</dd>
+                </div>
+              ))}
+              <div class="flex items-baseline justify-between gap-6 border-t border-rule pt-3">
+                <dt class="font-display">合計</dt>
+                <dd class="font-mono text-xl tabular-nums">{formatYen(totals.total)}</dd>
+              </div>
+            </dl>
+
+            {/* Display, not a decision. POST /api/v1/checkout is where the rule is enforced (DEV-06 §7). */}
+            {!meetsMinimum && (
+              <p class="mt-6 border border-vermilion px-4 py-3 text-sm leading-relaxed text-pretty text-vermilion">
+                最低発注金額は税抜 {formatYen(MINIMUM_ORDER_SUBTOTAL)} です。あと {formatYen(MINIMUM_ORDER_SUBTOTAL - totals.subtotal)}（税抜）ご追加ください。
+              </p>
+            )}
+
+            <div class="mt-8 flex flex-wrap items-center gap-4">
+              {meetsMinimum && unavailable.length === 0 ? (
+                <a href="/checkout" class="btn btn-primary">
+                  ご発注手続きへ
+                </a>
+              ) : (
+                <span class="btn btn-primary pointer-events-none opacity-50" aria-disabled="true">
+                  ご発注手続きへ
+                </span>
+              )}
+              <a href="/products" class="text-sm underline underline-offset-4 hover:text-vermilion">
+                買い物を続ける
+              </a>
+            </div>
+          </section>
+        </>
+      )
+    }
+  </section>
 </Layout>

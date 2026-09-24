@@ -10,6 +10,14 @@ export class AppError extends Error {
   }
 }
 
+// The request itself does not make sense — a field that passed Zod but names something that does
+// not exist, such as a cart line's product_slug (DEV-04 §4). A field-level problem is 422 instead.
+export class BadRequestError extends AppError {
+  constructor(message = "リクエストの内容を確認してください。") {
+    super(message, 400, "BAD_REQUEST");
+  }
+}
+
 export class UnauthenticatedError extends AppError {
   constructor(message = "認証が必要です。") {
     super(message, 401, "UNAUTHENTICATED");

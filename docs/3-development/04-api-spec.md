@@ -240,10 +240,10 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 
 | アプリ | メソッド | パス | 用途 | 認証 |
 | --- | --- | --- | --- | --- |
-| public | GET | `/api/v1/cart` | カート内容取得（卸単価・小計・税額・送料・合計を含む） | 必須（`client_user`、Organization `active`） |
-| public | POST | `/api/v1/cart/items` | カートへ追加 | 必須 |
-| public | PATCH | `/api/v1/cart/items/{id}` | 数量変更 | 必須 |
-| public | DELETE | `/api/v1/cart/items/{id}` | カートから削除 | 必須 |
+| public | GET | `/api/v1/cart` | カート内容取得（卸単価・小計・**税率ごとの税額**・送料・合計を含む）。取り扱いが終了した商品の行は落とさず `unavailable` に入れて返す — 黙って消えるとカートが失った様に見える | 必須（`client_user`、Organization `active`） |
+| public | POST | `/api/v1/cart/items` | カートへ追加。既に同じ商品がある場合は加算（UNIQUE `(organization_id, member_id, product_slug)`）。解決しない `product_slug` は **400**（外部キーが無く、この照合だけが制約の代わり — D-017）、発注単位の倍数でない数量は**丸めずに 422**（BIZ-03 §3-1） | 必須（Organization `order_enabled`） |
+| public | PATCH | `/api/v1/cart/items/{id}` | 数量変更。`{id}` は `cart_items.id` だが、WHERE には常に `organization_id` と `member_id` が入る — 他社のカートも同僚のカートも **404** | 必須（Organization `order_enabled`） |
+| public | DELETE | `/api/v1/cart/items/{id}` | カートから削除。取り扱いが終了した商品でも削除できる（商品の解決を要求しない） | 必須（Organization `order_enabled`） |
 | public | POST | `/api/v1/checkout` | 発注確定（配送先・支払方法を含む。最低発注金額の検証を含む — BIZ-03 §3-1） | 必須 |
 | public | GET | `/api/v1/orders` | 発注履歴一覧 | 必須（自 Organization のみ） |
 | public | GET | `/api/v1/orders/{public_id}` | 発注詳細 | 必須（自 Organization のみ） |

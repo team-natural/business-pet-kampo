@@ -24,12 +24,32 @@ export function meetsMinimumOrder(subtotal: number): boolean {
   return subtotal >= MINIMUM_ORDER_SUBTOTAL;
 }
 
+// One order line's taxable amount. A product may carry its own `taxRate`; most do not and fall
+// back to TAX_RATE.
+export interface TaxableLine {
+  subtotal: number;
+  taxRate: number;
+}
+
 // Order totals, derived rather than stored twice: orders.subtotal/tax/shipping_fee/total are
 // written from this function at checkout.
-export function orderTotals(subtotal: number, rate: number = TAX_RATE) {
+//
+// Tax is rounded once per rate, not once per line (D-013). Rounding per line loses up to a yen
+// on every row, and the invoice then disagrees with the buyer's own arithmetic.
+export function orderTotals(lines: TaxableLine[]) {
+  const subtotal = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const shippingFee = shippingFeeFor(subtotal);
-  const tax = taxFor(subtotal + shippingFee, rate);
-  return { subtotal, shippingFee, tax, total: subtotal + shippingFee + tax };
+
+  const taxable = new Map<number, number>();
+  for (const line of lines) taxable.set(line.taxRate, (taxable.get(line.taxRate) ?? 0) + line.subtotal);
+  // Shipping is a service at the standard rate, and joins that bucket rather than forming one of
+  // its own — otherwise the standard rate would round twice.
+  if (shippingFee > 0) taxable.set(TAX_RATE, (taxable.get(TAX_RATE) ?? 0) + shippingFee);
+
+  const taxes = [...taxable].sort(([a], [b]) => a - b).map(([rate, amount]) => ({ rate, taxableAmount: amount, tax: taxFor(amount, rate) }));
+  const tax = taxes.reduce((sum, entry) => sum + entry.tax, 0);
+
+  return { subtotal, shippingFee, taxes, tax, total: subtotal + shippingFee + tax };
 }
 
 export const PAYMENT_METHODS = [

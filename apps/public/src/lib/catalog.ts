@@ -2,6 +2,7 @@
 // page is how a draft, a discontinued product or another organization's price reaches a visitor:
 // the filtering is easy to write and easy to forget on one screen out of ten.
 import { getCollection, getEntry } from "astro:content";
+import { TAX_RATE } from "./commerce";
 
 export type Animal = "dog" | "cat";
 
@@ -134,6 +135,48 @@ export async function resolveWholesalePrices(products: ProductEntry[], viewer: V
 
   const overrides = await overridesFor(viewer);
   return products.map((product) => overrides.get(product.id) ?? product.data.wholesalePrice);
+}
+
+// What the cart and the order need from a product. Narrower than the collection entry on purpose:
+// the service layer must not hold a Content Collections type, or it can only be tested with the
+// build-time collections present (DEV-05 §1-4).
+export interface CartProduct {
+  slug: string;
+  name: string;
+  code: string | null;
+  // Already resolved for one organization: its own price file, else the standard one (D-019).
+  unitPrice: number;
+  orderUnit: number;
+  taxRate: number;
+}
+
+// The cart's view of a product, for the viewer whose cart it is. Built here because content is
+// read outside the service layer (DEV-05 §1-4), and because the price resolution must not be
+// repeated anywhere else — a second copy is where the organization override gets forgotten.
+//
+// A slug that is drafted, withdrawn or gone is simply absent from the map. The cart treats that
+// as "no longer orderable" rather than guessing a price for it.
+export function cartProductsFor(viewer: Viewer): (slugs: string[]) => Promise<Map<string, CartProduct>> {
+  return async (slugs) => {
+    const wanted = new Set(slugs);
+    if (wanted.size === 0) return new Map();
+
+    const [products, overrides] = await Promise.all([getCollection("products", ({ id, data }) => wanted.has(id) && !data.draft && !data.discontinued), overridesFor(viewer)]);
+
+    return new Map(
+      products.map((product) => [
+        product.id,
+        {
+          slug: product.id,
+          name: product.data.name,
+          code: product.data.code ?? null,
+          unitPrice: overrides.get(product.id) ?? product.data.wholesalePrice,
+          orderUnit: product.data.orderUnit,
+          taxRate: product.data.taxRate ?? TAX_RATE,
+        },
+      ]),
+    );
+  };
 }
 
 // Every org_code the price files reference. The service layer checks these against
