@@ -4,11 +4,10 @@
 // applicant's 201 into a 500 (DEV-10 §3-4).
 import { signToken } from "@app/server-kit/auth";
 import { logIntegrationError, newRequestId } from "@app/server-kit/integration";
+import { sendMail, type MailEnv } from "@app/server-kit/mail";
 import { WITHDRAWAL_TOKEN_TTL_SECONDS } from "../services/applications";
-import { sendMail } from "./send";
 import { renderApplicationReceived } from "./templates/application-received";
 import { renderApplicationSubmittedAlert } from "./templates/application-submitted-alert";
-import type { MailEnv } from "./client";
 
 export interface ApplicationNotificationEnv extends MailEnv {
   ADMIN_URL?: string;

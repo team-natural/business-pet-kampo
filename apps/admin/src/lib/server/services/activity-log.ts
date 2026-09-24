@@ -2,6 +2,7 @@
 // cross-cutting logger that would have to re-derive what counts as loggable.
 import { activityLog } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
+import type { SQL } from "drizzle-orm";
 
 export interface ActivityLogEntry {
   logName?: string;
@@ -15,7 +16,10 @@ export interface ActivityLogEntry {
   // Required for anything touching an order, a trading partner or a cart (DEV-05 §9-1). Null only
   // where the subject belongs to no organization at all — handling an inquiry, reviewing an
   // application that has not been approved yet.
-  organizationId?: number;
+  //
+  // Accepts SQL so a caller inside a batch can point at a row the same batch is inserting, which
+  // is the only way to reference it — D1 cannot hand a generated id back mid-batch.
+  organizationId?: number | SQL<number>;
   properties?: Record<string, unknown>;
 }
 

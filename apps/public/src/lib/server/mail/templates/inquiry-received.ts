@@ -1,8 +1,7 @@
 // The auto-reply a visitor gets after using the contact form (F-09-05). Body copy is Japanese;
 // the code around it is not (DEV-05 §10).
 import { inquiryTypeLabel } from "$lib/inquiry";
-import type { MailMessage, MailTemplateContext } from "../send";
-import { escapeHtml } from "./escape";
+import { escapeHtml, type MailMessage, type MailTemplateContext } from "@app/server-kit/mail";
 
 export interface InquiryReceivedInput {
   name: string;

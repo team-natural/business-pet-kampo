@@ -7,7 +7,7 @@ import { createDb } from "@app/schema/client";
 import { ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
 import { ZodError, flattenError } from "zod";
 import { createInquiry } from "$lib/server/services/inquiries";
-import { sendMail } from "$lib/server/mail/send";
+import { sendMail } from "@app/server-kit/mail";
 import { renderInquiryReceived } from "$lib/server/mail/templates/inquiry-received";
 import { createInquirySchema } from "$lib/server/validation/inquiries";
 

@@ -1,7 +1,9 @@
 import type { APIContext } from "astro";
-import { jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ZodError, flattenError } from "zod";
 import { requireAdminUser } from "$lib/server/auth/access";
-import { getApplicationByPublicId } from "$lib/server/services/applications";
+import { getApplicationByPublicId, updateReview } from "$lib/server/services/applications";
+import { reviewApplicationSchema } from "$lib/server/validation/applications";
 
 export async function GET(context: APIContext): Promise<Response> {
   try {
@@ -12,14 +14,16 @@ export async function GET(context: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH, covering the reviewer, the review memo and sending an application back.
-// What the applicant typed is not rewritten here, and `status` is never assigned directly — it
-// moves through the transition function (or approve / reject).
+// The review memo only. What the applicant typed is not rewritten here, and `status` never arrives
+// in a body — each move has its own route (D-028, DEV-09 §2-1-3).
 export async function PATCH(context: APIContext): Promise<Response> {
   try {
-    await requireAdminUser(context);
-    return new Response("Not implemented", { status: 501 });
+    const admin = await requireAdminUser(context);
+    const input = reviewApplicationSchema.parse(await context.request.json());
+
+    return jsonItem(await updateReview(context.locals.db, context.params.public_id!, input, admin));
   } catch (error) {
+    if (error instanceof ZodError) return toErrorResponse(new ValidationError(flattenError(error).fieldErrors));
     return toErrorResponse(error);
   }
 }

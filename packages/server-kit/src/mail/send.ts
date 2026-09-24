@@ -1,7 +1,11 @@
-// The one place mail leaves this app. Every caller goes through sendMail so the retry rule
+// The one place mail leaves either app. Every caller goes through sendMail so the retry rule
 // (DEV-10 §1-2), the structured log (DEV-10 §8-1) and the subject convention (DEV-10 §3-4) are
 // applied once instead of per call site.
-import { RetryableError, isRetryableStatus, logIntegrationError, logIntegrationInfo, newRequestId, truncateForLog, withRetry } from "@app/server-kit/integration";
+//
+// Shared rather than duplicated per app: both apps/public and apps/admin send mail (DEV-10 §3-1),
+// and a second copy is where the retry classification or the 【service name】 prefix quietly
+// drifts. The templates stay in each app — the copy is theirs, the transport is not.
+import { RetryableError, isRetryableStatus, logIntegrationError, logIntegrationInfo, newRequestId, truncateForLog, withRetry } from "../integration";
 import { createResendClient, readMailConfig, type MailEnv } from "./client";
 
 export interface MailMessage {

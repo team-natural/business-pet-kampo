@@ -1,7 +1,6 @@
 // Tells the operator an application is waiting (F-10-01). Addressed to MAIL_ADMIN_ALERTS, so it
 // carries the details the reviewer needs to triage without opening the console.
-import type { MailMessage, MailTemplateContext } from "../send";
-import { escapeHtml } from "./escape";
+import { escapeHtml, type MailMessage, type MailTemplateContext } from "@app/server-kit/mail";
 
 export interface ApplicationSubmittedAlertInput {
   to: string;

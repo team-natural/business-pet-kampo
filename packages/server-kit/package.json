@@ -7,7 +7,8 @@
   "exports": {
     "./http": "./src/http/index.ts",
     "./auth": "./src/auth/index.ts",
-    "./integration": "./src/integration/index.ts"
+    "./integration": "./src/integration/index.ts",
+    "./mail": "./src/mail/index.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -21,6 +22,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "resend": "^6.28.1"
   }
 }

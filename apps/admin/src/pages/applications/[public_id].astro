@@ -3,6 +3,7 @@
 import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
 import DetailCard from "$lib/components/detail-card.astro";
 import PageHeader from "$lib/components/page-header.astro";
+import ReviewActions from "$lib/components/review-actions.svelte";
 import StatusBadge from "$lib/components/status-badge.svelte";
 import { formatDateTime } from "$lib/format";
 import { requireAdminUser } from "$lib/server/auth/access";
@@ -39,16 +40,19 @@ const transitions = allowedTransitions(application.status);
     <div><dt>同意した規約版</dt><dd>{application.agreedTermsVersion}</dd></div>
   </DetailCard>
 
-  {
-    /* TODO(Phase C): wire saving the review memo, sending back, approving and rejecting to the
-      API. The approval form assigns the org_code, which never changes afterwards. */
-  }
-  <DetailCard title="審査">
-    <div><dt>審査メモ</dt><dd class="whitespace-pre-wrap">{application.reviewMemo ?? "—"}</dd></div>
-    <div><dt>審査日時</dt><dd class="tabular-nums">{formatDateTime(application.reviewedAt)}</dd></div>
-    <div>
-      <dt>遷移可能</dt>
-      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("application", to).label).join(" / ") : "なし（終端）"}</dd>
-    </div>
+  <DetailCard title="審査" list={false}>
+    <dl class="detail-list mb-6 text-sm">
+      <div><dt>審査日時</dt><dd class="tabular-nums">{formatDateTime(application.reviewedAt)}</dd></div>
+      <div>
+        <dt>遷移可能</dt>
+        <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("application", to).label).join(" / ") : "なし（終端）"}</dd>
+      </div>
+    </dl>
+
+    {
+      /* client:load — the panel is why the reviewer opened this screen, and every control in it
+        stays inert until hydration. */
+    }
+    <ReviewActions client:load publicId={application.id} transitions={transitions} reviewMemo={application.reviewMemo} suggestedMemberName={application.contactName} suggestedMemberEmail={application.email} />
   </DetailCard>
 </ConsoleLayout>

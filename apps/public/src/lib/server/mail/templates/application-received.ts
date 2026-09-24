@@ -1,7 +1,6 @@
 // The acknowledgement an applicant gets after submitting (F-02-02). It carries the withdrawal
 // link, which is the only way back to an application that has no login behind it (DEV-04 §5-3).
-import type { MailMessage, MailTemplateContext } from "../send";
-import { escapeHtml } from "./escape";
+import { escapeHtml, type MailMessage, type MailTemplateContext } from "@app/server-kit/mail";
 
 export interface ApplicationReceivedInput {
   companyName: string;

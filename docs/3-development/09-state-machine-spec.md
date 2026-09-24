@@ -74,12 +74,14 @@ DEV-07 §5-1（`applications.status`）と一致させる。
 | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | received | — | ✓ | ✗ | ✗ | ✗ | ✓ |
 | reviewing | ✗ | — | ✓ | ✓ | ✓ | ✓ |
-| needs_confirmation | ✗ | ✓ | — | ✗ | ✓ | ✓ |
+| needs_confirmation | ✗ | ✓ | — | ✓ | ✓ | ✓ |
 | approved | ✗ | ✗ | ✗ | — | ✗ | ✗ |
 | rejected | ✗ | ✗ | ✗ | ✗ | — | ✗ |
 | withdrawn | ✗ | ✗ | ✗ | ✗ | ✗ | — |
 
 > `approved` / `rejected` / `withdrawn` は終端状態。再申請は新規 Application として扱う。
+>
+> **`needs_confirmation → approved` は許可する**（GOV-01 D-034）。かつて本表はこれを ✗ としていたが、`needs_confirmation → reviewing` のトリガーは「申請者が追加情報を提出」であり、**MVP に申請者側の再提出フローが無い**。禁止すると差し戻した申請は否認か取消しか行き先が無くなる。運営が追加情報を電話やメールで受け取ってそのまま承認する運用を前提とする。
 
 #### 2-1-3. 遷移トリガー
 
