@@ -1,7 +1,9 @@
 import type { APIContext } from "astro";
-import { jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ZodError, flattenError } from "zod";
 import { requireAdminUser } from "$lib/server/auth/access";
-import { getOrganizationByPublicId } from "$lib/server/services/organizations";
+import { getOrganizationByPublicId, updateOrganization } from "$lib/server/services/organizations";
+import { updateOrganizationSchema } from "$lib/server/validation/organizations";
 
 export async function GET(context: APIContext): Promise<Response> {
   try {
@@ -12,14 +14,16 @@ export async function GET(context: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH, writing only the columns in updateOrganizationSchema. Neither org_code nor
-// status changes here — the price files reference the first, and a transition function owns the
-// second.
+// Details and the order-enabled flag. Neither `status` nor `org_code` arrives in a body: the first
+// moves only through the transition routes, the second never moves at all (D-019).
 export async function PATCH(context: APIContext): Promise<Response> {
   try {
-    await requireAdminUser(context);
-    return new Response("Not implemented", { status: 501 });
+    const admin = await requireAdminUser(context);
+    const input = updateOrganizationSchema.parse(await context.request.json());
+
+    return jsonItem(await updateOrganization(context.locals.db, context.params.public_id!, input, admin));
   } catch (error) {
+    if (error instanceof ZodError) return toErrorResponse(new ValidationError(flattenError(error).fieldErrors));
     return toErrorResponse(error);
   }
 }

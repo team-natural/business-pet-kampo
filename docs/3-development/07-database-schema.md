@@ -93,6 +93,7 @@ erDiagram
         text name
         text status "active/suspended/terminated"
         integer order_enabled "0/1"
+        text terminated_at "保管期限の起点 — §5-2"
         text created_at
         text updated_at
     }
@@ -327,11 +328,15 @@ erDiagram
 | order_enabled | INTEGER | NO | 0/1 DEFAULT 1。発注可否（停止中は 0） |
 | billing_postal_code | TEXT | YES |  |
 | billing_address | TEXT | YES |  |
+| memo | TEXT | YES | 運営用の管理メモ（PRD-03 F-07-09、ADM-15）。取引先には表示しない |
+| terminated_at | TEXT | YES | ISO 8601。取引終了日時。**データ保管期限の起点**（§10、DEV-09 §2-2-4）|
 | application_id | INTEGER | YES | FK → applications.id（生成元） |
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
 **Index**: UNIQUE(`public_id`), UNIQUE(`org_code`), `status`, `application_id`
+
+> **`terminated_at` を別に持つ理由**: §10 の日次バッチは「取引終了後 1 年」で物理削除するが、`updated_at` は終了後の管理メモ編集でも動くため起点に使えない。`status = terminated` になった瞬間だけを記録する列が要る。
 
 > **`org_code` は取引先別卸価格ファイル（`packages/content/prices/*.md`）からの参照キー**である（GOV-01 D-019）。`public_id`（ULID）は承認処理まで採番されず Markdown に書けないため、承認時に運営が決める短いコードを別に持つ。**採番後は変更しない** — 変更すると価格ファイルの参照が切れ、外部キー制約では守られないため標準卸価格に黙って戻る。承認画面（ADM-13）で採番し、重複は UNIQUE 制約で弾く。
 

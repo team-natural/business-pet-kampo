@@ -17,6 +17,7 @@
     "seed": "tsx scripts/seed-user.mjs"
   },
   "dependencies": {
+    "@app/content": "workspace:*",
     "@app/schema": "workspace:*",
     "@app/server-kit": "workspace:*",
     "@astrojs/cloudflare": "^14.0.0",

@@ -46,8 +46,13 @@ apps/admin/src/
 │   └── **/*.astro                   # 管理画面ページ（src/layouts/Layout.astro）。apps/admin は
 │                                     #   サブドメインで丸ごと管理画面のため URL に /admin 接頭辞は
 │                                     #   付けない（DEV-01 §1、DEV-04 §1-1、DEV-06 §1）
+├── content.config.ts                # Content Collections（prices / products のみ）。ADM-15 の
+│                                     #   取引先別卸価格の参照表示が読む（F-07-10、DEV-04 §5-4）。
+│                                     #   カタログ管理画面は無いため他のコレクションは宣言しない
 ├── lib/
 │   ├── components/                  # Svelte island + shadcn-svelte（$lib エイリアス）
+│   ├── prices.ts                    # 価格ファイルの読み取り。ビルド時解決で D1 に触れないため
+│   │                                 #   lib/server/ ではなくここに置く（§1-4）
 │   ├── server/                      # 確定済み。参照実装: apps/admin/src/lib/server/services/inquiries.ts 等
 │   │   ├── services/                #   業務ロジック・トランザクション境界（ドメイン別ファイル。例:
 │   │   │                             #   applications.ts, organizations.ts, orders.ts, inquiries.ts, activity-log.ts）

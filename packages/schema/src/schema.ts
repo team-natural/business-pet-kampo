@@ -82,6 +82,10 @@ export const organizations = sqliteTable(
     orderEnabled: integer("order_enabled").notNull().default(1),
     billingPostalCode: text("billing_postal_code"),
     billingAddress: text("billing_address"),
+    memo: text("memo"),
+    // The retention clock's start (DEV-07 §10). Separate from updated_at, which a later memo edit
+    // would move — and the deletion batch would then keep deferring.
+    terminatedAt: text("terminated_at"),
     applicationId: integer("application_id").references(() => applications.id),
     createdAt: createdAt(),
     updatedAt: text("updated_at").notNull(),

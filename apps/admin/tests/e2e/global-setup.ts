@@ -25,6 +25,14 @@ export const E2E_APPLICATIONS = {
   toReject: "01E2EAPPTOREJECT0000000000",
 } as const;
 
+// org_code follows the `ORG-E2E%` shape the teardown matches on, so a run that leaves one behind
+// cannot survive into the next.
+export const E2E_ORGANIZATIONS = {
+  toSuspend: { publicId: "01E2EORGTOSUSPEND000000000", orgCode: "ORG-E2ESUSP", status: "active" },
+  toResume: { publicId: "01E2EORGTORESUME0000000000", orgCode: "ORG-E2ERESU", status: "suspended" },
+  toTerminate: { publicId: "01E2EORGTOTERMINATE0000000", orgCode: "ORG-E2ETERM", status: "active" },
+} as const;
+
 // One statement per call. wrangler aborts the whole command at the first error, so a multi
 // statement teardown that trips a foreign key leaves the rest unrun — and the next run then fails
 // on the debris the failed one left behind.
@@ -33,6 +41,11 @@ function run(statements: string[], label: string) {
     const result = spawnSync("npx", ["wrangler", "d1", "execute", "DB", "--local", ...persist, "--command", sql], { stdio: "inherit", cwd: appDir });
     if (result.status !== 0) throw new Error(`E2E setup failed: ${label} — ${sql}`);
   }
+}
+
+function insertOrganization({ publicId, orgCode, status }: { publicId: string; orgCode: string; status: string }) {
+  return `INSERT INTO organizations (public_id, org_code, name, status, order_enabled, updated_at)
+    VALUES ('${publicId}', '${orgCode}', 'E2E 取引先 ${orgCode}', '${status}', ${status === "active" ? 1 : 0}, datetime('now'));`;
 }
 
 function insert(publicId: string, status: string, email: string) {
@@ -80,4 +93,20 @@ export default function globalSetup() {
   );
 
   run([insert(E2E_APPLICATIONS.received, "received", "e2e-applicant-received@example.test"), insert(E2E_APPLICATIONS.reviewing, "reviewing", "e2e-applicant-reviewing@example.test"), insert(E2E_APPLICATIONS.toApprove, "reviewing", "e2e-applicant-approve@example.test"), insert(E2E_APPLICATIONS.toReject, "reviewing", "e2e-applicant-reject@example.test")], "could not seed the applications");
+
+  run(Object.values(E2E_ORGANIZATIONS).map(insertOrganization), "could not seed the organizations");
+
+  // One member on the organization the termination spec uses, so it can check that terminating
+  // suspends the membership along with the partner (DEV-09 §2-2-4).
+  run(
+    [
+      `INSERT INTO members (public_id, name, email, status, updated_at)
+        VALUES ('01E2EMEMBERTERMINATE000000', 'E2E 担当者', 'e2e-applicant-terminate@example.test', 'active', datetime('now'));`,
+      `INSERT INTO memberships (member_id, organization_id, role, status, joined_at, updated_at)
+        SELECT m.id, o.id, 'client_user', 'active', datetime('now'), datetime('now')
+        FROM members m, organizations o
+        WHERE m.public_id = '01E2EMEMBERTERMINATE000000' AND o.public_id = '${E2E_ORGANIZATIONS.toTerminate.publicId}';`,
+    ],
+    "could not seed the terminating organization's member",
+  );
 }

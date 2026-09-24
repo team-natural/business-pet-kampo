@@ -1,9 +1,12 @@
 // Trading partners (ADM-14〜16). DEV-09 §2-2 is the source of truth for the state machine.
-import { memberships, members, organizations } from "@app/schema";
+import { memberships, members, organizations, shippingAddresses } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { likeContains } from "@app/schema/query";
-import { NotFoundError } from "@app/server-kit/http";
+import { InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { and, desc, eq, sql } from "drizzle-orm";
+import type { AdminUser } from "./admin-users";
+import { activityLogInsert } from "./activity-log";
+import type { UpdateOrganizationInput } from "../validation/organizations";
 
 export type OrganizationStatus = "active" | "suspended" | "terminated";
 
@@ -89,10 +92,99 @@ export async function listOrganizationMembers(db: DbClient, organizationId: numb
   return rows;
 }
 
-// TODO(Phase C): transitionOrganization / updateOrganization。
-// - ADM-15 shows the per-organization prices read-only and has no edit path (D-019). The source
-//   of truth is packages/content/prices/*.md, joined by org_code
-// - one transition function writes `status`, validating against the TRANSITIONS map above
-// - moving to `terminated` suspends the memberships and records the retention clock (DEV-09 §2-2)
-// - suspending does not drop live sessions, by design. Refusing the order is the job of
-//   requireActiveOrganization in apps/public, on every request
+// Who gets told when trading stops or resumes (DEV-09 §2-2-4). Read before the transition, not
+// after: terminating suspends every membership in the same batch, so afterwards this is empty.
+export async function listActiveMemberContacts(db: DbClient, organizationId: number) {
+  return db
+    .select({ email: members.email, name: members.name })
+    .from(memberships)
+    .innerJoin(members, eq(memberships.memberId, members.id))
+    .where(and(eq(memberships.organizationId, organizationId), eq(memberships.status, "active"), eq(members.status, "active")));
+}
+
+// Shipping addresses are the organization's, not a member's, so they belong on this screen
+// (F-07-06). Read-only here: the member maintains them from their own mypage.
+export async function listShippingAddresses(db: DbClient, organizationId: number) {
+  return db.select({ id: shippingAddresses.publicId, recipientName: shippingAddresses.recipientName, postalCode: shippingAddresses.postalCode, address: shippingAddresses.address, phone: shippingAddresses.phone, isDefault: shippingAddresses.isDefault }).from(shippingAddresses).where(eq(shippingAddresses.organizationId, organizationId)).orderBy(desc(shippingAddresses.isDefault), desc(shippingAddresses.id));
+}
+
+// The operator's own columns. `status` is absent by construction — only transitionOrganization
+// writes it — and so is `org_code`, which never changes once assigned (D-019).
+export async function updateOrganization(db: DbClient, publicId: string, input: UpdateOrganizationInput, admin: AdminUser) {
+  const row = await findOrganizationRow(db, publicId);
+
+  const [updated] = await db.batch([
+    db
+      .update(organizations)
+      .set({
+        name: input.name ?? row.name,
+        billingPostalCode: input.billingPostalCode ?? row.billingPostalCode,
+        billingAddress: input.billingAddress ?? row.billingAddress,
+        memo: input.memo ?? row.memo,
+        // Only meaningful while active: a suspended partner is already refused by
+        // requireActiveOrganization regardless of this flag.
+        orderEnabled: input.orderEnabled ?? row.orderEnabled,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(organizations.id, row.id))
+      .returning(),
+    activityLogInsert(db, {
+      logName: "organization",
+      description: `Organization updated (${row.orgCode})`,
+      subjectType: "Organization",
+      subjectId: row.id,
+      event: "organization.updated",
+      causerId: admin.id,
+      organizationId: row.id,
+      properties: { orderEnabled: input.orderEnabled ?? row.orderEnabled },
+    }),
+  ]);
+
+  return toPublicOrganization(updated[0]!);
+}
+
+// The only writer of `status` (DEV-09 §3-1). Suspension and termination both reach into other
+// tables, so each transition is one batch() — a partner marked terminated whose members are still
+// active would keep ordering.
+export async function transitionOrganization(db: DbClient, publicId: string, to: OrganizationStatus, admin: AdminUser, reason?: string) {
+  const row = await findOrganizationRow(db, publicId);
+  if (!allowedTransitions(row.status).includes(to)) {
+    throw new InvalidStateTransitionError("Organization", row.status, to);
+  }
+
+  const now = new Date().toISOString();
+  const update = db
+    .update(organizations)
+    .set({
+      status: to,
+      // order_enabled tracks the status rather than being set by hand: an operator who resumed a
+      // partner but left the flag off would have produced a partner who can log in and not order,
+      // with nothing on screen explaining why (DEV-09 §2-2-4).
+      orderEnabled: to === "active" ? 1 : 0,
+      // Stamped once, on the way into terminated. §10's deletion batch counts from here.
+      terminatedAt: to === "terminated" ? now : row.terminatedAt,
+      updatedAt: now,
+    })
+    .where(eq(organizations.id, row.id))
+    .returning();
+
+  const log = activityLogInsert(db, {
+    logName: "organization",
+    description: `Organization ${row.status} -> ${to} (${row.orgCode})`,
+    subjectType: "Organization",
+    subjectId: row.id,
+    event: `organization.${to}`,
+    causerId: admin.id,
+    organizationId: row.id,
+    properties: reason ? { from: row.status, to, reason } : { from: row.status, to },
+  });
+
+  // Written as two whole batches rather than one array built with push(): drizzle types a batch as
+  // a tuple, and a conditionally grown array loses the per-statement result types.
+  //
+  // Terminating ends every membership with it. Left active, the rows would still satisfy
+  // requireActiveOrganization's membership half if the organization check were ever relaxed.
+  const [updated] = to === "terminated" ? await db.batch([update, log, db.update(memberships).set({ status: "suspended", leftAt: now, updatedAt: now }).where(eq(memberships.organizationId, row.id))]) : await db.batch([update, log]);
+
+  return toPublicOrganization(updated[0]!);
+}

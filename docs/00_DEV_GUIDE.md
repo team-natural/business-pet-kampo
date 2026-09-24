@@ -323,7 +323,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
 | S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。**Member 起点の監査ログの共有ヘルパーをここで作る**（`activityLogInsert` は現在 `apps/admin` 専用で、境界ルール上 `apps/public` から import できない — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
 | S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・マイページ内お知らせ | GOV-01 D-021、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
-| S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除 | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
+| S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み） | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
 | S16 | `chore/release-readiness` | 法務文面・負荷・セキュリティ・staging 確認 | DEV-08 §7 | 全ステージ | DEV-08 §7-3 の検証完了チェックリストが全項目通過 |
 
 **並行して進められるもの**

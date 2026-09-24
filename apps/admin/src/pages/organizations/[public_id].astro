@@ -1,20 +1,28 @@
 ---
-// ADM-15. Basic details / prices / members / dangerous actions, with the dangerous ones isolated
-// in their own panel (DEV-06 §4-5).
+// ADM-15. Basic details / prices / shipping addresses / dangerous actions, with the dangerous ones
+// isolated in their own panel (DEV-06 §4-5).
 import ConsoleLayout from "../../layouts/ConsoleLayout.astro";
 import DetailCard from "$lib/components/detail-card.astro";
+import OrganizationActions from "$lib/components/organization-actions.svelte";
 import PageHeader from "$lib/components/page-header.astro";
 import StatusBadge from "$lib/components/status-badge.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
+import * as Table from "$lib/components/ui/table/index.js";
 import { formatDateTime } from "$lib/format";
+import { listAppliedPrices } from "$lib/prices";
 import { requireAdminUser } from "$lib/server/auth/access";
-import { allowedTransitions, getOrganizationByPublicId } from "$lib/server/services/organizations";
-import { statusMeta } from "$lib/status";
+import { allowedTransitions, findOrganizationRow, listShippingAddresses, toPublicOrganization } from "$lib/server/services/organizations";
 
 const admin = await requireAdminUser(Astro);
 
-const organization = await getOrganizationByPublicId(Astro.locals.db, Astro.params.public_id!);
+// The row, not the public projection: the addresses below are looked up by the internal id.
+const row = await findOrganizationRow(Astro.locals.db, Astro.params.public_id!);
+const organization = toPublicOrganization(row);
 const transitions = allowedTransitions(organization.status);
+
+const [addresses, prices] = await Promise.all([listShippingAddresses(Astro.locals.db, row.id), listAppliedPrices(organization.orgCode)]);
+
+const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
 ---
 
 <ConsoleLayout title={`${organization.name} — 取引先詳細`} user={admin} breadcrumbs={[{ label: "取引先", href: "/organizations" }, { label: organization.name }]}>
@@ -26,26 +34,95 @@ const transitions = allowedTransitions(organization.status);
   <DetailCard title="基本情報">
     <div><dt>取引先コード</dt><dd class="tabular-nums">{organization.orgCode}</dd></div>
     <div><dt>発注可否</dt><dd>{organization.orderEnabled ? "可" : "不可"}</dd></div>
-    <div><dt>請求先</dt><dd>{organization.billingPostalCode ? `〒${organization.billingPostalCode} ` : ""}{organization.billingAddress ?? "—"}</dd></div>
     <div><dt>登録日時</dt><dd class="tabular-nums">{formatDateTime(organization.createdAt)}</dd></div>
     <div><dt>更新日時</dt><dd class="tabular-nums">{formatDateTime(organization.updatedAt)}</dd></div>
+    {
+      row.terminatedAt && (
+        <div>
+          <>
+            <dt>取引終了日時</dt>
+            <dd class="tabular-nums">{formatDateTime(row.terminatedAt)}</dd>
+          </>
+        </div>
+      )
+    }
+  </DetailCard>
+
+  <DetailCard title="編集と取引の状態" description="会社情報・管理メモの編集と、取引の停止・再開・終了はここから行います。" list={false}>
+    <OrganizationActions client:load publicId={organization.id} transitions={transitions} name={organization.name} billingPostalCode={organization.billingPostalCode} billingAddress={organization.billingAddress} memo={row.memo} orderEnabled={organization.orderEnabled} />
   </DetailCard>
 
   {/* Read-only. There is no edit path for prices — packages/content/prices/*.md is the source of truth (D-019). */}
-  <DetailCard title="個別卸価格" description="この画面からは変更できません。" list={false}>
-    <p class="text-sm">
-      適用中の個別価格は <code class="rounded bg-muted px-1 py-0.5 text-xs">packages/content/prices/*.md</code>（org_code: {organization.orgCode}）が正本です。変更はコミットとデプロイで行います。
-    </p>
+  <DetailCard title="個別卸価格" description="この画面からは変更できません。変更はコミットとデプロイで行います。" list={false}>
+    {
+      prices.length === 0 ? (
+        <p class="text-sm text-muted-foreground">
+          個別価格は設定されていません。標準卸価格が適用されます。（<code class="rounded bg-muted px-1 py-0.5 text-xs">packages/content/prices/</code> に org_code {organization.orgCode} のファイルがありません）
+        </p>
+      ) : (
+        <Table.Root>
+          <Table.Caption class="sr-only">この取引先に適用中の個別卸価格</Table.Caption>
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>商品</Table.Head>
+              <Table.Head class="text-right">個別価格</Table.Head>
+              <Table.Head class="text-right">標準卸価格</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {prices.map((price) => (
+              <Table.Row>
+                <Table.Cell>
+                  {price.productName}
+                  {/* The price file and the catalogue are joined by slug with no foreign key, so
+                      both of these are states the data can actually reach (D-019). */}
+                  {price.listPrice === null && <span class="ml-2 text-xs text-destructive">商品が見つかりません</span>}
+                  {price.discontinued && <span class="ml-2 text-xs text-muted-foreground">取扱終了</span>}
+                </Table.Cell>
+                <Table.Cell class="text-right tabular-nums">{yen(price.price)}</Table.Cell>
+                <Table.Cell class="text-right text-muted-foreground tabular-nums">{price.listPrice === null ? "—" : yen(price.listPrice)}</Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+      )
+    }
   </DetailCard>
 
   {
-    /* TODO(Phase C): wire saving the basic details and suspend / resume / terminate to the API.
-      Dangerous actions require a confirmation dialog (DEV-06 §4-4). */
+    /* F-07-06. Maintained by the member from their own mypage; shown here so the operator can check
+      where an order would ship without asking. */
   }
-  <DetailCard title="危険操作" description="取引の停止・再開・終了はここからのみ行います。">
-    <div>
-      <dt>遷移可能</dt>
-      <dd>{transitions.length > 0 ? transitions.map((to) => statusMeta("organization", to).label).join(" / ") : "なし（終端）"}</dd>
-    </div>
+  <DetailCard title="配送先" description="取引先の担当者が登録したものです。この画面からは変更できません。" list={false}>
+    {
+      addresses.length === 0 ? (
+        <p class="text-sm text-muted-foreground">配送先はまだ登録されていません。</p>
+      ) : (
+        <Table.Root>
+          <Table.Caption class="sr-only">登録済みの配送先</Table.Caption>
+          <Table.Header>
+            <Table.Row>
+              <Table.Head>宛名</Table.Head>
+              <Table.Head>住所</Table.Head>
+              <Table.Head>電話番号</Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {addresses.map((address) => (
+              <Table.Row>
+                <Table.Cell>
+                  {address.recipientName}
+                  {address.isDefault === 1 && <span class="ml-2 text-xs text-muted-foreground">既定</span>}
+                </Table.Cell>
+                <Table.Cell class="text-muted-foreground">
+                  〒{address.postalCode} {address.address}
+                </Table.Cell>
+                <Table.Cell class="tabular-nums">{address.phone}</Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+      )
+    }
   </DetailCard>
 </ConsoleLayout>

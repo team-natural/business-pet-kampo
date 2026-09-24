@@ -50,6 +50,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@app/content':
+        specifier: workspace:*
+        version: link:../../packages/content
       '@app/schema':
         specifier: workspace:*
         version: link:../../packages/schema
