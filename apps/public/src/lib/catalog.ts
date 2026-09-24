@@ -185,10 +185,16 @@ export async function referencedOrgCodes(): Promise<string[]> {
   return [...new Set((await getCollection("prices")).map(({ data }) => data.orgCode))];
 }
 
+// Everything a crawler may index that is not driven by a collection. Member and transaction
+// routes are absent by construction rather than filtered out later — a list of exclusions is one
+// someone forgets to extend when they add /checkout/confirm (PRD-02 §9).
+export const STATIC_SITEMAP_PATHS = ["/", "/products", "/news", "/apply", "/contact", "/diagnosis", "/faq", "/terms", "/privacy", "/law"];
+
 // Public URLs only: drafts, client-only news and discontinued products stay out of the sitemap,
-// which is the third place the filtering has to happen (D-018).
+// which is the third place the filtering has to happen (D-018). `listNews(null)` passes no viewer
+// on purpose — the sitemap is read by crawlers, who are never a trading partner.
 export async function sitemapPaths(): Promise<string[]> {
   const [products, news] = await Promise.all([listProducts(), listNews(null)]);
 
-  return [...products.map((entry) => `/products/${entry.id}`), ...news.map((entry) => `/news/${entry.id}`)];
+  return [...STATIC_SITEMAP_PATHS, ...products.map((entry) => `/products/${entry.id}`), ...news.map((entry) => `/news/${entry.id}`)];
 }

@@ -517,6 +517,21 @@ related-docs:
 
 ---
 
+### D-037：サイトマップは `@astrojs/sitemap` ではなく動的ルートで生成する（PRD-02 §9 の訂正）
+
+| 項目 | 内容 |
+| --- | --- |
+| 日付 | 2026-09-24 |
+| カテゴリ | 設計 |
+| 決定内容 | `@astrojs/sitemap` を導入せず、`apps/public/src/pages/sitemap.xml.ts` が `lib/catalog.ts` の `sitemapPaths()` からリクエスト時に `/sitemap.xml` を生成する。`robots.txt` も同様に動的ルート。PRD-02 §9 の「`@astrojs/sitemap` を導入し `/sitemap-index.xml` を生成する」を本決定で置き換える |
+| 背景 | Astro 公式ドキュメントが同 integration について「**SSR モードの動的ルートのサイトマップエントリを生成できない**」と明記している。本プロジェクトの商品詳細（`/products/[slug]`）とお知らせ詳細（`/news/[slug]`）は D-021 により prerender も `getStaticPaths()` も使えないため、integration からは一切見えない。結果として**サイトマップに載せたいページがちょうど全部欠ける**サイトマップができ、静的ページだけが並ぶ。`sitemapPaths()` は骨組み段階から `draft` / `client_only` / `discontinued` を除外する形で既に存在しており、そこに静的パスの allow-list を足すだけで完全なサイトマップになる。副次的に、オリジンを `APP_URL` から取れるためドメイン確定（TBD-16）を待たずに動く |
+| 影響範囲 | PRD-02 §9, `apps/public/src/pages/sitemap.xml.ts`, `apps/public/src/pages/robots.txt.ts`, `apps/public/src/lib/catalog.ts` |
+| 決定者 | Tech Lead |
+| 関連 TBD | TBD-16 |
+| 再評価条件 | `@astrojs/sitemap` が SSR 動的ルートに対応した時点、または商品・お知らせを prerender できる設計に変わった時点（D-021 の撤回が前提） |
+
+---
+
 ## 3. 記録すべき意思決定の種別
 
 - 顧客セグメントの変更

@@ -322,7 +322,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S11 | `feat/payment-stripe` | カード決済・Webhook・冪等性 | DEV-10 §2、DEV-09 §2-6 | S9、TBD-18 | 同一 Webhook を 2 回投げても `payments` が二重更新されない |
 | S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン。**実装は完了、3 プロバイダのアプリ登録が未了**（設定が欠けるプロバイダはボタンが出ず `/auth/{provider}` が 404 — GOV-01 D-036）。ライブラリ Arctic の非推奨は TBD-36 | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
 | S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。Member 起点の監査ログは S7 で共有化済み（`@app/schema/activity-log`。`causerType: "Member"` を明示する — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
-| S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・マイページ内お知らせ | GOV-01 D-021、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
+| S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・`robots.txt`・会員ルートの noindex。マイページ内お知らせは S7 で実装済み。サイトマップは `@astrojs/sitemap` ではなく動的ルート（**同 integration は SSR の動的ルートを拾えない** — GOV-01 D-037） | GOV-01 D-021・D-037、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
 | S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み） | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
 | S16 | `chore/release-readiness` | 法務文面・負荷・セキュリティ・staging 確認 | DEV-08 §7 | 全ステージ | DEV-08 §7-3 の検証完了チェックリストが全項目通過 |
 
@@ -341,7 +341,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | **TBD-04b**（銀行振込の口座・期限・消込方法）| S9, S10 | 振込案内メールの文面と入金確認の運用が決まらない |
 | TBD-18（決済アカウント）| S11 | 本番契約と Webhook 登録が要る |
 | TBD-17（メール送信ドメイン認証）| S1 の本番送信 | 実装は先行できるが到達確認は認証後 |
-| TBD-01 / TBD-16（サービス名・ドメイン）| S2, S14 | `astro.config` の `site`・canonical・サイトマップ・メール送信元 |
+| TBD-01 / TBD-16（サービス名・ドメイン）| S16 | メール送信元と `wrangler.jsonc` の `APP_URL`。**S2・S14 のブロッカーではなくなった** — canonical・サイトマップ・`robots.txt` はいずれも `astro.config` の `site` ではなく `APP_URL`（無ければリクエストのオリジン）から組み立てており、ドメイン確定時は env の差し替えだけで済む（D-037）|
 | TBD-11（法務文面）| S16 | 実装は完了済み、文面のみ未確定 |
 
 > コード変更のたびに hooks（`format-and-check.sh`）が Prettier → `eslint --fix` → `pnpm typecheck`

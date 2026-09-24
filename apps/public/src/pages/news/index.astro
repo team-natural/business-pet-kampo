@@ -9,20 +9,39 @@ const viewer = viewerFor(await memberSession(Astro));
 const entries = await listNews(viewer);
 ---
 
-<Layout title="お知らせ">
-  <main>
-    <h1>お知らせ</h1>
-    <ul>
-      {
-        entries.map((entry) => (
-          <li>
-            <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
-            <a href={`/news/${entry.id}`}>{entry.data.title}</a>
-            {entry.data.visibility === "client_only" && <span>取引先限定</span>}
-          </li>
-        ))
-      }
-    </ul>
-    {entries.length === 0 && <p>お知らせはまだありません。</p>}
-  </main>
+<Layout title="お知らせ" description="ペット漢方 卸売からのお知らせを掲載しています。">
+  <section class="mx-auto w-full max-w-4xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">お知らせ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance sm:text-4xl">お知らせ</h1>
+
+    {
+      viewer === null && (
+        /* Said once, above the list: a visitor who cannot see the partner-only entries should know
+           they exist rather than wonder why a link they were sent 404s. */
+        <p class="mt-6 max-w-prose border border-rule px-4 py-3 text-sm leading-relaxed text-pretty text-ink-soft">取引先限定のお知らせは、承認済みの取引先アカウントでログインすると表示されます。</p>
+      )
+    }
+
+    {
+      entries.length > 0 ? (
+        <ul class="mt-10 border-t border-rule">
+          {entries.map((entry) => (
+            <li class="border-b border-rule">
+              <a href={`/news/${entry.id}`} class="grid gap-1 py-5 transition-colors hover:text-vermilion sm:grid-cols-[8rem_1fr] sm:gap-6">
+                <time datetime={entry.data.publishedDate.toISOString()} class="font-mono text-xs text-ink-soft tabular-nums">
+                  {entry.data.publishedDate.toLocaleDateString("ja-JP")}
+                </time>
+                <span class="text-pretty">
+                  {entry.data.title}
+                  {entry.data.visibility === "client_only" && <span class="ml-2 border border-rule px-2 py-0.5 text-xs text-ink-soft">取引先限定</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="mt-10 leading-relaxed text-pretty text-ink-soft">お知らせはまだありません。</p>
+      )
+    }
+  </section>
 </Layout>

@@ -486,6 +486,14 @@ PRD-04 §4 の標準構成に対応する。管理画面は shadcn-svelte のプ
 - **卸価格の出し分け**：未ログイン / ログイン済み・Organization `active` / ログイン済み・`suspended` の 3 状態で表示が変わること（E2E。PRD-02 §2-3）
 - **ハイドレーション**：診断・カート等の対話型 UI が実際に操作できること。`client:*` の書き忘れはサーバー側で描画されてしまうため E2E でしか捕まらない（DEV-03 §3-5）
 - **`prerender` 忘れ**：Content Collections から生成する個別ページが 200 を返すこと（§1-1）
+- **`draft` / `client_only` の除外**：一覧・詳細 URL・サイトマップの **3 か所すべて**で除外されること。一覧だけ直すと詳細 URL が生きたまま残る（D-018）
+
+**Content Collections を読むコードは E2E でしかテストできない。** `lib/catalog.ts` は `astro:content`
+を import しており、Vitest（workerd）はこれを解決できない — 仮想モジュールで、Astro のビルドパイプライン
+の中にしか存在しないため。したがって `sitemapPaths()` の絞り込みや卸価格の解決といった規則は
+`tests/e2e/` 側に置く（`news-and-seo.spec.ts` が 3 か所の除外を個別に固定している）。
+Service 層がこれを避けられるのは、コンテンツを**引数で受け取る**設計にしてあるからである
+（`ProductResolver`。DEV-05 §1-4、S8）。同じ形を新しい Service にも使うこと。
 
 ---
 

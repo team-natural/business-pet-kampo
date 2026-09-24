@@ -1,6 +1,6 @@
 ---
 // SCR-26. Filtering the listing alone leaves this URL live, so the same exclusion runs here
-// (D-018).
+// (D-018). Never prerendered: a `client_only` entry would be baked into static HTML (D-021).
 import { render } from "astro:content";
 import Layout from "../../layouts/Layout.astro";
 import { getNewsEntry } from "../../lib/catalog";
@@ -9,18 +9,38 @@ import { viewerFor } from "../../lib/server/auth/session";
 
 const viewer = viewerFor(await memberSession(Astro));
 const entry = await getNewsEntry(Astro.params.slug!, viewer);
+// 404, not 403: a different answer for a partner-only entry would confirm it exists.
 if (!entry) return Astro.rewrite("/404");
 
 const { Content } = await render(entry);
+
+// A partner-only post must not be indexed even though the crawler will only ever get the 404 —
+// the header is the second lock, for the day someone loosens the filter (PRD-02 §9).
+if (entry.data.visibility === "client_only") {
+  Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  Astro.response.headers.set("Cache-Control", "private, no-store");
+}
 ---
 
-<Layout title={`${entry.data.title} — お知らせ`}>
-  <main>
-    <article>
-      <time datetime={entry.data.publishedDate.toISOString()}>{entry.data.publishedDate.toLocaleDateString("ja-JP")}</time>
-      <h1>{entry.data.title}</h1>
+<Layout title={`${entry.data.title} — お知らせ`} description={entry.data.title}>
+  <article class="mx-auto w-full max-w-4xl px-5 py-16 sm:px-8">
+    <a href="/news" class="text-sm text-ink-soft underline underline-offset-4 hover:text-vermilion">← お知らせ一覧へ</a>
+
+    <div class="mt-8 flex flex-wrap items-center gap-3">
+      <time datetime={entry.data.publishedDate.toISOString()} class="font-mono text-xs text-ink-soft tabular-nums">
+        {entry.data.publishedDate.toLocaleDateString("ja-JP")}
+      </time>
+      {entry.data.visibility === "client_only" && <span class="border border-rule px-2 py-0.5 text-xs text-ink-soft">取引先限定</span>}
+    </div>
+
+    <h1 class="mt-3 font-display text-3xl leading-relaxed text-balance">{entry.data.title}</h1>
+
+    <div class="prose-public mt-10">
       <Content />
-    </article>
-    <a href="/news">お知らせ一覧へ戻る</a>
-  </main>
+    </div>
+
+    <p class="mt-16 text-sm">
+      <a href="/news" class="underline underline-offset-4 hover:text-vermilion">お知らせ一覧へ戻る</a>
+    </p>
+  </article>
 </Layout>

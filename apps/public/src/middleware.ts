@@ -15,6 +15,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // This origin is cacheable by default, unlike the admin subdomain.
   if (PRIVATE_ROUTES.some((route) => context.url.pathname.startsWith(route))) {
     response.headers.set("Cache-Control", "private, no-store");
+    // Marked here for the same reason as the cache header: these pages redirect, and a <meta>
+    // robots tag never reaches a 302. The sitemap already leaves them out (PRD-02 §9) — this is
+    // the second lock, for the URLs a crawler reaches from somewhere other than the sitemap.
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
   }
   return response;
 });
