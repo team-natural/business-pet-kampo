@@ -310,7 +310,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | ID | ブランチ | 範囲 | 主な参照 | 依存 | 完了条件 |
 | --- | --- | --- | --- | --- | --- |
 | S1 | `feat/mail-and-health` | Resend 導入・共通リトライ・問い合わせ自動返信・ヘルスチェック | DEV-10 §1-2・§3、DEV-08 §9 | — | 問い合わせ送信で自動返信が届く／`/api/v1/health*` が 200 |
-| S2 | `feat/public-design-baseline` | 公開側のデザイン方向確立（SCR-01・02・03） | PRD-04 §2、`public-design` の establishing run | — | 3 画面が完成品の見た目。未ログインに卸価格が出ない E2E が通ったまま |
+| S2 | `feat/public-design-baseline` | 公開側 3 画面（SCR-01・02・03）の仕上げと検証。**デザイン方向は骨組み段階で既に確立済み**（GOV-01 D-033）だったため、`public-design` は **establishing run ではなく following run** として実行した — `frontend-design` を再実行すると方向を決め直し、既に作った十数画面と不整合になる（スキルの「Mode A を 2 回走らせない」） | PRD-04 §2、`public-design`（Mode B） | — | 3 画面が完成品の見た目。未ログインに卸価格が出ない E2E が通ったまま |
 | S3 | `feat/application-submit` | 新規取引申請の送信・取消（SCR-05・06・36） | PRD-03 FG-02、DEV-04 §5-3・§6-1 | S1, S2 | 申請が D1 に入り両者にメールが届く／規約バージョン不一致が 409 |
 | S4 | `feat/application-review` | 審査・承認・否認・`org_code` 採番（ADM-12・13） | DEV-09 §2-1、DEV-05 §3 | S3 | 承認で Organization と Member が同時にできる／部分失敗が起きないテスト |
 | S5 | `feat/member-auth` | 有効化・パスワードリセット・プロフィール（SCR-09〜11・13）。単発トークンは S3 で作った `@app/server-kit/auth` の `signToken` / `verifyToken` を使う | PRD-03 FG-01、DEV-02 §7 | S4 | 承認済み取引先がログインできる／未知アドレスと既知アドレスの応答が一致 |

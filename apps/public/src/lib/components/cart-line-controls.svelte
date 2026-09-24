@@ -50,8 +50,13 @@
 
 <div class="mt-4 flex flex-wrap items-end gap-4">
   <div class="flex flex-col gap-1.5">
-    <label for="quantity-{inputId}" class="text-xs text-ink-soft">数量（{orderUnit} の倍数）</label>
-    <input id="quantity-{inputId}" type="number" bind:value={quantity} min={orderUnit} step={orderUnit} aria-invalid={invalid ? "true" : undefined} class="min-h-11 w-28 border border-ink-soft bg-paper px-3 py-2 text-right font-mono tabular-nums" />
+    <label for="quantity-{inputId}" class="text-xs text-ink-soft">数量</label>
+    <!-- The update button disables itself on an invalid quantity; describe the rule so the dead
+         control is explained rather than just dead. -->
+    <input id="quantity-{inputId}" type="number" bind:value={quantity} min={orderUnit} step={orderUnit} autocomplete="off" aria-describedby="quantity-hint-{inputId}" aria-invalid={invalid ? "true" : undefined} class="min-h-11 w-28 border border-ink-soft bg-paper px-3 py-2 text-right font-mono tabular-nums" />
+    <span id="quantity-hint-{inputId}" class="text-xs text-ink-soft" class:text-vermilion={invalid}>
+      {invalid ? `${orderUnit} の倍数でご入力ください。` : `${orderUnit} の倍数`}
+    </span>
   </div>
 
   <button type="button" class="btn btn-quiet" disabled={!idle || invalid || quantity === initialQuantity} onclick={update}>

@@ -56,7 +56,10 @@ const steps = [
     </div>
   </section>
 
-  <!-- 署名要素: 薬箪笥の引き出し。装飾ではなく catalog.ts の分類そのもので、商品一覧の絞り込みに直結する。 -->
+  {
+    /* The signature block: a herbalist's drawer grid. It is not decoration — every cell is a real
+      CONCERNS entry from catalog.ts and links straight into the listing's filter. */
+  }
   <section aria-labelledby="concerns" class="border-y border-rule bg-paper-sunk">
     <div class="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8">
       <p class="eyebrow">気になる点から</p>
@@ -123,7 +126,7 @@ const steps = [
           steps.map((step) => (
             <li class="bg-paper-sunk px-5 py-6">
               <span class="font-mono text-xs text-vermilion">{step.no}</span>
-              <h3 class="mt-2 font-display text-lg">{step.title}</h3>
+              <h3 class="mt-2 font-display text-lg text-balance">{step.title}</h3>
               <p class="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">{step.body}</p>
             </li>
           ))
@@ -156,7 +159,7 @@ const steps = [
                 <time datetime={entry.data.publishedDate.toISOString()} class="font-mono text-xs text-ink-soft tabular-nums">
                   {entry.data.publishedDate.toLocaleDateString("ja-JP")}
                 </time>
-                <span>
+                <span class="text-pretty">
                   {entry.data.title}
                   {entry.data.visibility === "client_only" && <span class="ml-2 border border-rule px-2 py-0.5 text-xs text-ink-soft">取引先限定</span>}
                 </span>

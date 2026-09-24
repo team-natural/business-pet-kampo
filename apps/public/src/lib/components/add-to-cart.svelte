@@ -65,8 +65,13 @@
   {/if}
 
   <div class="flex flex-col gap-1.5">
-    <label for="quantity-{inputId}" class="text-xs text-ink-soft">数量（{orderUnit} の倍数）</label>
-    <input id="quantity-{inputId}" type="number" bind:value={quantity} min={orderUnit} step={orderUnit} aria-invalid={invalid ? "true" : undefined} class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-right font-mono tabular-nums" />
+    <label for="quantity-{inputId}" class="text-xs text-ink-soft">数量</label>
+    <!-- Described, not just labelled: the submit button disables itself on an invalid quantity, and
+         a control that goes dead without saying why is the failure this rule exists for. -->
+    <input id="quantity-{inputId}" type="number" bind:value={quantity} min={orderUnit} step={orderUnit} required autocomplete="off" aria-describedby="quantity-hint-{inputId}" aria-invalid={invalid ? "true" : undefined} class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-right font-mono tabular-nums" />
+    <span id="quantity-hint-{inputId}" class="text-xs text-ink-soft" class:text-vermilion={invalid}>
+      {invalid ? `${orderUnit} の倍数でご入力ください。` : `${orderUnit} の倍数でご注文いただけます。`}
+    </span>
   </div>
 
   <button type="submit" class="btn btn-primary" disabled={!hydrated || submitting || invalid}>

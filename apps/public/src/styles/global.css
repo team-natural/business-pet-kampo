@@ -46,6 +46,13 @@
     outline-offset: 2px;
   }
 
+  /* Anything an in-page link can target: the skip link's #main, and the section headings that
+     carry ids. Without this the target lands flush against the viewport edge with no context
+     above it. */
+  [id] {
+    scroll-margin-top: 2rem;
+  }
+
   ::selection {
     background-color: color-mix(in srgb, var(--color-vermilion) 18%, transparent);
   }
@@ -81,12 +88,21 @@
       color 0.15s ease;
   }
 
+  /* Every form on the site disables its submit while it is unhydrated, submitting, or holding an
+     invalid value. Without this the button looks identical either way, and the visitor clicks a
+     dead control believing it worked. Opacity alone would be colour-only, so the cursor changes
+     too, and hover is suppressed so the button does not answer a pointer it will not act on. */
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .btn-primary {
     background-color: var(--color-ink);
     color: var(--color-paper);
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--color-ink) 86%, black);
   }
 
@@ -97,7 +113,7 @@
     color: var(--color-ink);
   }
 
-  .btn-quiet:hover {
+  .btn-quiet:hover:not(:disabled) {
     border-color: var(--color-ink);
   }
 

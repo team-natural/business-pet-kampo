@@ -10,7 +10,12 @@ interface Props {
   description?: string;
 }
 
-const { title, description = "動物病院・ペットショップ・トリミングサロン向けに、ペット用漢方サプリメントを卸売しています。" } = Astro.props;
+// What the site is. The footer prints this one; `description` is the page's own and belongs to
+// the meta tags only — reused in the footer, a product page ends up describing that product where
+// it should describe the company.
+const SITE_DESCRIPTION = "動物病院・ペットショップ・トリミングサロン向けに、ペット用漢方サプリメントを卸売しています。";
+
+const { title, description = SITE_DESCRIPTION } = Astro.props;
 
 // One source for the name, shared with the mail templates (DEV-08 §8). Still a working title
 // until TBD-01, but settling it is now one var rather than a grep.
@@ -63,7 +68,11 @@ const canonicalUrl = new URL(path, Astro.site ?? Astro.url.origin).toString();
 
     <header class="border-b border-rule">
       <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4 sm:px-8">
-        <a href="/" class="font-display text-lg">{SITE_NAME}</a>
+        {
+          /* translate="no" on the brand: an in-browser translation turns the service name into
+            something the visitor cannot match against their invoice. */
+        }
+        <a href="/" class="font-display text-lg" translate="no">{SITE_NAME}</a>
 
         <nav aria-label="メインメニュー" class="order-3 w-full sm:order-none sm:w-auto">
           <ul class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -90,10 +99,15 @@ const canonicalUrl = new URL(path, Astro.site ?? Astro.url.origin).toString();
       <slot />
     </main>
 
-    <footer class="mt-24 border-t border-rule bg-paper-sunk">
+    {
+      /* No top margin: every section already ends on its own py-16, and the rule plus the sunk
+        background separate the footer on their own. Stacking both left a 10rem hole on pages
+        with little content. */
+    }
+    <footer class="border-t border-rule bg-paper-sunk">
       <div class="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
-        <p class="font-display text-base">{SITE_NAME}</p>
-        <p class="mt-2 max-w-prose text-sm text-pretty text-ink-soft">{description}</p>
+        <p class="font-display text-base" translate="no">{SITE_NAME}</p>
+        <p class="mt-2 max-w-prose text-sm text-pretty text-ink-soft">{SITE_DESCRIPTION}</p>
 
         <nav aria-label="フッターメニュー" class="mt-8">
           <ul class="flex flex-wrap gap-x-6 gap-y-2 text-sm">

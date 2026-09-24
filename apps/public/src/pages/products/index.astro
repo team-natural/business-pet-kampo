@@ -42,12 +42,24 @@ const animalLabel = (id: string) => ANIMALS.find((option) => option.id === id)?.
       <form method="get" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.5fr_repeat(3,1fr)_auto] lg:items-end">
         <div class="flex flex-col gap-1.5">
           <label for="q" class="text-xs text-ink-soft">キーワード</label>
-          <input id="q" type="search" name="q" value={filter.keyword ?? ""} placeholder="商品名・商品コード" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm placeholder:text-ink-soft/70" />
+          {
+            /* Full ink-soft, not a faded one: at 70% the placeholder lands near 3:1 on paper, and a
+              placeholder is text a reader has to be able to read (WCAG 1.4.3). */
+          }
+          {
+            /* spellcheck off because product codes are half the point of this field, and a browser
+              underlining every one of them reads as an error. */
+          }
+          <input id="q" type="search" name="q" value={filter.keyword ?? ""} placeholder="商品名・商品コード…" autocomplete="off" spellcheck="false" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm placeholder:text-ink-soft" />
         </div>
 
+        {
+          /* Explicit text colour on the native selects, not just a background: Windows renders an
+            unstyled select's text from the OS theme, which can land white on paper. */
+        }
         <div class="flex flex-col gap-1.5">
           <label for="animal" class="text-xs text-ink-soft">対象動物</label>
-          <select id="animal" name="animal" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+          <select id="animal" name="animal" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm text-ink">
             <option value="">すべて</option>
             {
               ANIMALS.map((option) => (
@@ -61,7 +73,7 @@ const animalLabel = (id: string) => ANIMALS.find((option) => option.id === id)?.
 
         <div class="flex flex-col gap-1.5">
           <label for="category" class="text-xs text-ink-soft">カテゴリー</label>
-          <select id="category" name="category" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+          <select id="category" name="category" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm text-ink">
             <option value="">すべて</option>
             {
               PRODUCT_CATEGORIES.map((option) => (
@@ -75,7 +87,7 @@ const animalLabel = (id: string) => ANIMALS.find((option) => option.id === id)?.
 
         <div class="flex flex-col gap-1.5">
           <label for="concern" class="text-xs text-ink-soft">気になる点</label>
-          <select id="concern" name="concern" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm">
+          <select id="concern" name="concern" class="min-h-11 border border-ink-soft bg-paper px-3 py-2 text-sm text-ink">
             <option value="">すべて</option>
             {
               CONCERNS.map((option) => (
