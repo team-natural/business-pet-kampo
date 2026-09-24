@@ -6,14 +6,19 @@ import Layout from "../../layouts/Layout.astro";
 import ProfileForm from "../../lib/components/profile-form.svelte";
 import { requireMemberSession } from "../../lib/server/auth/page";
 import { getMemberByPublicId } from "../../lib/server/services/members";
+import { listLinkedProviders } from "../../lib/server/services/social-auth";
+import { PROVIDER_LABELS } from "../../lib/server/auth/oauth";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
 // Read here rather than fetched by the island: the form opens filled in, and nothing sensitive
 // crosses to the client — a member's own name and address are theirs to see.
-const member = await getMemberByPublicId(createDb(env.DB), session.memberPublicId);
+const db = createDb(env.DB);
+const member = await getMemberByPublicId(db, session.memberPublicId);
 if (!member) return Astro.rewrite("/404");
+
+const linked = await listLinkedProviders(db, member.id);
 ---
 
 <Layout title="アカウント情報 — マイページ">
@@ -33,6 +38,25 @@ if (!member) return Astro.rewrite("/404");
         パスワードの変更は、再設定用のリンクをメールでお送りする形で承っています。
       </p>
       <a href="/login/forgot" class="btn btn-quiet mt-6">パスワードを再設定する</a>
+    </div>
+
+    <div class="mt-16 border-t border-rule pt-8">
+      <h2 class="font-display text-lg">連携済みのログイン方法</h2>
+      {
+        linked.length === 0 ? (
+          <p class="mt-3 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">
+            {/* No "link now" button here: a link is only ever made by signing in with the provider
+                and then confirming with this password, so it starts from the login screen. */}
+            連携しているアカウントはありません。ログイン画面から各サービスでログインすると、パスワードのご確認のうえ連携できます。
+          </p>
+        ) : (
+          <ul class="mt-4 flex flex-wrap gap-3">
+            {linked.map((provider) => (
+              <li class="border border-rule px-3 py-1.5 text-sm">{PROVIDER_LABELS[provider]}</li>
+            ))}
+          </ul>
+        )
+      }
     </div>
 
     <p class="mt-10 text-sm">

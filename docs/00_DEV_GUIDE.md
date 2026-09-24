@@ -320,7 +320,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S9 | `feat/checkout-bank-transfer` | 発注確定（銀行振込のみ）・スナップショット・発注履歴（SCR-18・19・22〜24）。**マイページトップ（SCR-12）の発注状況サマリもここで入れる** — S7 では `orders` に行が無く、0 件表示は「注文が無い」と読めてしまうため意図的に出していない。**金額は `getCart()` が返す `totals` をそのまま使う** — checkout 側で `orderTotals` を呼び直すとカート画面と発注金額が食い違う（S8） | DEV-05 §3、DEV-07 §6-0 | S7, S8、**TBD-07・TBD-04b** | 発注後に Markdown の価格を変えても過去注文の金額が動かない |
 | S10 | `feat/order-admin` | 受注管理・遷移 4 ルート・入金確認・キャンセル（ADM-17・18） | DEV-09 §2-5・§2-6、DEV-04 §5-7 | S9 | DEV-09 §2-5-2 の全セルをテスト／不正遷移が 409 |
 | S11 | `feat/payment-stripe` | カード決済・Webhook・冪等性 | DEV-10 §2、DEV-09 §2-6 | S9、TBD-18 | 同一 Webhook を 2 回投げても `payments` が二重更新されない |
-| S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
+| S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン。**実装は完了、3 プロバイダのアプリ登録が未了**（設定が欠けるプロバイダはボタンが出ず `/auth/{provider}` が 404 — GOV-01 D-036）。ライブラリ Arctic の非推奨は TBD-36 | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
 | S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。Member 起点の監査ログは S7 で共有化済み（`@app/schema/activity-log`。`causerType: "Member"` を明示する — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
 | S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・マイページ内お知らせ | GOV-01 D-021、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
 | S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み） | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |

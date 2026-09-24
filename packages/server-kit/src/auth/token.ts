@@ -8,7 +8,7 @@
 import { fromBase64Url, toBase64Url } from "./encoding";
 
 // Bound into the signature so a withdrawal link cannot be presented as a password reset.
-export type TokenPurpose = "application-withdrawal" | "account-activation" | "password-reset" | "email-change";
+export type TokenPurpose = "application-withdrawal" | "account-activation" | "password-reset" | "email-change" | "social-link";
 
 interface TokenPayload {
   p: TokenPurpose;

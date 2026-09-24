@@ -64,6 +64,7 @@ export default function globalSetup() {
   execEach([
     `DELETE FROM member_sessions WHERE ${owned}`,
     `DELETE FROM member_password_reset_tokens WHERE ${owned}`,
+    `DELETE FROM social_accounts WHERE ${owned}`,
     // Inwards along the foreign keys: everything pointing at the organizations goes before they do.
     `DELETE FROM cart_items WHERE ${mine}`,
     `DELETE FROM shipping_addresses WHERE ${mine}`,

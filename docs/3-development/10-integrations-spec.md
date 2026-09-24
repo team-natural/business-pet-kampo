@@ -258,70 +258,65 @@ INTAKE §4-4 のとおり、以下を採用する。AdminUser（管理画面）�
 
 | プロバイダ | 採用 |
 | --- | --- |
-| LINE | ○（日本国内 BtoB のため。Arctic に専用プリセットが無いため自前実装。§5-2）|
+| LINE | ○（日本国内 BtoB のため。**Arctic に `Line` プリセットがあり、それを使う** — 「自前実装」としていた記述は S12 で訂正）|
 | Google | ○（Arctic の専用プリセットクラスを使用）|
-| Facebook | ○（Arctic の専用プリセットクラスを使用）|
+| Facebook | ○（Arctic の専用プリセットクラスを使用。**PKCE を使わない**ため、URL 生成・コード交換の引数が他 2 つより 1 つ少ない）|
 | メールアドレス・パスワード | ○（標準認証として併存）|
 
 ### 5-2. 標準実装
 
-Arctic を使用（`pnpm --filter public add arctic`。DEV-01 §2）。Google / Facebook は Arctic の専用プリセットクラスを使う。LINE ログインは専用プリセットが無いため、Arctic の汎用 OAuth2 プリミティブの上に自前実装する。
+Arctic を使用（`pnpm --filter public add arctic`。DEV-01 §2）。3 プロバイダとも専用プリセットクラス（`Google` / `Facebook` / `Line`）がある。
 
-エンドポイントは `apps/public` に置き、パスは `/api/v1/auth/**`（DEV-04 §5-1。`apps/public` 内の `auth` は Member 認証を意味するため `members/` セグメントは付けない）。
+**Arctic への依存は `apps/public/src/lib/server/auth/oauth.ts` 1 ファイルに閉じる。** 他のファイルは `SocialIdentity`（`providerUserId` / `email` / `name`）だけを受け取り、プロバイダのエンドポイントもトークンの形も知らない。理由は 2 つ:
+
+- Arctic 3.7.0 は**非推奨として公開されている**（最新リリースかつ動作するが、今後の修正は入らない。GOV-02 TBD-36）。差し替えが必要になったとき、書き直す範囲をこの 1 ファイルに限定する
+- プロバイダごとの差異（Facebook は PKCE 無し、ユーザー情報の取得先とフィールド名が 3 者 3 様）を 1 か所に集める
+
+エンドポイントは `apps/public` に置き、パスは **`/auth/{provider}` と `/auth/{provider}/callback`**（DEV-04 §5-1）。**`/api/v1/` には置かない** — これらは常にリダイレクトだけを返すページルートであり、DEV-04 §3 のレスポンスエンベロープを持たない（DEV-06 §1-2）。登録する redirect URI もこのパスになる。
+
+| 環境変数 | 用途 |
+| --- | --- |
+| `{LINE,GOOGLE,FACEBOOK}_CLIENT_ID` | プロバイダのクライアント ID |
+| `{LINE,GOOGLE,FACEBOOK}_CLIENT_SECRET` | 同シークレット |
+| `{LINE,GOOGLE,FACEBOOK}_REDIRECT_URI` | プロバイダ側に登録した値と 1 バイトも違わないこと |
+
+**3 つのうち 1 つでも欠けるプロバイダは「無効」として扱う**（GOV-01 D-036）。ログイン画面にボタンを出さず、`/auth/{provider}` は 404 を返す。`SESSION_TTL_DAYS` 等と違って例外を投げないのは、クライアント ID の欠落はログインを止めるだけで**セキュリティ制御を無効化しないため**であり、かつプロバイダ登録にリードタイムがあるため。
+
+ラウンドトリップ中の 3 つの Cookie（`oauth_state` / `oauth_code_verifier` / `oauth_link_intent`）は **`SameSite=Lax`** で発行する。`Strict` にすると、プロバイダがブラウザを本サイトへ戻すナビゲーションでちょうど落ちる。
 
 ```bash
 # .dev.vars（local）/ Cloudflare Workers シークレット（本番）
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=https://example.com/api/v1/auth/callback/google
+GOOGLE_REDIRECT_URI=https://example.com/auth/google/callback
 
 FACEBOOK_CLIENT_ID=
 FACEBOOK_CLIENT_SECRET=
-FACEBOOK_REDIRECT_URI=https://example.com/api/v1/auth/callback/facebook
+FACEBOOK_REDIRECT_URI=https://example.com/auth/facebook/callback
 
 LINE_CLIENT_ID=
 LINE_CLIENT_SECRET=
-LINE_REDIRECT_URI=https://example.com/api/v1/auth/callback/line
+LINE_REDIRECT_URI=https://example.com/auth/line/callback
 ```
 
-```typescript
-// apps/public/src/pages/api/v1/auth/google/redirect.ts
-import { Google, generateCodeVerifier, generateState } from "arctic";
-import type { APIContext } from "astro";
-import { env } from "cloudflare:workers";
-
-export async function GET({ cookies, redirect }: APIContext): Promise<Response> {
-  const google = new Google(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URI);
-
-  const state = generateState();
-  const codeVerifier = generateCodeVerifier();
-  const url = google.createAuthorizationURL(state, codeVerifier, ["openid", "email", "profile"]);
-
-  cookies.set("oauth_state", state, { httpOnly: true, secure: true, path: "/" });
-  cookies.set("oauth_code_verifier", codeVerifier, { httpOnly: true, secure: true, path: "/" });
-
-  return redirect(url.toString());
-}
-```
+実装は `apps/public/src/pages/auth/[provider]/index.ts`（開始）と `.../callback.ts`（コールバック）の
+2 ファイル。どちらもプロバイダを allow-list で受け、Arctic は `lib/server/auth/oauth.ts` 越しにしか触らない。
 
 ```typescript
-// apps/public/src/pages/api/v1/auth/callback/google.ts
-import { env } from "cloudflare:workers";
-import { loginMemberBySocial } from "../../../../../lib/server/services/auth";
+// apps/public/src/pages/auth/[provider]/callback.ts（要点のみ）
+const state = cookies.get(OAUTH_STATE_COOKIE)?.value;
+const codeVerifier = cookies.get(OAUTH_VERIFIER_COOKIE)?.value;
+cookies.delete(OAUTH_STATE_COOKIE, { path: "/" });
+cookies.delete(OAUTH_VERIFIER_COOKIE, { path: "/" });
 
-export async function GET({ url, cookies, redirect }: APIContext): Promise<Response> {
-  const google = new Google(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URI);
+// code 欠落・state 不一致・同意拒否を区別しない。区別は「偽造したコールバックのどちらが間違いか」を教える
+const code = url.searchParams.get("code");
+if (!code || !state || url.searchParams.get("state") !== state) return redirect("/login?error=oauth", 302);
 
-  const tokens = await google.validateAuthorizationCode(url.searchParams.get("code")!, cookies.get("oauth_code_verifier")!.value);
-  const googleUser = await fetchGoogleUserInfo(tokens.accessToken());
+const identity = await exchangeCode(secrets, provider, code, codeVerifier ?? "");
 
-  // 既存の Member にのみログインさせる。該当が無ければアカウントを作らず申請導線へ送る（§5-3）
-  const member = await loginMemberBySocial(db, "google", googleUser);
-  if (!member) return redirect("/apply?reason=not_registered");
-
-  // セッション確立処理は DEV-02 §1-2 参照
-  return redirect("/mypage");
-}
+// 既存の Member にのみログインさせる。該当が無ければアカウントを作らず申請導線へ送る（§5-3）
+const result = await loginWithSocialIdentity(createDb(env.DB), provider, identity, Number(env.SESSION_TTL_DAYS));
 ```
 
 ### 5-3. OAuth で Member を新規作成してはならない
@@ -334,8 +329,19 @@ INTAKE §7 審査制の「OAuth 認証成功のみでは取引先として承認
 | --- | --- |
 | `social_accounts` に該当があり、Member が `active` | ログイン成功 |
 | `social_accounts` に該当があり、Member が `suspended` / `deactivated` | ログイン拒否（DEV-02 §1-3） |
-| `social_accounts` に該当が無いが、同じメールアドレスの Member が存在 | 既存 Member への紐付けを提案（本人確認としてパスワード入力またはメール確認を要求。自動紐付けはしない — 第三者が同じメールで OAuth アカウントを作れる可能性があるため） |
+| `social_accounts` に該当が無いが、同じメールアドレスの Member が存在 | 既存 Member への紐付けを**提案**（自動紐付けはしない — 第三者が同じメールで OAuth アカウントを作れるため）。実装: 署名付き Cookie `oauth_link_intent`（`provider\|providerUserId\|email`、TTL 15 分）を発行して `/login?link={provider}` へ送り、**パスワードログインが成功した直後に**`POST /api/v1/auth/login` が連携を作る。Cookie の email と認証できた Member の email が一致しない場合は連携しない（Cookie を盗まれても他人に紐付かない）。連携に失敗してもログイン自体は成功させる — パスワードは正しかったのだから |
 | 該当が無く、同じメールアドレスの Member も存在しない | **アカウントを作らず**、新規取引申請フォーム（SCR-05）へ誘導 |
+| プロバイダが email を返さない（LINE で email スコープ未許可 等）| 突き合わせる材料が無いため、上記「該当が無い」と同じ扱い |
+
+**`suspended` / `deactivated` と「未登録」は同じ応答にする。** 文面を分けると、あるメールアドレスが取引先のものかどうかを外部に教えることになる（DEV-02 §7）。いずれも `/apply?reason=not_registered` へ送る。
+
+### 5-4. S12 時点で実装していないこと
+
+| 項目 | 状況 |
+| --- | --- |
+| 3 プロバイダのアプリ登録 | **未了**。登録が済むまで `.dev.vars` / Workers Secrets が空のため、各プロバイダは無効のまま（D-036）。00_DEV_GUIDE §3-3a の「外部手配」に含まれる |
+| 連携の**解除** | 未実装。マイページは連携済み一覧を表示するだけで、外す導線は無い。実装するなら「パスワード未設定（`password_hash IS NULL`）の Member が最後の連携を外すと二度とログインできなくなる」ため、最後の 1 件の解除は拒否するか、先にパスワード設定を要求する必要がある |
+| プロバイダとの往復の E2E | **不可能**。認証情報は gitignore 対象のシークレットで、プロバイダの同意画面は自動化できない。E2E が見るのは allow-list・`state` 検証・画面文言まで（`tests/e2e/social-login.spec.ts`）で、突き合わせ規則・連携規則・URL 生成はすべて Vitest 側に置く（`tests/unit/social-auth.test.ts`）。この分担は DEV-03 §2 の「E2E が届かない範囲は Vitest」の一例 |
 
 ---
 
@@ -435,7 +441,8 @@ MAIL_ADMIN_ALERTS=
 
 # ファイルストレージは不採用（GOV-01 D-020）。R2 関連の環境変数・バインディングは無い
 
-# OAuth（Member 向け。§5）
+# OAuth（Member 向け。§5）。3 つ揃っていないプロバイダは無効扱いで、例外は投げない（D-036）。
+# REDIRECT_URI はプロバイダ側の登録値と完全一致させる（末尾は /auth/{provider}/callback）
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=

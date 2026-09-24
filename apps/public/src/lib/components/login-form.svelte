@@ -63,28 +63,30 @@
   }
 </script>
 
-<form class="flex w-full max-w-sm flex-col gap-4" onsubmit={handleSubmit}>
+<form class="mt-8 flex w-full flex-col gap-5" onsubmit={handleSubmit}>
   {#if formError}
-    <p role="alert" class="rounded border border-red-500 px-3 py-2 text-sm text-red-700">{formError}</p>
+    <p role="alert" class="border border-vermilion px-4 py-3 text-sm text-vermilion">{formError}</p>
   {/if}
 
-  <div class="flex flex-col gap-1">
-    <label for="email-{id}">メールアドレス</label>
-    <input id="email-{id}" class="rounded border px-3 py-2" type="email" autocomplete="username" bind:value={email} required aria-invalid={fieldErrors.email ? "true" : undefined} />
+  <div class="flex flex-col gap-1.5">
+    <label for="email-{id}" class="text-sm">メールアドレス</label>
+    <input id="email-{id}" class="min-h-11 border border-ink-soft bg-paper px-3 py-2" type="email" autocomplete="username" bind:value={email} required aria-invalid={fieldErrors.email ? "true" : undefined} />
     {#if fieldErrors.email}
-      <p role="alert" class="text-sm text-red-700">{fieldErrors.email.join(" ")}</p>
+      <p role="alert" class="text-sm text-vermilion">{fieldErrors.email.join(" ")}</p>
     {/if}
   </div>
 
-  <div class="flex flex-col gap-1">
-    <label for="password-{id}">パスワード</label>
-    <input id="password-{id}" class="rounded border px-3 py-2" type="password" autocomplete="current-password" bind:value={password} required aria-invalid={fieldErrors.password ? "true" : undefined} />
+  <div class="flex flex-col gap-1.5">
+    <label for="password-{id}" class="text-sm">パスワード</label>
+    <input id="password-{id}" class="min-h-11 border border-ink-soft bg-paper px-3 py-2" type="password" autocomplete="current-password" bind:value={password} required aria-invalid={fieldErrors.password ? "true" : undefined} />
     {#if fieldErrors.password}
-      <p role="alert" class="text-sm text-red-700">{fieldErrors.password.join(" ")}</p>
+      <p role="alert" class="text-sm text-vermilion">{fieldErrors.password.join(" ")}</p>
     {/if}
   </div>
 
-  <button type="submit" class="rounded bg-black px-4 py-2 text-white disabled:opacity-50" disabled={!hydrated || submitting}>
-    {submitting ? "ログインしています…" : "ログイン"}
-  </button>
+  <div>
+    <button type="submit" class="btn btn-primary" disabled={!hydrated || submitting}>
+      {submitting ? "ログインしています…" : "ログイン"}
+    </button>
+  </div>
 </form>

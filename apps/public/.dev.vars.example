@@ -6,6 +6,23 @@
 # Resend (DEV-10 §3). Without it every send fails closed and logs; the request still succeeds.
 RESEND_API_KEY=re_xxxxxxxxxx
 
-# HMAC key for single-use tokens (password reset, activation, application withdrawal).
-# Used from S3 onward — generate with: openssl rand -base64 32
+# HMAC key for single-use tokens (password reset, activation, application withdrawal, and the
+# social-link intent). Used from S3 onward — generate with: openssl rand -base64 32
 SESSION_SIGNING_KEY=
+
+# OAuth (DEV-10 §5). A provider with any of its three values missing is simply switched off: its
+# button is not rendered and /auth/<provider> answers 404 (GOV-01 D-036). Fill in only the ones
+# whose app registration is done.
+#
+# The redirect URI must match what is registered with the provider, byte for byte.
+LINE_CLIENT_ID=
+LINE_CLIENT_SECRET=
+LINE_REDIRECT_URI=http://localhost:5173/auth/line/callback
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google/callback
+
+FACEBOOK_CLIENT_ID=
+FACEBOOK_CLIENT_SECRET=
+FACEBOOK_REDIRECT_URI=http://localhost:5173/auth/facebook/callback

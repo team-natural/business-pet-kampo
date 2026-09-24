@@ -279,7 +279,8 @@ CF_ACCESS_AUD=               # Access Application の AUD tag（環境ごとに�
 SESSION_TTL_DAYS=
 AUTH_LOCKOUT_MAX_ATTEMPTS=   # 上限回数
 AUTH_LOCKOUT_MINUTES=        # 超過後のロック時間（カウンタの TTL も兼ねる）
-# パスワードリセットトークンの HMAC 署名鍵（Web Crypto。Workers Secrets）
+# 単発トークンの HMAC 署名鍵（Web Crypto。Workers Secrets）。パスワードリセット・アカウント
+# 有効化・申請取消・メールアドレス変更、および OAuth の連携インテント（DEV-10 §5-3）が共有する
 SESSION_SIGNING_KEY=
 
 # 業務閾値（最低発注金額・送料・送料無料条件・税率）は **env に置かない**。

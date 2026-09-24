@@ -13,6 +13,11 @@ const terms = [
   { label: "送料", value: `税抜 ${formatYen(FREE_SHIPPING_THRESHOLD)}以上で無料` },
   { label: "お支払い", value: PAYMENT_METHODS.map((method) => method.label).join(" / ") },
 ];
+
+// Where a social login lands when the account it authenticated is not an approved trading partner.
+// Worded to cover "no application" and "not active" alike: distinguishing them would tell an
+// outsider whether an address is a customer (DEV-10 §5-3, DEV-02 §7).
+const fromSocialLogin = Astro.url.searchParams.get("reason") === "not_registered";
 ---
 
 <Layout title="新規取引のお申し込み" description="動物病院・ペットショップ・トリミングサロン向けの新規お取引をお申し込みいただけます。">
@@ -20,6 +25,18 @@ const terms = [
     <p class="eyebrow">新規のお取引</p>
     <h1 class="mt-3 font-display text-3xl text-balance sm:text-4xl">お申し込み</h1>
     <p class="mt-5 leading-loose text-pretty text-ink-soft">ご入力いただいた内容をもとに審査し、数営業日以内に結果をご連絡します。承認後にアカウントを有効化すると、御社の卸価格が表示されます。</p>
+
+    {
+      fromSocialLogin && (
+        <p role="status" class="mt-8 border border-rule px-4 py-3 text-sm leading-relaxed text-pretty">
+          ご利用のアカウントではログインいただけませんでした。お取引には審査が必要です。お心当たりのある方は
+          <a href="/contact" class="underline underline-offset-4 hover:text-vermilion">
+            お問い合わせ
+          </a>
+          ください。
+        </p>
+      )
+    }
 
     <dl class="mt-10 border-t border-rule">
       {
