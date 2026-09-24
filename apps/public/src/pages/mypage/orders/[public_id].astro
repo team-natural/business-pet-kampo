@@ -1,21 +1,140 @@
 ---
 // SCR-19. Amounts and product names come from order_items' snapshot columns — re-reading the
 // Markdown would rewrite past order totals at every price revision (DEV-07 §6-0).
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
+import { NotFoundError } from "@app/server-kit/http";
 import Layout from "../../../layouts/Layout.astro";
-import { requireMemberSession } from "../../../lib/server/auth/page";
+import { BANK_TRANSFER_FEE_BEARER, ORDER_STATUSES, PAYMENT_STATUSES, formatJapaneseDate, formatYen, paymentMethodLabel, statusMeta } from "../../../lib/commerce";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../../lib/server/auth/page";
+import { readBankAccount, transferReferenceNote } from "../../../lib/server/bank-account";
+import { getOrder } from "../../../lib/server/services/orders";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-const publicId = Astro.params.public_id!;
-// TODO(Phase C): read only this organization's orders, and answer 404 when there is no match.
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
+// getOrder scopes to this organization, so another company's order is 404 — 403 would confirm the
+// id exists.
+let detail;
+try {
+  detail = await getOrder(createDb(env.DB), organization.id, Astro.params.public_id!);
+} catch (error) {
+  if (error instanceof NotFoundError) return Astro.rewrite("/404");
+  throw error;
+}
+
+const { order, items, shippingAddress } = detail;
+const bankAccount = readBankAccount(env);
+// Still owed: the reminder stays on the screen until the operator marks the payment received.
+const awaitingTransfer = order.paymentMethod === "bank_transfer" && order.paymentStatus === "awaiting_transfer";
+
+const percent = (rate: string) => `${Math.round(Number(rate) * 100)}%`;
 ---
 
-<Layout title="発注詳細 — マイページ">
-  <main>
-    <h1>発注詳細</h1>
-    <p>{publicId}</p>
+<Layout title={`発注詳細 ${order.orderNumber} — マイページ`}>
+  <section class="mx-auto w-full max-w-4xl px-5 py-16 sm:px-8">
+    <a href="/mypage/orders" class="text-sm text-ink-soft underline underline-offset-4 hover:text-vermilion">← 発注履歴へ</a>
 
-    <a href="/mypage/orders">発注履歴へ戻る</a>
-  </main>
+    <p class="eyebrow mt-8">ご発注</p>
+    <h1 class="mt-3 font-mono text-3xl tabular-nums">{order.orderNumber}</h1>
+
+    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      <time datetime={order.placedAt} class="font-mono text-xs text-ink-soft tabular-nums">{formatJapaneseDate(order.placedAt)}</time>
+      <span class="border border-rule px-2 py-0.5 text-xs">{statusMeta(ORDER_STATUSES, order.status).label}</span>
+      <span class="border border-rule px-2 py-0.5 text-xs">{statusMeta(PAYMENT_STATUSES, order.paymentStatus).label}</span>
+    </div>
+
+    {
+      awaitingTransfer && (
+        <section aria-labelledby="transfer" class="mt-10 border border-rule bg-paper-sunk px-6 py-8">
+          <h2 id="transfer" class="font-display text-lg">
+            お振込のご案内
+          </h2>
+          {order.paymentDueAt && (
+            <p class="mt-4 text-sm leading-relaxed text-pretty">
+              お振込期限：<strong class="font-mono tabular-nums">{formatJapaneseDate(order.paymentDueAt)}</strong>
+            </p>
+          )}
+          {bankAccount ? (
+            <p class="mt-4 text-sm leading-relaxed text-pretty">
+              {bankAccount.bankName} {bankAccount.branch} {bankAccount.accountType} <span class="font-mono tabular-nums">{bankAccount.accountNumber}</span> {bankAccount.accountHolder}
+            </p>
+          ) : (
+            <p class="mt-4 text-sm leading-relaxed text-pretty">お振込先は別途ご連絡いたします。</p>
+          )}
+          <p class="mt-4 text-sm leading-relaxed text-pretty">{transferReferenceNote(order.orderNumber)}</p>
+          <p class="mt-2 text-sm leading-relaxed text-pretty text-ink-soft">振込手数料は{BANK_TRANSFER_FEE_BEARER}のご負担にてお願いいたします。</p>
+        </section>
+      )
+    }
+
+    <section aria-labelledby="items" class="mt-12">
+      <h2 id="items" class="font-display text-lg">ご注文の商品</h2>
+      <ul class="mt-4 border-t border-rule">
+        {
+          items.map((item) => (
+            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <span>
+                {/* The snapshot, not a link that re-reads the product: the name is what was ordered. */}
+                {item.name}
+                {item.code && <span class="ml-2 font-mono text-xs text-ink-soft tabular-nums">{item.code}</span>}
+                <span class="ml-2 text-xs text-ink-soft">税率 {percent(item.taxRate)}</span>
+              </span>
+              <span class="font-mono text-sm tabular-nums">
+                {formatYen(item.unitPrice)} × {item.quantity}
+                <span class="ml-3 text-base">{formatYen(item.subtotal)}</span>
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+
+      <dl class="mt-6 flex flex-col gap-3">
+        <div class="flex items-baseline justify-between gap-6">
+          <dt class="text-sm text-ink-soft">小計（税抜）</dt>
+          <dd class="font-mono tabular-nums">{formatYen(order.subtotal)}</dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-6">
+          <dt class="text-sm text-ink-soft">送料</dt>
+          <dd class="font-mono tabular-nums">{formatYen(order.shippingFee)}</dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-6">
+          <dt class="text-sm text-ink-soft">消費税</dt>
+          <dd class="font-mono tabular-nums">{formatYen(order.tax)}</dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-6 border-t border-rule pt-3">
+          <dt class="font-display">合計</dt>
+          <dd class="font-mono text-xl tabular-nums">{formatYen(order.total)}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section aria-labelledby="delivery" class="mt-12 border-t border-rule pt-8">
+      <h2 id="delivery" class="font-display text-lg">お届け先・お支払い</h2>
+      <dl class="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-[10rem_1fr]">
+        <dt class="text-sm text-ink-soft">お届け先</dt>
+        <dd class="text-pretty">
+          {
+            /* From the order's own snapshot: deleting the address later must not rewrite where this
+              order was sent (DEV-07 §6-2). */
+          }
+          {shippingAddress.recipientName}<br />
+          <span class="font-mono tabular-nums">〒{shippingAddress.postalCode}</span>
+          {shippingAddress.address}<br />
+          <span class="font-mono tabular-nums">{shippingAddress.phone}</span>
+        </dd>
+        <dt class="text-sm text-ink-soft">お支払い方法</dt>
+        <dd>{paymentMethodLabel(order.paymentMethod)}</dd>
+        {order.notes && <dt class="text-sm text-ink-soft">備考</dt>}
+        {order.notes && <dd class="text-pretty whitespace-pre-line">{order.notes}</dd>}
+      </dl>
+    </section>
+
+    <p class="mt-16 text-sm">
+      <a href="/mypage/orders" class="underline underline-offset-4 hover:text-vermilion">発注履歴へ戻る</a>
+    </p>
+  </section>
 </Layout>

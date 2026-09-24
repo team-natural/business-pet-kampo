@@ -122,6 +122,7 @@ erDiagram
         text order_number UK
         text status "received/confirming/preparing/shipped/completed/cancelled"
         text payment_status "unpaid/awaiting_transfer/processing/paid/failed/refunded/partially_refunded"
+        text payment_due_at "振込期限。銀行振込のみ"
         text created_at
         text updated_at
     }
@@ -478,7 +479,8 @@ erDiagram
 | public_id | TEXT | NO | UNIQUE（ULID） |
 | organization_id | INTEGER | NO | FK → organizations.id |
 | member_id | INTEGER | NO | FK → members.id（発注担当者） |
-| order_number | TEXT | NO | UNIQUE。採番方式は Service 実装時に確定 |
+| order_number | TEXT | NO | UNIQUE。**`YYYYMMDD-NNN`（発注日 + その日の連番。例 `20260924-001`）**（GOV-01 D-041）。連番は INSERT と同一ステートメント内の副問い合わせで採番する — 「読んでから書く」形にすると同時発注で衝突する |
+| payment_due_at | TEXT | YES | 振込期限（ISO 8601）。銀行振込のみ。**発注時に確定させて保存する** — 定数から都度計算すると期限日数の変更が過去の未入金注文まで遡って動かす（GOV-01 D-040）|
 | status | TEXT | NO | received / confirming / preparing / shipped / completed / cancelled |
 | payment_status | TEXT | NO | unpaid / awaiting_transfer / processing / paid / failed / refunded / partially_refunded |
 | subtotal | INTEGER | NO | 税抜小計（円） |

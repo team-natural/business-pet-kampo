@@ -1,22 +1,46 @@
-// TODO(S9): placing the order. This is where the minimum-order and order-unit rules are actually
-// decided; what the cart screen shows is display, not a decision (DEV-06 §7).
-// - one batch() for the orders + order_items + payments INSERTs and the cart_items DELETE
-// - snapshot the resolved name, unit price and tax rate onto order_items (DEV-07 §6-0)
-// - never take amounts from the body; build the lines with getCart() and read its `totals`, which
-//   already come from orderTotals — recomputing them here is how the two disagree
-// - accept only a shipping address belonging to this organization, and snapshot it onto the order
-// - mail and the payment API go outside the batch(), through ctx.waitUntil()
+// Placing the order. The minimum-order and order-unit rules are decided in the service, not on the
+// cart screen — what that screen shows is display (DEV-06 §7).
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
-import { toErrorResponse } from "@app/server-kit/http";
+import { NotFoundError, ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ZodError, flattenError } from "zod";
+import { cartProductsFor } from "$lib/catalog";
 import { requireOrderableOrganization, requireSession } from "$lib/server/auth/session";
+import { notifyOrderPlaced } from "$lib/server/mail/orders";
+import { getMemberByPublicId } from "$lib/server/services/members";
+import { placeOrder } from "$lib/server/services/checkout";
+import { checkoutSchema } from "$lib/server/validation/checkout";
 
-export async function POST({ cookies }: APIContext): Promise<Response> {
+export async function POST({ request, cookies, locals }: APIContext): Promise<Response> {
   try {
-    requireOrderableOrganization(await requireSession(cookies, createDb(env.DB)));
-    return new Response("Not implemented", { status: 501 });
+    const db = createDb(env.DB);
+    const session = await requireSession(cookies, db);
+    // The stricter of the two checks: a suspended partner can read their cart but cannot order
+    // (DEV-09 §2-2).
+    const organization = requireOrderableOrganization(session);
+
+    const member = await getMemberByPublicId(db, session.memberPublicId);
+    if (!member) throw new NotFoundError("アカウントが見つかりません。");
+
+    const input = checkoutSchema.parse(await request.json());
+    const order = await placeOrder(db, { organizationId: organization.id, memberId: session.memberId }, input, cartProductsFor({ orgCode: organization.orgCode }));
+
+    // After the batch committed. The buyer already has their order number, so a failed mail must
+    // not turn this into a 500 — notifyOrderPlaced never throws.
+    locals.cfContext?.waitUntil(
+      notifyOrderPlaced(env, {
+        ...order,
+        contactName: member.name,
+        contactEmail: member.email,
+        organizationName: organization.name,
+        orgCode: organization.orgCode,
+      }),
+    );
+
+    return jsonItem({ id: order.publicId, orderNumber: order.orderNumber, total: order.total, paymentDueAt: order.paymentDueAt }, 201);
   } catch (error) {
+    if (error instanceof ZodError) return toErrorResponse(new ValidationError(flattenError(error).fieldErrors));
     return toErrorResponse(error);
   }
 }

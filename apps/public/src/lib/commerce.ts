@@ -57,6 +57,34 @@ export const PAYMENT_METHODS = [
   { id: "bank_transfer", label: "銀行振込", description: "ご入金確認後に出荷手配を行います。" },
 ] as const;
 
+// Bank transfer terms (D-039). Here rather than in env for the same reason as the thresholds
+// above: the order confirmation, the transfer reminder mail and the legal notice all render from
+// this one place, and splitting them is how the invoice and the notice come to disagree (D-024).
+export const BANK_TRANSFER_DUE_BUSINESS_DAYS = 7;
+export const BANK_TRANSFER_FEE_BEARER = "取引先さま";
+
+// Weekends only. Japanese public holidays are NOT excluded — that needs a maintained holiday
+// table, and getting it wrong silently shortens a deadline the customer was told in writing
+// (GOV-02 TBD-04d). Until then the stored date is the one the mail says, and the operator can
+// accept a late transfer over a holiday week.
+export function addBusinessDays(from: Date, days: number): Date {
+  const date = new Date(from);
+  let remaining = days;
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return date;
+}
+
+// The deadline is stored on the order, never recomputed for display (D-040).
+export function bankTransferDueAt(placedAt: Date): string {
+  return addBusinessDays(placedAt, BANK_TRANSFER_DUE_BUSINESS_DAYS).toISOString();
+}
+
+export const formatJapaneseDate = (iso: string) => new Date(iso).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
+
 export type PaymentMethodId = (typeof PAYMENT_METHODS)[number]["id"];
 
 export const paymentMethodLabel = (id: string) => PAYMENT_METHODS.find((method) => method.id === id)?.label ?? id;

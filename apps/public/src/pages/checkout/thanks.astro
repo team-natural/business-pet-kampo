@@ -1,19 +1,117 @@
 ---
-// SCR-23, the order went through.
+// SCR-23, the order went through. For a bank transfer this screen carries the payment instruction
+// — the account, the deadline and the reference rule — so a buyer who never opens the mail can
+// still pay (D-039).
+//
+// The order is looked up by its number rather than trusted from the query string: without that,
+// anyone could put another company's order number in the URL and read its total.
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../../layouts/Layout.astro";
-import { requireMemberSession } from "../../lib/server/auth/page";
+import { BANK_TRANSFER_FEE_BEARER, formatJapaneseDate, formatYen, paymentMethodLabel } from "../../lib/commerce";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../lib/server/auth/page";
+import { readBankAccount, transferReferenceNote } from "../../lib/server/bank-account";
+import { findOrderByNumber } from "../../lib/server/services/orders";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
 const orderNumber = Astro.url.searchParams.get("order");
+// Scoped to this organization, so a guessed order number from another company is simply absent.
+const order = orderNumber ? await findOrderByNumber(createDb(env.DB), organization.id, orderNumber) : null;
+
+const bankAccount = readBankAccount(env);
+const awaitingTransfer = order?.paymentMethod === "bank_transfer";
+
+const accountRows = bankAccount
+  ? [
+      { label: "銀行名", value: bankAccount.bankName },
+      { label: "支店名", value: bankAccount.branch },
+      { label: "口座種別", value: bankAccount.accountType },
+      { label: "口座番号", value: bankAccount.accountNumber, mono: true },
+      { label: "口座名義", value: bankAccount.accountHolder },
+    ]
+  : [];
 ---
 
 <Layout title="ご発注ありがとうございました">
-  <main>
-    <h1>ご発注ありがとうございました</h1>
-    {orderNumber && <p>注文番号: {orderNumber}</p>}
-    <p>確認メールをお送りしました。銀行振込をお選びの場合は、ご入金の確認後に出荷手配を行います。</p>
-    <a href="/mypage/orders">発注履歴を見る</a>
-  </main>
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">ご発注</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">ご発注ありがとうございました</h1>
+
+    {
+      order ? (
+        <>
+          <dl class="mt-10 border-t border-rule">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <dt class="text-sm text-ink-soft">注文番号</dt>
+              <dd class="font-mono tabular-nums">{order.orderNumber}</dd>
+            </div>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <dt class="text-sm text-ink-soft">ご請求金額</dt>
+              <dd class="font-mono text-lg tabular-nums">{formatYen(order.total)}（税込）</dd>
+            </div>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <dt class="text-sm text-ink-soft">お支払い方法</dt>
+              <dd>{paymentMethodLabel(order.paymentMethod)}</dd>
+            </div>
+          </dl>
+
+          {awaitingTransfer && (
+            <section aria-labelledby="transfer" class="mt-12 border border-rule bg-paper-sunk px-6 py-8">
+              <h2 id="transfer" class="font-display text-lg">
+                お振込のご案内
+              </h2>
+
+              {order.paymentDueAt && (
+                <p class="mt-4 text-sm leading-relaxed text-pretty">
+                  お振込期限：<strong class="font-mono tabular-nums">{formatJapaneseDate(order.paymentDueAt)}</strong>
+                </p>
+              )}
+
+              {accountRows.length > 0 ? (
+                <dl class="mt-6 border-t border-rule">
+                  {accountRows.map((row) => (
+                    <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-3">
+                      <dt class="text-sm text-ink-soft">{row.label}</dt>
+                      <dd class={row.mono ? "font-mono tabular-nums" : ""}>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                /* Said rather than left blank: the buyer must know a second message is coming. */
+                <p class="mt-6 text-sm leading-relaxed text-pretty">お振込先は別途ご連絡いたします。</p>
+              )}
+
+              {/* The whole point of the reference rule: company transfers arrive under an
+                  accounting department's name, not the buyer's (D-039). */}
+              <p class="mt-6 border border-vermilion px-4 py-3 text-sm leading-relaxed text-pretty">{transferReferenceNote(order.orderNumber)}</p>
+              <p class="mt-4 text-sm leading-relaxed text-pretty text-ink-soft">振込手数料は{BANK_TRANSFER_FEE_BEARER}のご負担にてお願いいたします。ご入金の確認後に出荷手配を行います。</p>
+            </section>
+          )}
+
+          <p class="mt-10 text-sm leading-relaxed text-pretty text-ink-soft">ご登録のメールアドレスに確認メールをお送りしました。</p>
+
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a href={`/mypage/orders/${order.id}`} class="btn btn-primary">
+              ご発注内容を見る
+            </a>
+            <a href="/products" class="btn btn-quiet">
+              買い物を続ける
+            </a>
+          </div>
+        </>
+      ) : (
+        <>
+          <p class="mt-8 leading-relaxed text-pretty text-ink-soft">ご発注内容は発注履歴からご確認いただけます。</p>
+          <a href="/mypage/orders" class="btn btn-primary mt-8">
+            発注履歴を見る
+          </a>
+        </>
+      )
+    }
+  </section>
 </Layout>

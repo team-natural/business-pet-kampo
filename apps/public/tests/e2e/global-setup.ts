@@ -66,6 +66,11 @@ export default function globalSetup() {
     `DELETE FROM member_password_reset_tokens WHERE ${owned}`,
     `DELETE FROM social_accounts WHERE ${owned}`,
     // Inwards along the foreign keys: everything pointing at the organizations goes before they do.
+    // order_items hangs off orders, and orders off both the organization and the member, so the
+    // three go first or the members delete below trips a foreign key.
+    `DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE ${mine})`,
+    `DELETE FROM payments WHERE ${mine}`,
+    `DELETE FROM orders WHERE ${mine}`,
     `DELETE FROM cart_items WHERE ${mine}`,
     `DELETE FROM shipping_addresses WHERE ${mine}`,
     `DELETE FROM activity_log WHERE ${mine}`,

@@ -29,6 +29,15 @@
     "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
     "MAIL_FROM_NAME": "ペット漢方 卸売",
     "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
+    // Bank transfer destination (GOV-01 D-039). Not a secret — it is printed on the order
+    // confirmation and in the reminder mail. **Per environment on purpose**: staging must not
+    // show the production account, or someone transfers real money against a test order. Any of
+    // the five missing means the account block is not rendered at all.
+    "BANK_NAME": "サンプル銀行",
+    "BANK_BRANCH": "サンプル支店",
+    "BANK_ACCOUNT_TYPE": "普通",
+    "BANK_ACCOUNT_NUMBER": "0000000",
+    "BANK_ACCOUNT_HOLDER": "カ）サンプル",
   },
 
   // Shared with apps/admin: create once, then copy the ids into both. They must match —
@@ -62,6 +71,12 @@
         "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
         "MAIL_FROM_NAME": "ペット漢方 卸売",
         "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
+        // Deliberately left as the dummy account: staging must never print the real one.
+        "BANK_NAME": "サンプル銀行",
+        "BANK_BRANCH": "サンプル支店",
+        "BANK_ACCOUNT_TYPE": "普通",
+        "BANK_ACCOUNT_NUMBER": "0000000",
+        "BANK_ACCOUNT_HOLDER": "カ）サンプル",
       },
       "d1_databases": [
         {
@@ -84,6 +99,14 @@
         "MAIL_FROM_ADDRESS": "noreply@replace-with-domain.example",
         "MAIL_FROM_NAME": "ペット漢方 卸売",
         "MAIL_ADMIN_ALERTS": "ops@replace-with-domain.example",
+        // TBD-04b: fill these in before go-live. Left empty on purpose — an empty value renders
+        // no account block at all, which is safer than shipping a placeholder account number
+        // that a trading partner might actually transfer money to.
+        "BANK_NAME": "",
+        "BANK_BRANCH": "",
+        "BANK_ACCOUNT_TYPE": "",
+        "BANK_ACCOUNT_NUMBER": "",
+        "BANK_ACCOUNT_HOLDER": "",
       },
       "d1_databases": [
         {

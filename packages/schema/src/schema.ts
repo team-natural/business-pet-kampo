@@ -239,6 +239,9 @@ export const orders = sqliteTable(
     total: integer("total").notNull(),
     shippingAddressSnapshot: text("shipping_address_snapshot").notNull(),
     paymentMethod: text("payment_method", { enum: ["credit_card", "bank_transfer"] }).notNull(),
+    // Written at checkout, never recomputed from the constant: changing the term from 7 days to 5
+    // would otherwise move the deadline of every past unpaid order (D-040). NULL for card orders.
+    paymentDueAt: text("payment_due_at"),
     notes: text("notes"),
     placedAt: text("placed_at").notNull(),
     createdAt: createdAt(),

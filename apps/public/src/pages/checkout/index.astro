@@ -1,57 +1,98 @@
 ---
-// SCR-22, reviewing the order before placing it.
+// SCR-22, reviewing the order before placing it. Every figure here is server-rendered from the
+// same getCart() the API will re-read at submit time — the screen never computes its own totals,
+// and no wholesale price reaches an island's props (D-021).
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../../layouts/Layout.astro";
-import { PAYMENT_METHODS } from "../../lib/commerce";
-import { requireMemberSession } from "../../lib/server/auth/page";
+import { cartProductsFor } from "../../lib/catalog";
+import { BANK_TRANSFER_DUE_BUSINESS_DAYS, BANK_TRANSFER_FEE_BEARER, MINIMUM_ORDER_SUBTOTAL, PAYMENT_METHODS, formatYen } from "../../lib/commerce";
+import CheckoutForm from "../../lib/components/checkout-form.svelte";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../lib/server/auth/page";
+import { getCart } from "../../lib/server/services/cart";
+import { listCheckoutAddresses } from "../../lib/server/services/checkout";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-// TODO(Phase C): show the cart lines, the shipping address and the totals, then wire to
-// POST /api/v1/checkout. The minimum-order and order-unit rules are decided there, not here.
-const addresses: { publicId: string; recipientName: string; address: string }[] = [];
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
+const db = createDb(env.DB);
+const scope = { organizationId: organization.id, memberId: session.memberId };
+const cart = await getCart(db, scope, cartProductsFor({ orgCode: organization.orgCode }));
+
+// Nothing to confirm. Sent back rather than shown an empty confirmation screen with a live button.
+if (cart.lines.length === 0) return Astro.redirect("/cart", 302);
+
+const addresses = await listCheckoutAddresses(db, organization.id);
+
+// Card payment ships in S11. Listed but disabled, so the buyer can see it is coming rather than
+// wonder why only one method exists.
+const paymentMethods = PAYMENT_METHODS.map((method) => ({ ...method, available: method.id === "bank_transfer" }));
+
+const addressOptions = addresses.map((address) => ({ id: address.id, label: `${address.recipientName}｜〒${address.postalCode} ${address.address}｜${address.phone}${address.isDefault ? "（既定）" : ""}` }));
+const percent = (rate: number) => `${Math.round(rate * 100)}%`;
 ---
 
 <Layout title="ご発注手続き">
-  <main>
-    <h1>ご発注手続き</h1>
+  <section class="mx-auto w-full max-w-4xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">ご発注</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">ご発注内容の確認</h1>
 
-    <form method="post" action="/api/v1/checkout">
-      <fieldset>
-        <legend>お届け先</legend>
+    <section aria-labelledby="lines" class="mt-10">
+      <h2 id="lines" class="font-display text-lg">ご注文の商品</h2>
+      <ul class="mt-4 border-t border-rule">
         {
-          addresses.map((address) => (
-            <label>
-              <input type="radio" name="shippingAddressId" value={address.publicId} required />
-              {address.recipientName} / {address.address}
-            </label>
+          cart.lines.map((line) => (
+            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-rule py-4">
+              <span>
+                {line.name}
+                {line.code && <span class="ml-2 font-mono text-xs text-ink-soft tabular-nums">{line.code}</span>}
+              </span>
+              <span class="font-mono text-sm tabular-nums">
+                {formatYen(line.unitPrice)} × {line.quantity}
+                <span class="ml-3 text-base">{formatYen(line.subtotal)}</span>
+              </span>
+            </li>
           ))
         }
-        {
-          addresses.length === 0 && (
-            <p>
-              <a href="/mypage/addresses/new">配送先を登録する</a>
-            </p>
-          )
-        }
-      </fieldset>
+      </ul>
 
-      <fieldset>
-        <legend>お支払い方法</legend>
+      <dl class="mt-6 flex flex-col gap-3">
+        <div class="flex items-baseline justify-between gap-6">
+          <dt class="text-sm text-ink-soft">小計（税抜）</dt>
+          <dd class="font-mono tabular-nums">{formatYen(cart.totals.subtotal)}</dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-6">
+          <dt class="text-sm text-ink-soft">送料</dt>
+          <dd class="font-mono tabular-nums">{formatYen(cart.totals.shippingFee)}</dd>
+        </div>
         {
-          PAYMENT_METHODS.map((method) => (
-            <label>
-              <input type="radio" name="paymentMethod" value={method.id} required />
-              {method.label} — {method.description}
-            </label>
+          cart.totals.taxes.map((entry) => (
+            <div class="flex items-baseline justify-between gap-6">
+              <dt class="text-sm text-ink-soft">消費税（{percent(entry.rate)}）</dt>
+              <dd class="font-mono tabular-nums">{formatYen(entry.tax)}</dd>
+            </div>
           ))
         }
-      </fieldset>
+        <div class="flex items-baseline justify-between gap-6 border-t border-rule pt-3">
+          <dt class="font-display">合計</dt>
+          <dd class="font-mono text-xl tabular-nums">{formatYen(cart.totals.total)}</dd>
+        </div>
+      </dl>
 
-      <label>備考<textarea name="notes"></textarea></label>
-      <button type="submit">この内容で発注する</button>
-    </form>
+      {
+        /* Shown, but the POST is what enforces it — the button stays live and the server answers
+          409, because a disabled button with no explanation is worse than a clear refusal. */
+      }
+      {!cart.meetsMinimum && <p class="mt-6 border border-vermilion px-4 py-3 text-sm leading-relaxed text-pretty text-vermilion">最低発注金額は税抜 {formatYen(MINIMUM_ORDER_SUBTOTAL)} です。カートに商品を追加してください。</p>}
+    </section>
 
-    <a href="/cart">カートへ戻る</a>
-  </main>
+    <CheckoutForm client:load addresses={addressOptions} paymentMethods={paymentMethods} />
+
+    <p class="mt-10 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">
+      銀行振込をお選びの場合、お振込期限はご発注日から {BANK_TRANSFER_DUE_BUSINESS_DAYS} 営業日以内です。振込手数料は{BANK_TRANSFER_FEE_BEARER}のご負担にてお願いいたします。ご入金の確認後に出荷手配を行います。
+    </p>
+  </section>
 </Layout>

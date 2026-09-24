@@ -20,6 +20,10 @@ export function toPublicOrder(row: OrderRow) {
     tax: row.tax,
     shippingFee: row.shippingFee,
     total: row.total,
+    // Read from the order, never recomputed from the constant: changing the term must not move the
+    // deadline of an order the buyer has already been told about (D-040).
+    paymentDueAt: row.paymentDueAt,
+    notes: row.notes,
     placedAt: row.placedAt,
   };
 }
@@ -39,6 +43,19 @@ export function toPublicOrderItem(row: OrderItemRow) {
 export async function listOrders(db: DbClient, organizationId: number) {
   const rows = await db.select().from(orders).where(eq(orders.organizationId, organizationId)).orderBy(desc(orders.id));
   return rows.map(toPublicOrder);
+}
+
+// For the completion screen, which is reached with an order number in the query string. Scoped to
+// the organization, so a guessed number from another company is simply absent rather than refused
+// — the distinction would confirm the order exists (DEV-02 §3-1).
+export async function findOrderByNumber(db: DbClient, organizationId: number, orderNumber: string) {
+  const [row] = await db
+    .select()
+    .from(orders)
+    .where(and(eq(orders.organizationId, organizationId), eq(orders.orderNumber, orderNumber)))
+    .limit(1);
+
+  return row ? toPublicOrder(row) : null;
 }
 
 export async function getOrder(db: DbClient, organizationId: number, publicId: string) {

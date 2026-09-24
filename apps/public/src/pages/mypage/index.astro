@@ -9,6 +9,8 @@ import LogoutButton from "../../lib/components/logout-button.svelte";
 import { requireMemberSession } from "../../lib/server/auth/page";
 import { viewerFor } from "../../lib/server/auth/session";
 import { getMemberByPublicId, toPublicMember } from "../../lib/server/services/members";
+import { listOrders } from "../../lib/server/services/orders";
+import { ORDER_STATUSES, PAYMENT_STATUSES, formatJapaneseDate, formatYen, statusMeta } from "../../lib/commerce";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
@@ -25,8 +27,9 @@ const canAct = organization?.status === "active" && organization.membershipStatu
 // suspended organization (D-021).
 const news = (await listNews(viewerFor(session))).slice(0, 3);
 
-// TODO(S9): 発注状況サマリ. The orders table has no rows to summarise until checkout ships, and a
-// zeroed panel would read as "you have no orders" rather than "not built yet".
+// The order summary (F-05-01). Only for an organization that can act — a suspended partner's
+// nav does not offer orders either.
+const recentOrders = canAct && organization ? (await listOrders(createDb(env.DB), organization.id)).slice(0, 3) : [];
 
 const STATUS_NOTICE: Record<string, string> = {
   suspended: "現在お取引を一時停止しております。ご不明な点は担当までお問い合わせください。",
@@ -77,6 +80,41 @@ const notice = organization ? STATUS_NOTICE[organization.status] : "所属する
         <span class="mt-1 block text-sm text-ink-soft">これまでのご注文の確認</span>
       </a>
     </nav>
+
+    {
+      canAct && (
+        <div class="mt-16 border-t border-rule pt-8">
+          <div class="flex flex-wrap items-baseline justify-between gap-4">
+            <h2 class="font-display text-lg">最近のご発注</h2>
+            <a href="/mypage/orders" class="text-sm underline underline-offset-4 hover:text-vermilion">
+              すべて見る
+            </a>
+          </div>
+
+          {recentOrders.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-soft">ご発注の履歴はまだありません。</p>
+          ) : (
+            <ul class="mt-4 border-t border-rule">
+              {recentOrders.map((order) => (
+                <li class="border-b border-rule">
+                  <a href={`/mypage/orders/${order.id}`} class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-4 text-sm transition-colors hover:text-vermilion">
+                    <span class="font-mono tabular-nums">{order.orderNumber}</span>
+                    <span class="flex flex-wrap items-center gap-3">
+                      <time datetime={order.placedAt} class="font-mono text-xs text-ink-soft tabular-nums">
+                        {formatJapaneseDate(order.placedAt)}
+                      </time>
+                      <span class="border border-rule px-2 py-0.5 text-xs">{statusMeta(ORDER_STATUSES, order.status).label}</span>
+                      <span class="border border-rule px-2 py-0.5 text-xs">{statusMeta(PAYMENT_STATUSES, order.paymentStatus).label}</span>
+                      <span class="font-mono tabular-nums">{formatYen(order.total)}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )
+    }
 
     <div class="mt-16 border-t border-rule pt-8">
       <h2 class="font-display text-lg">お知らせ</h2>
