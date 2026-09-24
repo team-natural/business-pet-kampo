@@ -8,7 +8,7 @@ import type { DbClient } from "@app/schema/client";
 import { InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { desc, eq, lt } from "drizzle-orm";
 import type { AdminUser } from "./admin-users";
-import { activityLogInsert } from "./activity-log";
+import { activityLogInsert } from "@app/schema/activity-log";
 
 export type InquiryStatus = "new" | "in_progress" | "resolved";
 

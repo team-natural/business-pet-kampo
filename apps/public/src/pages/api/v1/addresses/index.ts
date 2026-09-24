@@ -1,9 +1,11 @@
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
-import { jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ZodError, flattenError } from "zod";
 import { requireActiveOrganization, requireSession } from "$lib/server/auth/session";
-import { listAddresses } from "$lib/server/services/addresses";
+import { createAddress, listAddresses } from "$lib/server/services/addresses";
+import { addressSchema } from "$lib/server/validation/addresses";
 
 export async function GET({ cookies }: APIContext): Promise<Response> {
   try {
@@ -17,14 +19,16 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): POST. Validate with addressSchema and take organization_id from the session,
-// never from the body. Setting isDefault clears the previous default in the same batch().
-export async function POST({ cookies }: APIContext): Promise<Response> {
+export async function POST({ request, cookies }: APIContext): Promise<Response> {
   try {
     const db = createDb(env.DB);
-    requireActiveOrganization(await requireSession(cookies, db));
-    return new Response("Not implemented", { status: 501 });
+    // From the session, never from the body — addressSchema has no organizationId to send.
+    const organization = requireActiveOrganization(await requireSession(cookies, db));
+
+    const input = addressSchema.parse(await request.json());
+    return jsonItem(await createAddress(db, organization.id, input), 201);
   } catch (error) {
+    if (error instanceof ZodError) return toErrorResponse(new ValidationError(flattenError(error).fieldErrors));
     return toErrorResponse(error);
   }
 }

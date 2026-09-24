@@ -5,7 +5,7 @@ import { likeContains } from "@app/schema/query";
 import { InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { AdminUser } from "./admin-users";
-import { activityLogInsert } from "./activity-log";
+import { activityLogInsert } from "@app/schema/activity-log";
 import type { UpdateOrganizationInput } from "../validation/organizations";
 
 export type OrganizationStatus = "active" | "suspended" | "terminated";

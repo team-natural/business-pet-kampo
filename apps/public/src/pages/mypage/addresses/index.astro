@@ -1,33 +1,34 @@
 ---
-// SCR-15. Only this organization's addresses (DEV-02 §3-1).
+// SCR-15. Only this organization's addresses (DEV-02 §3-1) — the scope is in listAddresses' WHERE
+// clause, not in a comparison after the rows come back.
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../../../layouts/Layout.astro";
-import { requireMemberSession } from "../../../lib/server/auth/page";
+import AddressList from "../../../lib/components/address-list.svelte";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../../lib/server/auth/page";
+import { listAddresses } from "../../../lib/server/services/addresses";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-// TODO(Phase C): call listShippingAddresses(db, organization.id). The scope belongs in the WHERE
-// clause, not in a comparison after the rows come back — a forgotten comparison still runs.
-const addresses: { publicId: string; recipientName: string; address: string; isDefault: boolean }[] = [];
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
+const addresses = await listAddresses(createDb(env.DB), organization.id);
 ---
 
 <Layout title="配送先 — マイページ">
-  <main>
-    <h1>配送先</h1>
-    <a href="/mypage/addresses/new">配送先を追加する</a>
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">マイページ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">配送先</h1>
+    <p class="mt-4 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">ご注文時にお選びいただける配送先です。{organization.name} のご担当者全員で共有されます。</p>
 
-    <ul>
-      {
-        addresses.map((address) => (
-          <li>
-            <span>{address.recipientName}</span>
-            <span>{address.address}</span>
-            {address.isDefault && <span>既定</span>}
-            <a href={`/mypage/addresses/${address.publicId}/edit`}>編集</a>
-          </li>
-        ))
-      }
-    </ul>
-    {addresses.length === 0 && <p>登録済みの配送先はありません。</p>}
-  </main>
+    <a href="/mypage/addresses/new" class="btn btn-primary mt-8">配送先を追加する</a>
+
+    <AddressList client:load addresses={addresses} />
+
+    <p class="mt-16 text-sm">
+      <a href="/mypage" class="underline underline-offset-4 hover:text-vermilion">マイページへ戻る</a>
+    </p>
+  </section>
 </Layout>

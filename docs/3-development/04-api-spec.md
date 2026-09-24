@@ -231,9 +231,9 @@ AdminUser・Member ともにセルフサーブの新規登録を持たない（A
 | --- | --- | --- | --- | --- |
 | public | GET / PATCH | `/api/v1/me` | アカウント情報の確認・編集 | 必須 |
 | public | GET | `/api/v1/me/company` | 所属 Organization 情報 | 必須 |
-| public | PATCH | `/api/v1/me/company` | 会社情報変更申請（運営確認が必要な項目あり。F-05-03） | 必須 |
+| public | PATCH | `/api/v1/me/company` | 会社情報変更申請。**`organizations` は更新しない** — 全項目が運営確認対象で、`activity_log` への記録と運営宛通知のみ（F-05-03、GOV-01 D-035） | 必須 |
 | public | GET / POST | `/api/v1/addresses` | 配送先一覧・追加 | 必須 |
-| public | PATCH / DELETE | `/api/v1/addresses/{public_id}` | 配送先編集・削除 | 必須（自 Organization のみ） |
+| public | PATCH / DELETE | `/api/v1/addresses/{public_id}` | 配送先編集・削除。他 Organization の配送先は **404**（403 は ID の存在を教えてしまう — DEV-02 §3-1）。既定フラグは常にちょうど 1 件: 新しい既定の設定と旧既定の解除は同一 `batch()`、既定の削除時は残りの最新を繰り上げる | 必須（自 Organization のみ） |
 | public | POST | `/api/v1/me/withdrawal` | 退会・取引終了申請 | 必須 |
 
 ### 5-6. カート・発注（PRD-03 FG-04）

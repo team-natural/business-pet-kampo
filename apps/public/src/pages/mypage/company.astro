@@ -1,35 +1,67 @@
 ---
-// SCR-14. Some fields cannot be edited outright — they become a change request the operator
-// confirms (F-05-03).
+// SCR-14. Every field here is contract data, so a change is a request the operator confirms
+// rather than an edit that applies (F-05-03, D-035).
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../../layouts/Layout.astro";
+import CompanyChangeForm from "../../lib/components/company-change-form.svelte";
 import { requireMemberSession } from "../../lib/server/auth/page";
+import { getOrganization } from "../../lib/server/services/organizations";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-const organization = session.organization;
+// Readable while suspended — it is ordering that is refused, not looking at your own details
+// (DEV-09 §2-2). The change request itself still needs an active organization, so the form is
+// only rendered for one.
+const canRequestChange = session.organization?.status === "active" && session.organization.membershipStatus === "active";
+const organization = session.organization ? await getOrganization(createDb(env.DB), session.organization.id) : null;
+
+const STATUS_LABELS: Record<string, string> = { active: "取引中", suspended: "一時停止中", terminated: "取引終了" };
 ---
 
-<Layout title="会社情報 — マイページ">
-  <main>
-    <h1>会社情報</h1>
+<Layout title="会社・取引先情報 — マイページ">
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">マイページ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">会社・取引先情報</h1>
 
     {
       organization ? (
-        <dl>
-          <dt>会社名</dt>
-          <dd>{organization.name}</dd>
-          <dt>取引先コード</dt>
-          <dd>{organization.orgCode}</dd>
-          <dt>取引状況</dt>
-          <dd>{organization.status}</dd>
-        </dl>
+        <>
+          <dl class="mt-8 grid gap-x-8 gap-y-4 border-t border-rule pt-8 sm:grid-cols-[10rem_1fr]">
+            <dt class="text-sm text-ink-soft">会社名</dt>
+            <dd>{organization.name}</dd>
+            <dt class="text-sm text-ink-soft">取引先コード</dt>
+            <dd class="font-mono tabular-nums">{organization.orgCode}</dd>
+            <dt class="text-sm text-ink-soft">取引状況</dt>
+            <dd>{STATUS_LABELS[organization.status] ?? organization.status}</dd>
+            <dt class="text-sm text-ink-soft">請求先郵便番号</dt>
+            <dd class="font-mono tabular-nums">{organization.billingPostalCode ?? "—"}</dd>
+            <dt class="text-sm text-ink-soft">請求先住所</dt>
+            <dd>{organization.billingAddress ?? "—"}</dd>
+          </dl>
+
+          {canRequestChange ? (
+            <div class="mt-16 border-t border-rule pt-8">
+              <h2 class="font-display text-lg">登録内容の変更</h2>
+              <p class="mt-3 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">
+                {/* Said plainly here rather than only after submitting: a member who expects the change to be
+                    live will not notice the old value still showing. */}
+                ご入力いただいた内容は、担当が確認のうえ反映いたします。反映までは、上記の内容が適用されます。取引先コードは変更できません。
+              </p>
+              <CompanyChangeForm client:load name={organization.name} billingPostalCode={organization.billingPostalCode} billingAddress={organization.billingAddress} />
+            </div>
+          ) : (
+            <p class="mt-12 border border-rule px-4 py-3 text-sm leading-relaxed text-pretty">現在、登録内容の変更を承れません。ご不明な点は担当までお問い合わせください。</p>
+          )}
+        </>
       ) : (
-        <p>所属する取引先が見つかりません。お問い合わせください。</p>
+        <p class="mt-8 text-sm leading-relaxed text-pretty">所属する取引先が見つかりません。お手数ですが、お問い合わせください。</p>
       )
     }
 
-    {/* TODO(Phase C): wire to PATCH /api/v1/me/company; fields needing operator confirmation become a change request. */}
-    <a href="/mypage">マイページへ戻る</a>
-  </main>
+    <p class="mt-16 text-sm">
+      <a href="/mypage" class="underline underline-offset-4 hover:text-vermilion">マイページへ戻る</a>
+    </p>
+  </section>
 </Layout>

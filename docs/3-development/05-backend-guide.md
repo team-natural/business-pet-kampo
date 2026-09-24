@@ -55,7 +55,8 @@ apps/admin/src/
 │   │                                 #   lib/server/ ではなくここに置く（§1-4）
 │   ├── server/                      # 確定済み。参照実装: apps/admin/src/lib/server/services/inquiries.ts 等
 │   │   ├── services/                #   業務ロジック・トランザクション境界（ドメイン別ファイル。例:
-│   │   │                             #   applications.ts, organizations.ts, orders.ts, inquiries.ts, activity-log.ts）
+│   │   │                             #   applications.ts, organizations.ts, orders.ts, inquiries.ts）
+│   │   │                             #   監査ログの書き込みは @app/schema/activity-log（両アプリ共通。§9-1）
 │   │   ├── auth/                    #   Access JWT の検証と requireAdminUser（DEV-02 §3-2。例: access.ts）
 │   │   └── validation/              #   drizzle-zod で導出した Zod スキーマ（DEV-01 §2）
 │   └── utils.ts                     # cn() 等の共通ユーティリティ
@@ -85,13 +86,18 @@ packages/schema/
 ├── src/schema.ts                    # Drizzle スキーマ本体（DEV-07 から生成。両アプリから参照される共有パッケージ）
 ├── src/client.ts                    # createDb(env.DB)
 ├── src/ulid.ts                      # public_id 生成
+├── src/query.ts                     # LIKE のワイルドカードエスケープ等、テーブル非依存のクエリ補助
+├── src/activity-log.ts              # activity_log への書き込みヘルパー。両アプリが書くため
+│                                     #   アプリ側ではなくここ（§9-1）
 └── migrations/                      # D1 migrations（Drizzle Kit 生成 SQL。apps/admin からのみ適用）
 
 packages/server-kit/src/
 ├── auth/                            # パスワードハッシュ、ロックアウト、セッション規則（§1-3）
 ├── http/                            # レスポンス整形・エラークラス・カーソルページネーション（DEV-04 §3・§4・§8）
-└── integration/                     # 外部連携の共通則: リトライ（指数バックオフ）・構造化ログ
-                                     #   （DEV-10 §1-2・§8-1）。メール・決済・OAuth が同じ関数を使う
+├── integration/                     # 外部連携の共通則: リトライ（指数バックオフ）・構造化ログ
+│                                     #   （DEV-10 §1-2・§8-1）。メール・決済・OAuth が同じ関数を使う
+└── mail/                            # Resend クライアント・送信口・HTML エスケープ（DEV-10 §3）。
+                                     #   本文テンプレートは各アプリ（文面はアプリのもの、送信経路は共通）
 
 packages/content/                    # 開発者が更新する Markdown（診断ルール。DEV-06 §1-1）
 ├── src/schema.ts                    # Zod スキーマ（両アプリが import）
@@ -255,8 +261,13 @@ Cloudflare Queues は不採用（`Confirmed` — DEV-01 §1/§3）。重い処�
 - 意味のある状態遷移を行う Service の関数 — 申請の承認 / 否認 / 差し戻し、取引停止 / 再開 / 終了、
   受注のステータス変更・入金確認・キャンセル、取引先別卸価格の設定 / 解除、商品の公開 / 非公開・取扱終了 —
   は必ず `activity_log` へ 1 件記録する。専用パッケージ（spatie/laravel-activitylog 等）は
-  使わないため、共通の薄い記録用ヘルパー関数（`logActivity(...)`、`apps/admin/src/lib/server/services/activity-log.ts`）を
-  経由して INSERT する。免除する場合は理由をコメントで明記する。
+  使わないため、共通の薄い記録用ヘルパー関数（`activityLogInsert(...)`、`packages/schema/src/activity-log.ts` —
+  `@app/schema/activity-log`）を経由して INSERT する。免除する場合は理由をコメントで明記する。
+  **両アプリが書き込むため `packages/schema` に置く**（S7）: 会社情報の変更申請・退会申請は Member 起点で、
+  `eslint-plugin-boundaries` によりアプリ間 import ができない。`causerType` の既定値は `"AdminUser"` なので、
+  Member 起点の記録は `causerType: "Member"` を明示する（DEV-07 §4-2）。
+  ヘルパーは未実行の insert を返す。`db.batch()` に変更本体と一緒に渡し、ロールバックした書き込みの
+  ログだけが残る状態を作らない（D1 に対話的トランザクションは無い — DEV-07 §11-2）。
 - 記録は Service 内にインラインで行う（ヘルパー関数の呼び出し程度は可）。横断的な単一の「AuditLogService」に
   判定ロジックそのものを持たせない。コード例は `CLAUDE.md` 参照。
 - **テストや静的解析では「呼び出しの欠落」を検出しにくい**（Vitest / `eslint-plugin-boundaries` でも記録漏れ自体は捕捉できない）。状態を変更する

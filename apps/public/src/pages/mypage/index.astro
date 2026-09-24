@@ -1,32 +1,105 @@
 ---
-// Reference for how a member-only PAGE authenticates: it redirects rather than answering 401,
-// and guards per-page (middleware.ts does security headers only).
+// SCR-12. The hub every other member page returns to, and where the trading status is explained —
+// requireActiveOrganizationForPage sends people here when their organization cannot act.
 import { env } from "cloudflare:workers";
-import Layout from "../../layouts/Layout.astro";
-import LogoutButton from "../../lib/components/logout-button.svelte";
-import { getSession } from "$lib/server/auth/session";
-import { getMemberByPublicId, toPublicMember } from "$lib/server/services/members";
 import { createDb } from "@app/schema/client";
+import Layout from "../../layouts/Layout.astro";
+import { listNews } from "../../lib/catalog";
+import LogoutButton from "../../lib/components/logout-button.svelte";
+import { requireMemberSession } from "../../lib/server/auth/page";
+import { viewerFor } from "../../lib/server/auth/session";
+import { getMemberByPublicId, toPublicMember } from "../../lib/server/services/members";
 
-const db = createDb(env.DB);
-const session = await getSession(Astro.cookies, db);
-if (!session) return Astro.redirect("/login", 302);
+const session = await requireMemberSession(Astro);
+if (session instanceof Response) return session;
 
 // getSession already joined members, so a miss here means the row vanished mid-request.
-const row = await getMemberByPublicId(db, session.memberPublicId);
+const row = await getMemberByPublicId(createDb(env.DB), session.memberPublicId);
 if (!row) return Astro.redirect("/login", 302);
 const member = toPublicMember(row);
+
+const organization = session.organization;
+const canAct = organization?.status === "active" && organization.membershipStatus === "active";
+
+// The summary uses the same viewer rule as /news, so a client_only entry never appears for a
+// suspended organization (D-021).
+const news = (await listNews(viewerFor(session))).slice(0, 3);
+
+// TODO(S9): 発注状況サマリ. The orders table has no rows to summarise until checkout ships, and a
+// zeroed panel would read as "you have no orders" rather than "not built yet".
+
+const STATUS_NOTICE: Record<string, string> = {
+  suspended: "現在お取引を一時停止しております。ご不明な点は担当までお問い合わせください。",
+  terminated: "お取引は終了しております。再開をご希望の場合は、あらためてお申し込みください。",
+};
+const notice = organization ? STATUS_NOTICE[organization.status] : "所属する取引先が見つかりません。お手数ですが、お問い合わせください。";
 ---
 
-<Layout title="My page">
-  <main class="mx-auto flex min-h-dvh max-w-3xl flex-col gap-8 p-6">
-    <header class="flex items-center justify-between gap-4">
-      <h1 class="text-2xl font-bold">My page</h1>
+<Layout title="マイページ">
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="eyebrow">マイページ</p>
+        <h1 class="mt-3 font-display text-3xl text-balance">{member.name} 様</h1>
+        <p class="mt-2 text-sm text-ink-soft">{member.email}</p>
+        {
+          organization && (
+            <p class="mt-3 text-sm text-ink-soft">
+              {organization.name}（取引先コード <span class="font-mono tabular-nums">{organization.orgCode}</span>）
+            </p>
+          )
+        }
+      </div>
       <LogoutButton client:load />
-    </header>
+    </div>
 
-    <section class="grid gap-2 text-sm">
-      <p><span class="text-gray-500">Signed in as</span> {member.name} ({member.email})</p>
-    </section>
-  </main>
+    {notice && <p class="mt-8 border border-vermilion px-4 py-3 text-sm leading-relaxed text-pretty text-vermilion">{notice}</p>}
+
+    <nav class="mt-12 grid gap-4 sm:grid-cols-2" aria-label="マイページのメニュー">
+      <a href="/mypage/profile" class="border border-rule p-5 hover:border-vermilion">
+        <span class="font-display">アカウント情報</span>
+        <span class="mt-1 block text-sm text-ink-soft">お名前・メールアドレス・電話番号</span>
+      </a>
+      <a href="/mypage/company" class="border border-rule p-5 hover:border-vermilion">
+        <span class="font-display">会社・取引先情報</span>
+        <span class="mt-1 block text-sm text-ink-soft">会社名・請求先の確認と変更申請</span>
+      </a>
+      {
+        canAct && (
+          <a href="/mypage/addresses" class="border border-rule p-5 hover:border-vermilion">
+            <span class="font-display">配送先</span>
+            <span class="mt-1 block text-sm text-ink-soft">お届け先の追加・編集</span>
+          </a>
+        )
+      }
+      <a href="/mypage/orders" class="border border-rule p-5 hover:border-vermilion">
+        <span class="font-display">発注履歴</span>
+        <span class="mt-1 block text-sm text-ink-soft">これまでのご注文の確認</span>
+      </a>
+    </nav>
+
+    <div class="mt-16 border-t border-rule pt-8">
+      <h2 class="font-display text-lg">お知らせ</h2>
+      {
+        news.length === 0 ? (
+          <p class="mt-4 text-sm text-ink-soft">お知らせはまだありません。</p>
+        ) : (
+          <ul class="mt-4 flex flex-col gap-3">
+            {news.map((entry) => (
+              <li class="flex flex-wrap items-baseline gap-3 text-sm">
+                <time datetime={entry.data.publishedDate.toISOString()} class="font-mono text-ink-soft tabular-nums">
+                  {entry.data.publishedDate.toLocaleDateString("ja-JP")}
+                </time>
+                <a href={`/news/${entry.id}`} class="underline underline-offset-4 hover:text-vermilion">
+                  {entry.data.title}
+                </a>
+                {entry.data.visibility === "client_only" && <span class="border border-rule px-2 py-0.5 text-xs text-ink-soft">取引先限定</span>}
+              </li>
+            ))}
+          </ul>
+        )
+      }
+      <a href="/news" class="btn btn-quiet mt-6">お知らせ一覧へ</a>
+    </div>
+  </section>
 </Layout>

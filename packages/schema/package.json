@@ -8,7 +8,8 @@
     ".": "./src/schema.ts",
     "./ulid": "./src/ulid.ts",
     "./client": "./src/client.ts",
-    "./query": "./src/query.ts"
+    "./query": "./src/query.ts",
+    "./activity-log": "./src/activity-log.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

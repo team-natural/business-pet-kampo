@@ -1,5 +1,5 @@
-// Reading the audit log (ADM-24). Writes happen in each service through activity-log.ts; this
-// file only reads.
+// Reading the audit log (ADM-24). Writes happen in each service through
+// @app/schema/activity-log; this file only reads.
 import { activityLog } from "@app/schema";
 import type { DbClient } from "@app/schema/client";
 import { and, desc, eq, lt } from "drizzle-orm";

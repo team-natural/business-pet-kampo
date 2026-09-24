@@ -1,9 +1,13 @@
 import type { APIContext } from "astro";
 import { env } from "cloudflare:workers";
 import { createDb } from "@app/schema/client";
-import { jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { NotFoundError, ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
+import { ZodError, flattenError } from "zod";
 import { requireActiveOrganization, requireSession } from "$lib/server/auth/session";
-import { getOrganization } from "$lib/server/services/organizations";
+import { notifyCompanyChangeRequested } from "$lib/server/mail/organizations";
+import { getMemberByPublicId } from "$lib/server/services/members";
+import { getOrganization, requestCompanyChange } from "$lib/server/services/organizations";
+import { companyChangeRequestSchema } from "$lib/server/validation/me";
 
 export async function GET({ cookies }: APIContext): Promise<Response> {
   try {
@@ -16,14 +20,28 @@ export async function GET({ cookies }: APIContext): Promise<Response> {
   }
 }
 
-// TODO(Phase C): PATCH. Fields the operator must confirm become a change request rather than an
-// immediate edit (F-05-03). org_code is never writable from the member side by any path — the
-// price files reference it (D-019).
-export async function PATCH({ cookies }: APIContext): Promise<Response> {
+// Nothing on `organizations` changes here: the fields on SCR-14 are contract data the operator
+// re-checks first, so this records a request and notifies them (F-05-03, D-035). org_code is
+// writable from no member-side path at all (D-019).
+export async function PATCH({ request, cookies, locals }: APIContext): Promise<Response> {
   try {
-    requireActiveOrganization(await requireSession(cookies, createDb(env.DB)));
-    return new Response("Not implemented", { status: 501 });
+    const db = createDb(env.DB);
+    const session = await requireSession(cookies, db);
+    const organization = requireActiveOrganization(session);
+
+    const member = await getMemberByPublicId(db, session.memberPublicId);
+    if (!member) throw new NotFoundError("アカウントが見つかりません。");
+
+    const input = companyChangeRequestSchema.parse(await request.json());
+    const requested = await requestCompanyChange(db, organization.id, member, input);
+
+    // The audit entry is already committed, so a failed notification must not turn the member's
+    // 200 into a 500 — notifyCompanyChangeRequested never throws.
+    locals.cfContext?.waitUntil(notifyCompanyChangeRequested(env, requested));
+
+    return jsonItem({ changes: requested.changes });
   } catch (error) {
+    if (error instanceof ZodError) return toErrorResponse(new ValidationError(flattenError(error).fieldErrors));
     return toErrorResponse(error);
   }
 }

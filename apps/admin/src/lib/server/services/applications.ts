@@ -7,7 +7,7 @@ import { ulid } from "@app/schema/ulid";
 import { ConflictError, InvalidStateTransitionError, NotFoundError } from "@app/server-kit/http";
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { AdminUser } from "./admin-users";
-import { activityLogInsert } from "./activity-log";
+import { activityLogInsert } from "@app/schema/activity-log";
 import type { ApproveApplicationInput, RejectApplicationInput, ReviewApplicationInput } from "../validation/applications";
 
 export type ApplicationStatus = "received" | "reviewing" | "needs_confirmation" | "approved" | "rejected" | "withdrawn";

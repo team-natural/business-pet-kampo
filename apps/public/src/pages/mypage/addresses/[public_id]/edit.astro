@@ -1,30 +1,40 @@
 ---
 // SCR-17. The URL parameter is the public_id (a ULID); the internal integer never appears
 // (DEV-01 §8).
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
+import { NotFoundError } from "@app/server-kit/http";
 import Layout from "../../../../layouts/Layout.astro";
-import { requireMemberSession } from "../../../../lib/server/auth/page";
+import AddressForm from "../../../../lib/components/address-form.svelte";
+import { requireActiveOrganizationForPage, requireMemberSession } from "../../../../lib/server/auth/page";
+import { getAddress, toPublicAddress } from "../../../../lib/server/services/addresses";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
 
-const publicId = Astro.params.public_id!;
-// TODO(Phase C): read only this organization's addresses, and answer 404 when there is no match —
-// anything else lets a visitor probe for addresses belonging to another company.
+const organization = requireActiveOrganizationForPage(Astro, session);
+if (organization instanceof Response) return organization;
+
+// getAddress scopes to this organization, so another company's address is 404 — 403 would confirm
+// the id exists.
+let address;
+try {
+  address = toPublicAddress(await getAddress(createDb(env.DB), organization.id, Astro.params.public_id!));
+} catch (error) {
+  if (error instanceof NotFoundError) return Astro.rewrite("/404");
+  throw error;
+}
 ---
 
 <Layout title="配送先の編集 — マイページ">
-  <main>
-    <h1>配送先の編集</h1>
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">マイページ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">配送先の編集</h1>
 
-    <form method="post" action={`/api/v1/addresses/${publicId}`}>
-      <label>宛名<input type="text" name="recipientName" required /></label>
-      <label>郵便番号<input type="text" name="postalCode" required /></label>
-      <label>住所<input type="text" name="address" required /></label>
-      <label>電話番号<input type="tel" name="phone" required /></label>
-      <label><input type="checkbox" name="isDefault" value="1" />既定の配送先にする</label>
-      <button type="submit">保存する</button>
-    </form>
+    <AddressForm client:load address={address} />
 
-    <a href="/mypage/addresses">配送先一覧へ戻る</a>
-  </main>
+    <p class="mt-16 text-sm">
+      <a href="/mypage/addresses" class="underline underline-offset-4 hover:text-vermilion">配送先一覧へ戻る</a>
+    </p>
+  </section>
 </Layout>

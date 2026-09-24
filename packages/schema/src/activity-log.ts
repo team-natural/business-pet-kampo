@@ -1,7 +1,11 @@
 // Audit log writer. Called inline from the Service function performing the change, not from a
-// cross-cutting logger that would have to re-derive what counts as loggable.
-import { activityLog } from "@app/schema";
-import type { DbClient } from "@app/schema/client";
+// cross-cutting logger that would have to re-derive what counts as loggable (DEV-05 §9-1).
+//
+// Shared rather than owned by apps/admin: member-initiated changes are logged too (a company
+// change request, a withdrawal), and the boundary rules stop apps/public importing from the other
+// app. The table is in packages/schema, so the one writer for it lives here as well.
+import { activityLog } from "./schema";
+import type { DbClient } from "./client";
 import type { SQL } from "drizzle-orm";
 
 export interface ActivityLogEntry {
@@ -10,6 +14,8 @@ export interface ActivityLogEntry {
   subjectType?: string;
   subjectId?: number;
   event?: string;
+  // "AdminUser" or "Member" (DEV-07 §4-2). Defaults to AdminUser because that is who most of these
+  // belong to; a member-initiated entry has to say so.
   causerType?: string;
   // Omit for system-driven changes with no human actor — never invent a "system" AdminUser row.
   causerId?: number;

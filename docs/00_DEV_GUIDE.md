@@ -317,11 +317,11 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S6 | `feat/organization-admin` | 取引先の一覧・詳細・停止/再開/終了・価格参照（ADM-14〜16） | DEV-09 §2-2、PRD-03 FG-07 | S4 | 停止中の取引先が発注 API で 403。ログインは通る |
 | S7 | `feat/mypage-addresses` | マイページ基盤・配送先・会社情報変更申請（SCR-12・14〜17） | PRD-03 FG-05 | S5 | 他社の配送先が 404（403 ではない） |
 | S8 | `feat/cart` | カート追加/変更/削除・単価解決・金額計算（SCR-21） | PRD-03 FG-04、BIZ-03 §3-1 | S5、**TBD-07** | 金額が `commerce.ts` と一致／存在しない slug が 400／発注単位違反を拒否 |
-| S9 | `feat/checkout-bank-transfer` | 発注確定（銀行振込のみ）・スナップショット・発注履歴（SCR-18・19・22〜24） | DEV-05 §3、DEV-07 §6-0 | S7, S8、**TBD-04b** | 発注後に Markdown の価格を変えても過去注文の金額が動かない |
+| S9 | `feat/checkout-bank-transfer` | 発注確定（銀行振込のみ）・スナップショット・発注履歴（SCR-18・19・22〜24）。**マイページトップ（SCR-12）の発注状況サマリもここで入れる** — S7 では `orders` に行が無く、0 件表示は「注文が無い」と読めてしまうため意図的に出していない | DEV-05 §3、DEV-07 §6-0 | S7, S8、**TBD-04b** | 発注後に Markdown の価格を変えても過去注文の金額が動かない |
 | S10 | `feat/order-admin` | 受注管理・遷移 4 ルート・入金確認・キャンセル（ADM-17・18） | DEV-09 §2-5・§2-6、DEV-04 §5-7 | S9 | DEV-09 §2-5-2 の全セルをテスト／不正遷移が 409 |
 | S11 | `feat/payment-stripe` | カード決済・Webhook・冪等性 | DEV-10 §2、DEV-09 §2-6 | S9、TBD-18 | 同一 Webhook を 2 回投げても `payments` が二重更新されない |
 | S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
-| S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。**Member 起点の監査ログの共有ヘルパーをここで作る**（`activityLogInsert` は現在 `apps/admin` 専用で、境界ルール上 `apps/public` から import できない — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
+| S13 | `feat/withdrawal` | 退会・取引終了の申請と運営側処理。Member 起点の監査ログは S7 で共有化済み（`@app/schema/activity-log`。`causerType: "Member"` を明示する — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
 | S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・マイページ内お知らせ | GOV-01 D-021、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
 | S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み） | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
 | S16 | `chore/release-readiness` | 法務文面・負荷・セキュリティ・staging 確認 | DEV-08 §7 | 全ステージ | DEV-08 §7-3 の検証完了チェックリストが全項目通過 |
@@ -456,4 +456,5 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | `pnpm build` が `exited (137)` で落ちる | 2 アプリの並列ビルドがメモリに収まっていない。`! npx turbo run build --concurrency=1` で逐次化すると通る。E2E も同様に `pnpm --filter public test:e2e` / `pnpm --filter admin test:e2e` と分けて流す |
 | `ps` にゾンビ（`[workerd] <defunct>`）が数百個ある | **コンテナの PID 1 が `sleep infinity` で、孤児プロセスを reap しない**（`docker-compose.yml`）。ゾンビ自体はメモリを食わないが PID を消費し続ける。恒久対応は compose に `init: true` を足して tini を PID 1 にすること（要リビルド）。当座はコンテナの再起動で消える |
 | E2E の `globalSetup` が `FOREIGN KEY constraint failed` で止まる | `applications` と `organizations` は相互参照する（DEV-07 §5-1）。**wrangler は最初のエラーで残りのステートメントを捨てる**ため、複文の teardown が途中で失敗すると次回はその残骸で必ず落ちる。`apps/admin/tests/e2e/global-setup.ts` のように 1 文ずつ実行する |
+| E2E のフィクスチャが「さっきまであったのに消えている」 | **両スイートは同じローカル D1 を共有する**（`.wrangler-state`）。teardown は固定 ID ではなく形で消すため、prefix が被ると片方が相手のフィクスチャを消す。`apps/admin` は `org_code LIKE 'ORG-E2E%'`、`apps/public` は `org_code LIKE 'E2E-%'` を自分の範囲としている。**新しい `globalSetup` を書くときは、既存 2 つのどちらにも一致しない prefix を選ぶ** |
 | **`ctx.waitUntil()` を使う書き込みの直後にページが空の 200 を返す**（dev のみ）| dev サーバーの既知の不具合。`waitUntil` の処理が走っている最中に次のリクエストが届くと workerd が `remote.jsg.TypeError: Cannot read properties of null (reading 'function')` で落ち、以降のレスポンスが空になる。**`pnpm build` + `astro preview`（本番と同じ成果物）では再現しない**ことを申請承認フローで確認済み — アプリ側のコードの問題ではない。E2E では「書き込み後にリロードしたページ」を検証対象にせず、API をポーリングして結果を確かめる（`apps/admin/tests/e2e/application-review.spec.ts` 参照）|
