@@ -1,0 +1,1 @@
+ALTER TABLE `inquiries` ADD `resolved_at` text;

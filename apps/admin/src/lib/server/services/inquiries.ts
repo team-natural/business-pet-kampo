@@ -106,6 +106,9 @@ export async function transitionInquiry(db: DbClient, publicId: string, to: Inqu
         status: to,
         // Taking it on means owning it; handing it back to `new` releases it.
         assigneeId: to === "in_progress" ? admin.id : to === "new" ? null : row.assigneeId,
+        // The retention clock (DEV-07 §10). Cleared on reopen so a reopened inquiry is not deleted
+        // a year after the resolution it no longer has.
+        resolvedAt: to === "resolved" ? new Date().toISOString() : null,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(inquiries.id, row.id))

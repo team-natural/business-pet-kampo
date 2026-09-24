@@ -324,6 +324,10 @@ export const inquiries = sqliteTable(
     status: text("status", { enum: ["new", "in_progress", "resolved"] }).notNull(),
     assigneeId: integer("assignee_id").references(() => adminUsers.id),
     memo: text("memo"),
+    // The retention clock's start (§10). updated_at moves whenever the memo is edited, which would
+    // restart the year on a resolved inquiry — the same reason organizations carry terminated_at.
+    // Cleared again on reopen (D-030).
+    resolvedAt: text("resolved_at"),
     createdAt: createdAt(),
     updatedAt: text("updated_at").notNull(),
   },

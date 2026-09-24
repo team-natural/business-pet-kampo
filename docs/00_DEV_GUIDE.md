@@ -323,7 +323,7 @@ Member を作るまで動かしようがなく、優先度順に並べると毎�
 | S12 | `feat/oauth-login` | LINE / Google / Facebook ログイン。**実装は完了、3 プロバイダのアプリ登録が未了**（設定が欠けるプロバイダはボタンが出ず `/auth/{provider}` が 404 — GOV-01 D-036）。ライブラリ Arctic の非推奨は TBD-36 | DEV-10 §5 | S5 | 未申請のアカウントでログインしても Member が 1 行も増えない |
 | S13 | `feat/withdrawal` | 退会・取引終了の申請（SCR-20）と運営側の拒否判定（F-12-01〜03）。**F-12-04（担当者個人の Membership 無効化）は未実装** — ADM-16 は読み取り専用のままで、S16 までに要否を判断する（下記 TBD-36b）。Member 起点の監査ログは S7 で共有化済み（`@app/schema/activity-log`。`causerType: "Member"` を明示する — DEV-05 §9-1） | PRD-03 FG-12、DEV-09 §2-2 | S6, S9 | 未完了注文・未入金があると終了処理が止まる／Member 起点の遷移が `activity_log` に残る |
 | S14 | `feat/news-and-seo` | お知らせ仕上げ・**サイトマップ**・`robots.txt`・会員ルートの noindex。マイページ内お知らせは S7 で実装済み。サイトマップは `@astrojs/sitemap` ではなく動的ルート（**同 integration は SSR の動的ルートを拾えない** — GOV-01 D-037） | GOV-01 D-021・D-037、PRD-02 §9 | S2, S5 | `draft` / `client_only` が一覧・詳細・サイトマップの 3 か所で除外される |
-| S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み） | OPS-02 §4-3、DEV-07 §10 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
+| S15 | `feat/retention-batch` | Cron Triggers によるデータ保管期限の自動削除。**取引先の保管期限は `organizations.terminated_at` から数える**（`updated_at` は終了後の編集で動くため使えない — S6 で追加済み）。問い合わせの起点は S15 で追加した `inquiries.resolved_at`。**発注のある取引先は 1 年では削除しない** — 外部キーと 5 年保管が両立しないため（GOV-01 D-042）。段階通知は未実装（TBD-38）。`scheduled` のため `wrangler.jsonc` の `main` を `src/worker.ts` に差し替えている | OPS-02 §4-3、DEV-07 §10、GOV-01 D-042 | S9 | `causer_id` が NULL、`properties.source: system` で記録される |
 | S16 | `chore/release-readiness` | 法務文面・負荷・セキュリティ・staging 確認 | DEV-08 §7 | 全ステージ | DEV-08 §7-3 の検証完了チェックリストが全項目通過 |
 
 **並行して進められるもの**

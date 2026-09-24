@@ -287,17 +287,34 @@ DB は Cloudflare D1（Cloudflare マネージドの SQLite 互換データベ�
 
 PRD-02 §8 のデータライフサイクルに準拠し、日次バッチで自動削除する（個人情報保護対応）。バッチの起動方法は Cloudflare Cron Triggers（DEV-01 §2。`wrangler.jsonc` の `triggers.crons` で定義し、対応する Scheduled Worker 内で以下の処理を実行する）。
 
+実装は `apps/admin/src/lib/server/services/retention.ts`（`runRetentionBatch()`）。起動は
+`apps/admin/src/worker.ts` の `scheduled` ハンドラで、**Astro のアダプタは `fetch` しか export しない
+ため、`wrangler.jsonc` の `main` を自前のエントリポイントに差し替えている**（@astrojs/cloudflare v13 で
+`workerEntryPoint` オプションは廃止された）。cron は `"0 18 * * *"`（= 03:00 JST）。
+
 ```ts
 // 毎日 03:00 JST 実行（Cron Triggers — DEV-01 §2）
 purgeExpiredApplications(); // 否認・取消から 1 年経過した申請を物理削除（DEV-07 §10）
-purgeTerminatedOrganizations(); // 取引終了から 1 年経過した取引先を物理削除
-purgeExpiredInquiries(); // 対応完了から 1 年経過した問い合わせを物理削除
-purgeExpiredSessions(); // 有効期限切れの member_sessions を削除（admin 側は Access が管理 — GOV-01 D-022）
-rotateLogs(); // 操作ログの保持期間超過分を削除
+purgeResolvedInquiries(); // 対応完了から 1 年経過した問い合わせを物理削除（起点は resolved_at）
+purgeExpiredMemberSessions(); // 有効期限切れの member_sessions を削除（admin 側は Access が管理 — GOV-01 D-022）
+purgeTerminatedOrganizations(); // 取引終了から 1 年経過した取引先を物理削除。**発注のある取引先は除く**
 ```
 
-- 期限到達前にユーザーへ段階通知する（取引終了後 1 年の保管期限に対する事前通知。90 日前メール → 30 日前再通知 → 7 日前最終通知 → 削除実行後に完了通知）
-- 自動削除は必ず監査ログに記録する（システム起点のため causer は NULL のまま、event: `data.purged`、発生源は properties で示す — DEV-05 §9-1）
+- 自動削除は必ず監査ログに記録する（システム起点のため **`causer_id` も `causer_type` も NULL**、
+  event: `data.purged`、発生源は `properties.source: "system"` で示す — DEV-05 §9-1）。
+  **何も削除しなかった日は記録しない** — 毎日 0 件のログが、実際に削除した日を埋もれさせるため
+- **`activity_log` 自体は削除しない**（DEV-07 §10 で「削除不可」）。取引先を削除するときは
+  `activity_log.organization_id` を NULL にして行を残し、削除された取引先の `org_code` は
+  purge エントリの `properties` に写す。旧版の `rotateLogs()`（操作ログの保持期間超過分を削除）は
+  DEV-07 §10 と矛盾するため**廃止**した — ローテーションできる監査ログは監査ログではない
+- **発注のある取引先は 1 年では削除しない**。`orders` は 5 年保管で `organization_id` は NOT NULL の
+  外部キーであり、削除すると残すべき注文の参照先が消える（GOV-01 D-042、DEV-07 §10）。バッチは
+  該当件数を `organizationsHeldByOrders` として返し、ログに出す
+- 各処理は独立に実行し、1 つ失敗しても後続を止めない。`scheduled` には例外を返す相手がいないため、
+  失敗は構造化ログに出して飲み込む（DEV-10 §8-1）
+- **期限到達前の段階通知（90 日前 → 30 日前 → 7 日前）は未実装**（GOV-02 TBD-38）。送信済みを
+  記録する列がまだ無く、取引終了済みの取引先では所属 Member の Membership が `suspended` のため
+  「誰に送るか」も決まっていない
 - 取引終了時のデータ保持・エクスポート条件は OPS-01 §4-3 と整合させる
 - 発注・決済履歴（会計データ）は自動削除の対象外とする（DEV-02 §8-1 参照）
 

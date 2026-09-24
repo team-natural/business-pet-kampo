@@ -15,8 +15,9 @@ export interface ActivityLogEntry {
   subjectId?: number;
   event?: string;
   // "AdminUser" or "Member" (DEV-07 §4-2). Defaults to AdminUser because that is who most of these
-  // belong to; a member-initiated entry has to say so.
-  causerType?: string;
+  // belong to; a member-initiated entry has to say so. Pass `null` explicitly for a system-driven
+  // change — `undefined` would take the AdminUser default and attribute a batch to a person.
+  causerType?: string | null;
   // Omit for system-driven changes with no human actor — never invent a "system" AdminUser row.
   causerId?: number;
   // Required for anything touching an order, a trading partner or a cart (DEV-05 §9-1). Null only
@@ -38,7 +39,7 @@ export function activityLogInsert(db: DbClient, entry: ActivityLogEntry) {
     subjectType: entry.subjectType ?? null,
     subjectId: entry.subjectId ?? null,
     event: entry.event ?? null,
-    causerType: entry.causerType ?? "AdminUser",
+    causerType: entry.causerType === undefined ? "AdminUser" : entry.causerType,
     causerId: entry.causerId ?? null,
     organizationId: entry.organizationId ?? null,
     properties: entry.properties ? JSON.stringify(entry.properties) : null,

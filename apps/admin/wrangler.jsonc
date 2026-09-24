@@ -1,7 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  // A custom entrypoint rather than the adapter's, because this Worker also needs `scheduled` for
+  // the retention batch. src/worker.ts delegates `fetch` straight to @astrojs/cloudflare/handler
+  // (OPS-02 §4-3; the adapter's `workerEntryPoint` option was removed in v13).
+  "main": "./src/worker.ts",
   "name": "business-pet-kampo-admin",
+
+  // 03:00 JST = 18:00 UTC the previous day. Deliberately outside Japanese business hours: the
+  // batch deletes rows, and doing that while an operator is mid-screen is how a list refreshes
+  // into a 404 (OPS-02 §4-3).
+  "triggers": {
+    "crons": ["0 18 * * *"],
+  },
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {

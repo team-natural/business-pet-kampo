@@ -574,6 +574,7 @@ erDiagram
 | status | TEXT | NO | new / in_progress / resolved |
 | assignee_id | INTEGER | YES | FK → admin_users.id |
 | memo | TEXT | YES |  |
+| resolved_at | TEXT | YES | 対応完了日時（ISO 8601）。§10 の保管期限の起点。**`updated_at` はメモ編集で動くため起点に使えない**（`organizations.terminated_at` と同じ理由）。再オープン（D-030）で NULL に戻す |
 | created_at | TEXT | NO |  |
 | updated_at | TEXT | NO |  |
 
@@ -639,12 +640,23 @@ erDiagram
 | データ | 期限 | 削除方式 |
 | --- | --- | --- |
 | Application（否認・取消） | 1 年 | 日次バッチ（Cron Triggers）で物理削除 |
-| Organization（terminated） | 取引終了後 1 年 | 日次バッチで物理削除 |
+| Organization（terminated） | 取引終了後 1 年 | 日次バッチで物理削除。**ただし発注のある取引先は対象外**（下記）。起点は `terminated_at` |
 | Order / OrderItem / Payment | 契約終了後 5 年（`[Assumed]`。PRD-02 §8） | 保存期間経過後に検討 |
-| 監査ログ（activity_log） | 永続 | 削除不可 |
-| お問い合わせ（Inquiry） | 対応完了後 1 年 | 日次バッチで物理削除 |
+| 監査ログ（activity_log） | 永続 | 削除不可。**取引先を削除するときは `organization_id` を NULL にして行は残す** |
+| お問い合わせ（Inquiry） | 対応完了後 1 年 | 日次バッチで物理削除。起点は `resolved_at`（`updated_at` はメモ編集で動くため使えない — `organizations.terminated_at` と同じ理由）|
 | member_sessions（期限切れ） | 有効期限切れ後速やかに | 日次バッチで物理削除。ログアウト・強制失効は即時の行削除で対応 |
 
+> **発注のある取引先は 1 年では削除できない。** `orders.organization_id` と `orders.member_id` は
+> NOT NULL の外部キーであり、受発注データは 5 年保管である。1 年で取引先を物理削除すると、残すべき
+> 注文の参照先が消えて外部キーが壊れる。したがって日次バッチは **`orders` を 1 件も持たない terminated の
+> 取引先だけ**を削除し、発注のある取引先は会計保管期間の満了まで残す（GOV-01 D-042）。1 年時点で個人情報
+> だけを消す匿名化を採るかは未決（GOV-02 TBD-37）。
+>
+> 取引先を削除するときに一緒に消えるのは `memberships` / `shipping_addresses` / `cart_items` と、
+> その取引先にしか所属していない `members`（および `member_sessions` / `member_password_reset_tokens` /
+> `social_accounts`）。`activity_log` は消さず `organization_id` を NULL にし、
+> `applications.organization_id` も NULL にしてから取引先を削除する（相互参照のため — §5-1）。
+>
 > **商品カタログ・お知らせ・診断ルール・FAQ・法務ページの文面は DB に存在しないため、この表の対象外**（GOV-01 D-017・D-018）。履歴は Git が持つ（PRD-02 §8）。取扱終了商品も Markdown 側に `discontinued: true` で残り、過去の注文は `order_items` のスナップショットで保持される（§6-0）。
 >
 > `admin_sessions` は廃止（GOV-01 D-022）。管理者セッションの寿命は Cloudflare Access 側の設定で決まる。
