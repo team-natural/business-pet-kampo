@@ -1,24 +1,42 @@
 ---
 // SCR-13, the member's own account details.
+import { env } from "cloudflare:workers";
+import { createDb } from "@app/schema/client";
 import Layout from "../../layouts/Layout.astro";
+import ProfileForm from "../../lib/components/profile-form.svelte";
 import { requireMemberSession } from "../../lib/server/auth/page";
+import { getMemberByPublicId } from "../../lib/server/services/members";
 
 const session = await requireMemberSession(Astro);
 if (session instanceof Response) return session;
+
+// Read here rather than fetched by the island: the form opens filled in, and nothing sensitive
+// crosses to the client — a member's own name and address are theirs to see.
+const member = await getMemberByPublicId(createDb(env.DB), session.memberPublicId);
+if (!member) return Astro.rewrite("/404");
 ---
 
 <Layout title="アカウント情報 — マイページ">
-  <main>
-    <h1>アカウント情報</h1>
+  <section class="mx-auto w-full max-w-3xl px-5 py-16 sm:px-8">
+    <p class="eyebrow">マイページ</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">アカウント情報</h1>
 
-    {/* TODO(Phase C): show the current values from GET /api/v1/me and wire the form to PATCH /api/v1/me. */}
-    <form method="post" action="/api/v1/me">
-      <label>お名前<input type="text" name="name" required /></label>
-      <label>メールアドレス<input type="email" name="email" required /></label>
-      <label>電話番号<input type="tel" name="phone" /></label>
-      <button type="submit">保存する</button>
-    </form>
+    <ProfileForm client:load name={member.name} email={member.email} phone={member.phone} />
 
-    <a href="/mypage">マイページへ戻る</a>
-  </main>
+    <div class="mt-16 border-t border-rule pt-8">
+      <h2 class="font-display text-lg">パスワード</h2>
+      <p class="mt-3 max-w-prose text-sm leading-relaxed text-pretty text-ink-soft">
+        {
+          /* No current-password field here: the reset flow proves control of the address instead, and
+            one way in is easier to keep sound than two. */
+        }
+        パスワードの変更は、再設定用のリンクをメールでお送りする形で承っています。
+      </p>
+      <a href="/login/forgot" class="btn btn-quiet mt-6">パスワードを再設定する</a>
+    </div>
+
+    <p class="mt-10 text-sm">
+      <a href="/mypage" class="underline underline-offset-4 hover:text-vermilion">マイページへ戻る</a>
+    </p>
+  </section>
 </Layout>

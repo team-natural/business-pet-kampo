@@ -1,19 +1,22 @@
 ---
-// SCR-11. The token is verified server-side, by the POST handler.
+// SCR-11. The token is verified by the POST handler, not here — see the note in
+// activate/[token].astro: expired, used and forged have to be indistinguishable.
 import Layout from "../../../layouts/Layout.astro";
+import PasswordForm from "../../../lib/components/password-form.svelte";
 
 const { token } = Astro.params;
 ---
 
 <Layout title="新しいパスワードの設定">
-  <main>
-    <h1>新しいパスワードの設定</h1>
+  <section class="mx-auto w-full max-w-2xl px-5 py-24 sm:px-8">
+    <p class="eyebrow">パスワードの再設定</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">新しいパスワードの設定</h1>
+    <p class="mt-5 max-w-prose leading-loose text-pretty text-ink-soft">新しいパスワードを設定します。設定すると、ログイン中の端末はすべてログアウトされます。</p>
 
-    {/* TODO(Phase C): wire to POST /api/v1/auth/password/reset. Expired and already-used answer with the same wording. */}
-    <form method="post" action="/api/v1/auth/password/reset">
-      <input type="hidden" name="token" value={token} />
-      <label>新しいパスワード<input type="password" name="password" required minlength="12" autocomplete="new-password" /></label>
-      <button type="submit">パスワードを設定する</button>
-    </form>
-  </main>
+    {
+      /* Lands on /login, not /mypage: a reset does not sign anyone in, so the new password gets
+        typed once at the login screen (DEV-09 §2-4-4). */
+    }
+    <PasswordForm client:load endpoint="/api/v1/auth/password/reset" token={token!} submitLabel="パスワードを設定する" submittingLabel="設定しています…" redirectTo="/login" />
+  </section>
 </Layout>

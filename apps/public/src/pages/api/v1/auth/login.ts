@@ -5,6 +5,7 @@ import { assertNotLockedOut, clearAuthFailures, recordAuthFailure } from "@app/s
 import { UnauthenticatedError, ValidationError, jsonItem, toErrorResponse } from "@app/server-kit/http";
 import { ZodError, flattenError } from "zod";
 import { MEMBER_SESSION_COOKIE } from "$lib/server/auth/session";
+import { sessionCookieOptions } from "$lib/server/auth/cookie";
 import { toPublicMember } from "$lib/server/services/members";
 import { login } from "$lib/server/services/auth";
 import { loginSchema } from "$lib/server/validation/auth";
@@ -25,13 +26,7 @@ export async function POST({ request, cookies, clientAddress }: APIContext): Pro
     const { session, member } = await login(db, email, password, ttlDays);
     await clearAuthFailures(env.KV, ip, email);
 
-    cookies.set(MEMBER_SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      expires: new Date(session.expiresAt),
-    });
+    cookies.set(MEMBER_SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
 
     return jsonItem(toPublicMember(member));
   } catch (error) {

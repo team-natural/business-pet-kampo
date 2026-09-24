@@ -24,6 +24,15 @@ function runInAdmin(command: string, args: string[]) {
   if (result.status !== 0) throw new Error(`E2E setup failed: ${command} ${args.join(" ")}`);
 }
 
+// One statement per call. wrangler aborts the whole command at the first error, so a multi
+// statement teardown that trips a foreign key leaves the rest unrun — and the next run then fails
+// on the debris the failed one left behind.
+function execEach(statements: string[]) {
+  for (const sql of statements) {
+    runInAdmin("npx", ["wrangler", "d1", "execute", "DB", "--local", ...persist, "--command", sql]);
+  }
+}
+
 export default function globalSetup() {
   if (!existsSync(migrationsDir)) {
     throw new Error("No D1 migrations found. Run `pnpm db:generate` from the repo root first.");
@@ -31,10 +40,13 @@ export default function globalSetup() {
 
   runInAdmin("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--local", ...persist]);
 
-  // Drop only this account, so a developer's own data survives a test run. Sessions go first:
-  // member_sessions.member_id has no ON DELETE CASCADE.
+  // Drop only this account, so a developer's own data survives a test run. Nothing referencing
+  // members has ON DELETE CASCADE, so every child goes first — the reset-token row is the one the
+  // password-reset specs leave behind.
   const email = E2E_MEMBER.email.replaceAll("'", "''");
-  runInAdmin("npx", ["wrangler", "d1", "execute", "DB", "--local", ...persist, "--command", `DELETE FROM member_sessions WHERE member_id IN (SELECT id FROM members WHERE email = '${email}'); DELETE FROM members WHERE email = '${email}';`]);
+  const owned = `member_id IN (SELECT id FROM members WHERE email = '${email}')`;
+
+  execEach([`DELETE FROM member_sessions WHERE ${owned}`, `DELETE FROM member_password_reset_tokens WHERE ${owned}`, `DELETE FROM memberships WHERE ${owned}`, `DELETE FROM members WHERE email = '${email}'`]);
 
   runInAdmin("pnpm", ["seed", "--", "--table=members", `--email=${E2E_MEMBER.email}`, `--password=${E2E_MEMBER.password}`, `--name=${E2E_MEMBER.name}`]);
 }

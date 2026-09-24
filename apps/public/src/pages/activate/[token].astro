@@ -1,21 +1,22 @@
 ---
 // SCR-09. Where an approved applicant sets their first password (PRD-03 F-01-05). Authenticating
-// with OAuth is not approval — that happened in the application review.
+// with OAuth is not approval — that happened in the application review (DEV-10 §5-3).
+//
+// The token is not checked here. Verifying it server-side to decide what to render would make a
+// used or expired link look different from a live one, which is the one thing these flows must
+// not disclose; the POST handler answers them all the same way.
 import Layout from "../../layouts/Layout.astro";
+import PasswordForm from "../../lib/components/password-form.svelte";
 
 const { token } = Astro.params;
 ---
 
 <Layout title="アカウントの有効化">
-  <main>
-    <h1>アカウントの有効化</h1>
-    <p>パスワードを設定すると、卸価格の確認とご発注をご利用いただけます。</p>
+  <section class="mx-auto w-full max-w-2xl px-5 py-24 sm:px-8">
+    <p class="eyebrow">はじめに</p>
+    <h1 class="mt-3 font-display text-3xl text-balance">アカウントの有効化</h1>
+    <p class="mt-5 max-w-prose leading-loose text-pretty text-ink-soft">パスワードを設定すると、御社の卸価格の確認とご発注をご利用いただけます。設定後はそのままログインした状態になります。</p>
 
-    {/* TODO(Phase C): wire to POST /api/v1/auth/activate. */}
-    <form method="post" action="/api/v1/auth/activate">
-      <input type="hidden" name="token" value={token} />
-      <label>パスワード<input type="password" name="password" required minlength="12" autocomplete="new-password" /></label>
-      <button type="submit">設定してはじめる</button>
-    </form>
-  </main>
+    <PasswordForm client:load endpoint="/api/v1/auth/activate" token={token!} submitLabel="設定してはじめる" submittingLabel="設定しています…" redirectTo="/mypage" />
+  </section>
 </Layout>
